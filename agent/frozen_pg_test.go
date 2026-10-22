@@ -10,9 +10,9 @@ import (
 // 并且能被 ToolSet.frozenAssets() 读回来（add_intent 就是靠这个集合拦截派单）。
 //
 // 这条测试守两件事：
-//   1. 写：DecideCapability(action=switch) 把 decision.Verdict.FreezeAssetIDs 落库；
-//   2. 读：frozenAssets() 用 array_to_json(array_agg(...)) 把 PG 的 bigint[] 还原成集合
-//      —— 这是仓库里反复踩过的坑（bigint[] 不能直接 Scan）。
+//  1. 写：DecideCapability(action=switch) 把 decision.Verdict.FreezeAssetIDs 落库；
+//  2. 读：frozenAssets() 用 array_to_json(array_agg(...)) 把 PG 的 bigint[] 还原成集合
+//     —— 这是仓库里反复踩过的坑（bigint[] 不能直接 Scan）。
 func TestDecideSwitchPersistsFrozenAssetsPG(t *testing.T) {
 	d := p2PGDB(t)
 	taskID := p2PGTask(t, d)

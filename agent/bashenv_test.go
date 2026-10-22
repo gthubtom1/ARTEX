@@ -16,8 +16,8 @@ import (
 func TestBashEnvBlanksInheritedSecrets(t *testing.T) {
 	cases := map[string][]string{
 		"直连（proxyEnv 返回 nil）": envfilter.BlankInherited(nil),
-		"走代理":                envfilter.BlankInherited(proxyEnv("http://127.0.0.1:7897", "")),
-		"走代理 + CA":           envfilter.BlankInherited(proxyEnv("http://127.0.0.1:7897", "/tmp/ca.pem")),
+		"走代理":                 envfilter.BlankInherited(proxyEnv("http://127.0.0.1:7897", "")),
+		"走代理 + CA":            envfilter.BlankInherited(proxyEnv("http://127.0.0.1:7897", "/tmp/ca.pem")),
 	}
 	for name, env := range cases {
 		joined := strings.Join(env, "\n")

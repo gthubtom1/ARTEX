@@ -274,3 +274,12 @@ func sortedUniqueNames(names []string) []string {
 	}
 	return out[:n]
 }
+
+// deferredToolNames 把工具对象列表转成名字列表（给 DeferredInfo 用）。
+func deferredToolNames(ts []actool.CoreTool) []string {
+	out := make([]string, 0, len(ts))
+	for _, t := range ts {
+		out = append(out, t.Name())
+	}
+	return out
+}

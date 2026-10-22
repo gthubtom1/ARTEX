@@ -388,6 +388,15 @@ func (p *Planner) Plan(ctx context.Context, taskID int64, as *db.AssetStore, ts 
 	base := append(tsx.DropCoverageTools(tsx.PlannerTools()), actool.DefaultTools()...)
 	ctx = WithRunInfo(ctx, RunInfo{TaskID: taskID, ExplorationID: explorationID(ts)})
 	tools, def, cleanup := AugmentTools(ctx, "planner", base)
+	// P9-1：状态门挡掉的工具**仍然注册**（可调用），只把 schema 藏起来省 token；
+	// 名字同时进 <available-deferred-tools>，让模型知道它们存在。
+	// norma 的语义：Options.DeferredTools = 只隐藏 schema，名字照常出现、默认可用。
+	if dt := tsx.P2PlannerDeferredTools(); len(dt) > 0 {
+		tools = append(tools, dt...)
+		names := deferredToolNames(dt)
+		def.Deferred = append(def.Deferred, names...)
+		def.GlobalNames = append(def.GlobalNames, names...)
+	}
 	defer cleanup()
 	// 关键态势（刚完成的意图 + 预取的完整图）改放【本轮 user 输入】(见下方 input)，system
 	// 只留静态规划正文。move-out 让 system 每轮稳定、更利于缓存；代价是若单轮变长，态势可能

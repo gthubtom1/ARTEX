@@ -103,6 +103,49 @@ func (t *ToolSet) P2WorkerDeferred() []string { return p2WorkerDeferredNames(t) 
 // P2PlannerDeferred 返回本次 run 被状态门挡掉的 planner P2 工具名（排序）。
 func (t *ToolSet) P2PlannerDeferred() []string { return p2PlannerDeferredNames(t) }
 
+// P2WorkerDeferredTools 返回被状态门挡掉的 worker P2 **工具对象**。
+//
+// norma 的 agentcore.Options.DeferredTools 语义：只隐藏 schema，名字照常出现在
+// <available-deferred-tools>，且默认可用（unlocked）。所以正确做法是——这些工具
+// **仍然注册进 tools**（调得通），只把 schema 藏起来省 token。
+// 只从 tools 里摘掉它们（最初的做法）会让模型既看不见也调不到，R1 链路审查判为 bug。
+func (t *ToolSet) P2WorkerDeferredTools() []actool.CoreTool {
+	if t == nil || t.p2 == nil {
+		return nil
+	}
+	all := t.p2WorkerToolsAll()
+	kept := make(map[string]bool, len(all))
+	for _, tl := range gateWorkerTools(t.gateState(), all) {
+		kept[tl.Name()] = true
+	}
+	out := make([]actool.CoreTool, 0, 8)
+	for _, tl := range all {
+		if !kept[tl.Name()] {
+			out = append(out, tl)
+		}
+	}
+	return out
+}
+
+// P2PlannerDeferredTools 同上，planner 版本。
+func (t *ToolSet) P2PlannerDeferredTools() []actool.CoreTool {
+	if t == nil || t.p2 == nil {
+		return nil
+	}
+	all := t.p2PlannerToolsAll()
+	kept := make(map[string]bool, len(all))
+	for _, tl := range gatePlannerTools(t.gateState(), all) {
+		kept[tl.Name()] = true
+	}
+	out := make([]actool.CoreTool, 0, 8)
+	for _, tl := range all {
+		if !kept[tl.Name()] {
+			out = append(out, tl)
+		}
+	}
+	return out
+}
+
 // ───────────────────────── GateChain ─────────────────────────
 
 func (t *ToolSet) rankIntents() actool.CoreTool {

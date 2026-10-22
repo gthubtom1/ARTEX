@@ -228,3 +228,52 @@ func TestGateStateSQLCoversInheritedOwned(t *testing.T) {
 		t.Fatal("gateStateSQL 丢了本任务台账判定（first_task_id）")
 	}
 }
+
+// 守 R1 抓到的那个 bug：被门控的工具必须"对象"与"名字"成对出现——
+// 对象进 Options.DeferredTools（仍可调用，只隐藏 schema），名字进 <available-deferred-tools>。
+// 只给名字不给对象 = 诱导模型调一个会失败的工具；只给对象不给名字 = 模型不知道它存在。
+func TestDeferredToolsMatchNames(t *testing.T) {
+	ts := gateTestToolSet(t)
+
+	wObjs := ts.P2WorkerDeferredTools()
+	wNames := ts.P2WorkerDeferred()
+	if len(wObjs) != len(wNames) {
+		t.Fatalf("worker: 对象 %d 个 vs 名字 %d 个，必须成对", len(wObjs), len(wNames))
+	}
+	if got, want := deferredToolNames(wObjs), wNames; !sameStringSet(got, want) {
+		t.Fatalf("worker 对象名与 deferred 名单不一致\n got=%v\nwant=%v", got, want)
+	}
+
+	pObjs := ts.P2PlannerDeferredTools()
+	pNames := ts.P2PlannerDeferred()
+	if len(pObjs) != len(pNames) || !sameStringSet(deferredToolNames(pObjs), pNames) {
+		t.Fatalf("planner 对象名与 deferred 名单不一致")
+	}
+
+	// 被门控的工具**不能**再出现在可见集里（否则等于没藏 schema）
+	visible := map[string]bool{}
+	for _, tl := range ts.P2WorkerTools() {
+		visible[tl.Name()] = true
+	}
+	for _, n := range wNames {
+		if visible[n] {
+			t.Fatalf("%q 同时出现在可见集与 deferred 名单里", n)
+		}
+	}
+}
+
+func sameStringSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	m := map[string]bool{}
+	for _, s := range a {
+		m[s] = true
+	}
+	for _, s := range b {
+		if !m[s] {
+			return false
+		}
+	}
+	return true
+}
