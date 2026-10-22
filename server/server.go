@@ -4234,20 +4234,6 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		s.engine.SetProgressHook(s.progressHook(m))
 		s.engine.SetDoneHook(func(ctx context.Context, t *Task) error {
 			id, _ := strconv.ParseInt(t.ID, 10, 64)
-			// 任务收尾也要把 finding 派生成能力卡（否则成功任务的能力菜单为空）。
-			if t.Store != nil {
-				tsx := agent.NewToolSet(t.Store, "system")
-				tsx.SetTaskID(id)
-				if assets := s.m.Assets(); assets != nil {
-					tsx.SetAssetStore(assets, assets.Companies())
-				}
-				if n, cerr := tsx.SyncCapabilities(ctx); cerr != nil {
-					log.Printf("[done] task %s 能力卡派生失败(忽略): %v", t.ID, cerr)
-				} else if n > 0 {
-					s.engine.emitActivity(t, db.Activity{Worker: "system", Kind: "text",
-						Summary: fmt.Sprintf("能力卡：任务收尾派生 %d 张", n)})
-				}
-			}
 			res, err := s.collectCases(ctx, id)
 			if err != nil {
 				return err
