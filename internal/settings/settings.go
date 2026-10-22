@@ -18,6 +18,7 @@ import (
 
 // Defaults 是可调运行参数的默认值。改这里等于改出厂设置。
 var Defaults = map[string]string{
+	"workers": "3", // 同时运行的 worker 数（运行时真键；work.workers 已删）
 	// 并发与预算
 	"work.max_turns":          "40",     // 单次 run 最大轮数（0=不限）
 	"budget.tokens_per_task":  "800000", // 单任务 token 上限（0=不限）

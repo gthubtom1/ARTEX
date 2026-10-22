@@ -17,7 +17,7 @@ func TestDefaultsAndOverrides(t *testing.T) {
 	if !s.Bool("tool.auto_install", false) {
 		t.Fatal("auto_install default should be true")
 	}
-	if got := s.Int("work.workers", 0); got != 3 {
+	if got := s.Int("workers", 0); got != 3 {
 		t.Fatalf("workers=%d", got)
 	}
 	if got := s.Duration("tool.cmd_timeout_s", 0); got != 300*time.Second {
@@ -25,10 +25,10 @@ func TestDefaultsAndOverrides(t *testing.T) {
 	}
 
 	// 覆盖：无 DB 时只写内存
-	if err := s.Set(context.Background(), "work.workers", "8"); err != nil {
+	if err := s.Set(context.Background(), "workers", "8"); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.Int("work.workers", 0); got != 8 {
+	if got := s.Int("workers", 0); got != 8 {
 		t.Fatalf("override failed: %d", got)
 	}
 }
