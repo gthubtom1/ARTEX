@@ -150,8 +150,13 @@ func DecomposeGoalsWithProvider(ctx context.Context, prov llm.Provider, dataDir,
 			emit(r)
 		}
 	}
+	// 注入层：目标拆解也要有人设与执行上下文。
+	// 这一步是整条链的第一跳 —— 如果模型在这里拒答（"这是渗透测试，我不能…"），
+	// 任务连一条意图都拆不出来，后面 32 个机制全部用不上。2026-10-22 实测发现
+	// 它此前是唯一没被覆盖的角色（planner/worker/mainagent/对话页都已覆盖）。
+	sys += injectPromptBlock(goalText)
 	captureRun(ctx, agentcore.Options{
-		Provider:               prov,
+		Provider:               WrapProvider(prov, func() string { return goalText }),
 		SystemPrompt:           []string{sys},
 		Tools:                  tools,
 		PermissionMode:         acperm.ModeBypass,
