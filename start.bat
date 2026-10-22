@@ -30,7 +30,12 @@ set "MAX_DELAY=60"
 set /a delay=1
 
 :loop
-"%BIN%" %*
+if "%~1"=="" (
+	set "ARGS=-addr 127.0.0.1:8787"
+) else (
+	set "ARGS=%*"
+)
+"%BIN%" %ARGS%
 set "code=!ERRORLEVEL!"
 
 if "!code!"=="0" (

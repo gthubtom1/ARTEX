@@ -44,7 +44,12 @@ trap forward INT TERM
 
 delay=1
 while :; do
-	"$BIN" "$@" &
+	if [ "$#" -eq 0 ]; then
+		# 默认只绑回环：这是个手里有凭据/端口的渗透平台，默认暴露到 LAN 不是安全默认值
+		"$BIN" -addr 127.0.0.1:8787 &
+	else
+		"$BIN" "$@" &
+	fi
 	child=$!
 
 	# 信号会打断 wait 并让它返回 >128。此时子进程其实还在做优雅关闭，

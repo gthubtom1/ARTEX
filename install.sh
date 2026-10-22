@@ -65,11 +65,13 @@ is_windows(){
 # ── docker 环境检测 / 自动安装 ───────────────────
 ensure_docker(){
   # Windows：先给指引，别去碰 docker（装了一定失败）。
-  if is_windows; then windows_guide; fi
+  # 先检测：装了 Docker Desktop 的 Windows 用户必须能继续往下走，
+  # 否则"指引第 4 步叫你重跑 ./install.sh --docker"就成了死循环（R4 审查发现）。
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     ok "已检测到 docker 与 docker compose"; return
   fi
   warn "未检测到 docker / docker compose"
+  if is_windows; then windows_guide; fi
   case "$(uname -s)" in
     Linux)
       if [ "$(ask '自动安装 Docker? (y/n)' y)" = y ]; then
@@ -161,7 +163,7 @@ JSON
   # 内嵌前端需要 node 出静态产物
   if command -v npm >/dev/null 2>&1; then
     info "构建前端静态产物…"
-    ( cd web && npm ci && npm run build:static )
+    ( cd web && NODE_ENV=development npm ci --include=dev --ignore-scripts && npm run build:static )
     rm -rf server/webui/dist && cp -r web/out server/webui/dist
     info "编译内嵌单二进制…"
     CGO_ENABLED=0 go build -tags embedui -trimpath -o artex ./cmd/artex

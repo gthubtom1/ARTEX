@@ -118,7 +118,8 @@ else
   command -v rsync >/dev/null 2>&1 || die "未检测到 rsync"
   info "构建前端静态资源"
   if [ "${ARTEX_SKIP_NPM_CI:-0}" != "1" ]; then
-    (cd web && npm ci)
+    # NODE_ENV=production 时裸 npm ci 会跳过 devDeps，next build 缺 typescript/@types 直接失败
+    (cd web && NODE_ENV=development npm ci --include=dev --ignore-scripts)
   fi
   (cd web && npm run build:static)
   info "同步前端资源到 server/webui/dist"

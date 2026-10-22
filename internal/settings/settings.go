@@ -33,10 +33,6 @@ var Defaults = map[string]string{
 	"tool.output_cap_kb":  "2048",
 
 	// 出口（netguard）
-	"net.proxy_http":       "http://127.0.0.1:7897",
-	"net.proxy_socks":      "socks5://127.0.0.1:7897",
-	"net.clash_controller": "http://127.0.0.1:9097",
-	"net.clash_secret":     "",
 	"net.verify_every_s":   "300",
 	"net.verify_urls":      "https://api.ipify.org,https://ifconfig.me",
 
