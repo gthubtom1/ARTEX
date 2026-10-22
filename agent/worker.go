@@ -376,7 +376,8 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 	// base = built-in worker tools ∪ host tools (traffic) ∪ default tools (incl. Bash);
 	// then augment with the agent's visible skills/MCP. During the SDK settlement
 	// phase, Bash is hidden via Settlement.DisabledTools (no local gating needed).
-	base := append(tsx.WorkerTools(), w.extraTools...)
+	wVisible, wDeferred := splitToolSet(tsx.WorkerTools(), workerBaseDeferred)
+	base := append(wVisible, w.extraTools...)
 	// worker 刻意不给 MultiEdit/Glob/Grep：文件精改用 Edit、检索走 Bash(grep/find)，
 	// 收敛工具面、减少低价值调用。其余 SDK 默认工具(Read/Write/Edit/LS/Bash/Sleep)照常。
 	base = append(base, defaultToolsExcept("MultiEdit", "Glob", "Grep")...)
@@ -385,7 +386,7 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 	// P9-1：状态门挡掉的工具**仍然注册**（可调用），只把 schema 藏起来省 token；
 	// 名字同时进 <available-deferred-tools>，让模型知道它们存在。
 	// norma 的语义：Options.DeferredTools = 只隐藏 schema，名字照常出现、默认可用。
-	if dt := tsx.P2WorkerDeferredTools(); len(dt) > 0 {
+	if dt := append(wDeferred, tsx.P2WorkerDeferredTools()...); len(dt) > 0 {
 		if os.Getenv("ARTEX_DEBUG_GATE") == "1" {
 			// 排障用：ARTEX_DEBUG_GATE=1 时打印门控结果，定位"为什么 deferred 没少"
 			log.Printf("[gate] worker intent=%d 可见=%d deferred=%d state=%v", intent.ID, len(tools), len(dt), tsx.gateState())

@@ -277,3 +277,26 @@ func sameStringSet(a, b []string) bool {
 	}
 	return true
 }
+
+// 审计口径：worker 常态工具 ≤14、planner ≤12（含基础领域工具，不只是 P2 子集）。
+// 这条测试直接量"最终可见集"，防止再用 P2 子集的数字冒充整体。
+func TestVisibleToolCountMeetsBudget(t *testing.T) {
+	ts := gateTestToolSet(t)
+
+	wv, wd := splitToolSet(ts.WorkerTools(), workerBaseDeferred)
+	// 再叠加状态门（空状态）
+	wvGated := gateWorkerTools(&gateState{}, wv)
+	total := len(wvGated) + len(ts.P2WorkerDeferredTools())
+	t.Logf("worker: 基础可见=%d 基础deferred=%d 空态可见总计=%d (预算 14)", len(wv), len(wd), total)
+	if total > 14 {
+		t.Fatalf("worker 空态可见工具 %d 个，超过预算 14（%v）", total, toolNames(wvGated))
+	}
+
+	pv, pd := splitToolSet(ts.PlannerTools(), plannerBaseDeferred)
+	pvGated := gatePlannerTools(&gateState{}, pv)
+	ptotal := len(pvGated) + len(ts.P2PlannerDeferredTools())
+	t.Logf("planner: 基础可见=%d 基础deferred=%d 空态可见总计=%d (预算 12)", len(pv), len(pd), ptotal)
+	if ptotal > 12 {
+		t.Fatalf("planner 空态可见工具 %d 个，超过预算 12（%v）", ptotal, toolNames(pvGated))
+	}
+}

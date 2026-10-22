@@ -288,3 +288,37 @@ func deferredToolNames(ts []actool.CoreTool) []string {
 	}
 	return out
 }
+
+// ── 基础工具（非 P2）的延迟名单 ──
+//
+// 为什么需要：审计按"工具数"读判据——worker 常态 ≤14、planner ≤12。
+// 只门控 P2 子集时，worker 仍有 12 个基础领域工具（合计 22），planner 23，都没达标。
+// 这里把"不常驻、需要时再解锁"的基础工具也放进 deferred：schema 不下发，
+// 名字出现在 <available-deferred-tools>，工具本身仍可调用（SDK 语义）。
+var workerBaseDeferred = map[string]bool{
+	"list_findings": true, "record_intelligence": true, "list_assets": true,
+	"search_all_worker_traces": true, "get_worker_trace": true,
+	// 适配器：扫描是主力，但 schema 很占地方；不常驻，需要时解锁
+	"nmap_scan": true, "httpx_probe": true, "nuclei_scan": true,
+}
+
+var plannerBaseDeferred = map[string]bool{
+	"list_facts": true, "expand_digest": true, "get_worker_output": true,
+	"get_worker_trace": true, "search_all_worker_traces": true,
+	"list_goals": true, "goal_met": true, "list_companies": true,
+	"list_assets": true, "add_company_scope": true, "add_task_scope": true,
+	"list_untested_assets": true,
+}
+
+// splitToolSet 按名字把工具分成（常驻可见, 延迟）两份。名单外的工具一律常驻（fail-open）。
+func splitToolSet(all []actool.CoreTool, deferNames map[string]bool) (visible, deferred []actool.CoreTool) {
+	visible = make([]actool.CoreTool, 0, len(all))
+	for _, t := range all {
+		if deferNames[t.Name()] {
+			deferred = append(deferred, t)
+			continue
+		}
+		visible = append(visible, t)
+	}
+	return visible, deferred
+}

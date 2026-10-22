@@ -170,16 +170,30 @@ func (g *Guard) Verify(ctx context.Context) (Status, error) {
 	st := Status{At: time.Now(), BaselineIP: c.Baseline}
 	cli := g.Client()
 
+	// 逐个源尝试：**单个源失败不应让整次自检失败**（R3 审查 R7）。
+	// 实测环境里 api.ipify.org 常被重置，而 ifconfig.me 可用；按原来的写法（首个失败即返回）
+	// 会让 exit_ip 永远为空 —— 而这块是 D1 决策后唯一保留的出口能力。
 	ips := make([]string, 0, len(c.VerifyURLs))
+	var firstErr error
 	for _, u := range c.VerifyURLs {
 		ip, ferr := fetchIP(ctx, cli, u)
 		if ferr != nil {
-			st.Detail = fmt.Sprintf("%s: %v", u, ferr)
-			g.setLast(st)
-			g.logEgress(ctx, st)
-			return st, fmt.Errorf("netguard: 出口自检失败（%s）: %w", u, ferr)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%s: %w", u, ferr)
+			}
+			continue
 		}
 		ips = append(ips, ip)
+	}
+	if len(ips) == 0 {
+		st.Detail = fmt.Sprintf("所有出口源都不可达（first: %v）", firstErr)
+		g.setLast(st)
+		g.logEgress(ctx, st)
+		return st, fmt.Errorf("netguard: 出口自检失败（所有源不可达）: %w", firstErr)
+	}
+	if len(ips) == 1 {
+		// 只剩一个源可用：无法互证，但在 Detail 里写明（不当作失败）
+		st.Detail = "只有一个出口源可用，无法互证（不阻断）"
 	}
 	for i := 1; i < len(ips); i++ {
 		if ips[i] != ips[0] {
