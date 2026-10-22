@@ -1,12 +1,11 @@
 @echo off
-chcp 65001 >nul 2>&1
 cd /d "%~dp0"
 if not exist "artex.exe" (
-  echo [x] ç¼ºå°‘ artex.exeï¼Œè¯·å…ˆåŒå‡» éƒ¨ç½².bat
+  echo [x] È±ÉÙ artex.exe£¬ÇëÏÈË«»÷ ²¿Êğ.bat
   pause & exit /b 1
 )
 if not exist "config.json" (
-  echo [x] ç¼ºå°‘ config.jsonï¼Œè¯·å…ˆåŒå‡» éƒ¨ç½².bat
+  echo [x] È±ÉÙ config.json£¬ÇëÏÈË«»÷ ²¿Êğ.bat
   pause & exit /b 1
 )
 call start.bat

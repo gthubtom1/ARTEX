@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
@@ -8,29 +7,29 @@ set "TAG=v0.5.9"
 set "EXE=artex.exe"
 
 echo ============================================
-echo  ARTEX ä¸€é”®éƒ¨ç½²ï¼ˆWindowsï¼‰
+echo  ARTEX Ò»¼ü²¿Êð£¨Windows£©
 echo ============================================
 
 if not exist "skills" (
-  echo [x] å½“å‰ç›®å½•ç¼ºå°‘ skills\ï¼Œè¯·å…ˆå®Œæ•´ clone ä»“åº“ï¼šhttps://github.com/%REPO%
+  echo [x] µ±Ç°Ä¿Â¼È±ÉÙ skills\£¬ÇëÏÈÍêÕû clone ²Ö¿â£ºhttps://github.com/%REPO%
   pause & exit /b 1
 )
 if not exist "kb" (
-  echo [x] å½“å‰ç›®å½•ç¼ºå°‘ kb\ï¼Œè¯·å…ˆå®Œæ•´ clone ä»“åº“ã€‚
+  echo [x] µ±Ç°Ä¿Â¼È±ÉÙ kb\£¬ÇëÏÈÍêÕû clone ²Ö¿â¡£
   pause & exit /b 1
 )
 
 if not exist "%EXE%" (
-  echo [*] ä¸‹è½½ artex.exe ...
+  echo [*] ÏÂÔØ artex.exe ...
   curl.exe -L --fail -o "%EXE%" "https://github.com/%REPO%/releases/download/%TAG%/artex.exe"
   if not exist "%EXE%" (
     powershell -NoProfile -Command "try{Invoke-WebRequest -UseBasicParsing 'https://github.com/%REPO%/releases/download/%TAG%/artex.exe' -OutFile '%EXE%'}catch{exit 1}"
   )
   if not exist "%EXE%" (
-    echo [x] ä¸‹è½½å¤±è´¥ã€‚è¯·æ£€æŸ¥ç½‘ç»œ/ä»£ç†ï¼Œæˆ–æ‰‹åŠ¨ä»Ž Releases é¡µä¸‹è½½ artex.exe æ”¾åˆ°æœ¬ç›®å½•ã€‚
+    echo [x] ÏÂÔØÊ§°Ü¡£Çë¼ì²éÍøÂç/´úÀí£¬»òÊÖ¶¯´Ó Releases Ò³ÏÂÔØ artex.exe ·Åµ½±¾Ä¿Â¼¡£
     pause & exit /b 1
   )
-  echo [+] å·²ä¸‹è½½ %EXE%
+  echo [+] ÒÑÏÂÔØ %EXE%
 )
 
 if exist "config.json" goto :start
@@ -38,36 +37,36 @@ if exist "config.json" goto :start
 where docker >nul 2>&1
 if errorlevel 1 goto :manual_db
 
-echo [*] æœªå‘çŽ° config.jsonï¼Œå°è¯•ç”¨ Docker å¯åŠ¨ PostgreSQL ...
+echo [*] Î´·¢ÏÖ config.json£¬³¢ÊÔÓÃ Docker Æô¶¯ PostgreSQL ...
 docker info >nul 2>&1
 if errorlevel 1 (
-  echo [x] Docker å·²å®‰è£…ä½†æœªè¿è¡Œï¼Œè¯·å…ˆå¯åŠ¨ Docker Desktopã€‚
+  echo [x] Docker ÒÑ°²×°µ«Î´ÔËÐÐ£¬ÇëÏÈÆô¶¯ Docker Desktop¡£
   pause & exit /b 1
 )
 docker start artex-pg >nul 2>&1
 if errorlevel 1 (
   docker run -d --name artex-pg -e POSTGRES_PASSWORD=artexpass -e POSTGRES_DB=artex -p 5432:5432 postgres:16
   if errorlevel 1 (
-    echo [x] å¯åŠ¨ PostgreSQL å®¹å™¨å¤±è´¥ï¼Œè¯·æŸ¥çœ‹ Docker è¾“å‡ºã€‚
+    echo [x] Æô¶¯ PostgreSQL ÈÝÆ÷Ê§°Ü£¬Çë²é¿´ Docker Êä³ö¡£
     pause & exit /b 1
   )
 )
-echo [*] ç­‰å¾…æ•°æ®åº“å°±ç»ª ...
+echo [*] µÈ´ýÊý¾Ý¿â¾ÍÐ÷ ...
 timeout /t 10 /nobreak >nul
 powershell -NoProfile -Command "$j=@{database=@{host='127.0.0.1';port=5432;user='postgres';password='artexpass';dbname='artex';sslmode='disable'}}; $j|ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 'config.json'"
-echo [+] å·²ç”Ÿæˆ config.jsonï¼ˆDocker PostgreSQLï¼šartex/artexpass@127.0.0.1:5432ï¼‰
+echo [+] ÒÑÉú³É config.json£¨Docker PostgreSQL£ºartex/artexpass@127.0.0.1:5432£©
 goto :start
 
 :manual_db
 if not exist "config.json" copy "config.example.json" "config.json" >nul
-echo [!] æ²¡æ£€æµ‹åˆ° Dockerã€‚å·²ç”Ÿæˆ config.jsonï¼Œè¯·å¡«å†™ä½ çš„ PostgreSQL è¿žæŽ¥ä¿¡æ¯åŽä¿å­˜ã€‚
-echo     å¡«å†™æ ¼å¼å‚è€ƒ config.example.jsonï¼›ä¿å­˜åŽé‡æ–°åŒå‡»æœ¬è„šæœ¬ã€‚
+echo [!] Ã»¼ì²âµ½ Docker¡£ÒÑÉú³É config.json£¬ÇëÌîÐ´ÄãµÄ PostgreSQL Á¬½ÓÐÅÏ¢ºó±£´æ¡£
+echo     ÌîÐ´¸ñÊ½²Î¿¼ config.example.json£»±£´æºóÖØÐÂË«»÷±¾½Å±¾¡£
 notepad "config.json"
 pause & exit /b 1
 
 :start
-echo [*] å¯åŠ¨ ARTEXï¼ˆå…³é—­æœ¬çª—å£å³åœæ­¢ï¼‰ ...
-echo [*] æµè§ˆå™¨æ‰“å¼€ï¼šhttp://127.0.0.1:8787
-echo [*] é¦–æ¬¡ç™»å½•ï¼šç”¨æˆ·å ARTEXï¼Œå¯†ç åœ¨é¦–æ¬¡å¯åŠ¨æ—¶è®¾ç½®
+echo [*] Æô¶¯ ARTEX£¨¹Ø±Õ±¾´°¿Ú¼´Í£Ö¹£© ...
+echo [*] ä¯ÀÀÆ÷´ò¿ª£ºhttp://127.0.0.1:8787
+echo [*] Ê×´ÎµÇÂ¼£ºÓÃ»§Ãû ARTEX£¬ÃÜÂëÔÚÊ×´ÎÆô¶¯Ê±ÉèÖÃ
 echo.
 call start.bat
