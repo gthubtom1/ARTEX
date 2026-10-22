@@ -985,6 +985,18 @@ export interface Settings {
   noa_compaction?: boolean;
   // 拦截自动裁决：off=全部人工/模型审批；reviewer=规则自动放行/拒绝（拿不准才挂起）；allow_all=全部放行。
   intercept_auto_decide?: "off" | "reviewer" | "allow_all";
+  // ── 以下由 settingsPayload() 回显，前端页面直接读（缺了就得每页写交叉类型绕过）──
+  /** 凭据主密钥指纹；空串 = 正在用临时密钥（重启后旧凭据不可解） */
+  cred_key_fingerprint?: string;
+  /** 内置人设开关：on = 人设正文留空时用内置人设 */
+  inject_preset?: "on" | "off";
+  /** 内置人设正文（只读回显，供「一键填入」用） */
+  inject_default_persona?: string;
+  /** 内置人设展示名 */
+  inject_default_persona_name?: string;
+  /** report_finding 的三门质量闸：off / infer（默认）/ strict */
+  findings_verify_gate?: "off" | "infer" | "strict";
+
   // 注入层（防拒答）：off|always|on-miss|on-refusal|hybrid
   inject_mode?: "off" | "always" | "on-miss" | "on-refusal" | "hybrid";
   inject_max_chars?: number;

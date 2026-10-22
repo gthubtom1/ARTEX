@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 
 // 后端 /api/settings 会回显凭据主密钥指纹，但 Settings 类型里还没声明它
 // （本页不改 lib 文件，只在本地扩展）。
-type SettingsWithFingerprint = Settings & { cred_key_fingerprint?: string };
+type SettingsWithFingerprint = Settings;
 
 type TierRole = "planner" | "worker" | "verifier";
 

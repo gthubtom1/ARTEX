@@ -12,6 +12,7 @@ python scripts/audit_links.py
 
 echo "== 0.5/3 设置归属审计（同一个 setting 键不许被两个页面写）=="
 python scripts/settings_owners.py
+python scripts/settings_contract.py   # 契约：settingsPayload 回显的键必须在前端 Settings 里声明
 
 echo "== 1/3 go build ./... =="
 go build ./...
