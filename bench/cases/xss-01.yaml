@@ -1,0 +1,18 @@
+# xss-01 · DVWA(low) 反射型 XSS
+#
+# 这个用例在验什么：平台能不能证明「输入被原样带进 HTML 并被浏览器执行」，
+# 而不是把「输入里出现了 <script>」当成漏洞（那只是回显，不是执行）。
+#
+# 靶标：DVWA security=low，账号 admin/password。只允许打这个地址。
+key: xss-01
+name: "DVWA 反射型 XSS 未编码回显"
+category: xss
+url: "http://127.0.0.1:18081/vulnerabilities/xss_r/?name=test"
+goal: "目标 {url}。本地 DVWA 靶场（security=low，账号 admin/password）。只测这个地址：构造 name 参数让脚本在响应 HTML 里以可执行形式出现，证据里贴出未编码的响应片段（标签/事件处理器），并说明浏览器会执行它。"
+timeout_s: 300
+pass:
+  finding_vulnclass: ["xss", "cross-site-scripting"]
+  finding_surface_regex: "(?i)/vulnerabilities/xss_r"
+  finding_evidence_regex: "(?i)(<script[^>]*>|<img[^>]+onerror=|<svg[^>]+onload=|alert\\(|document\\.cookie)"
+  # 误报样例（不该算过）：evidence 只是「参数被回显到页面」/「输入 <script> 没有报错」，
+  # 但响应里其实是 HTML 实体编码（&lt;script&gt;）——没有执行面。

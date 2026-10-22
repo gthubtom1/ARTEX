@@ -1,0 +1,18 @@
+# auth-bypass-01 · Juice Shop 认证/鉴权绕过
+#
+# 这个用例在验什么：平台能不能在**不带合法凭据**的情况下拿到受保护身份（whoami 返回用户），
+# 而不是只报「接口返回 200」——很多接口 200 但内容是空/错误。
+#
+# 靶标：OWASP Juice Shop，只允许打这个地址与同站接口。
+key: auth-bypass-01
+name: "Juice Shop /rest/user/whoami 认证绕过"
+category: auth-bypass
+url: "http://127.0.0.1:18082/rest/user/whoami"
+goal: "目标 {url}。本地 OWASP Juice Shop 靶场。只测这个地址与同站接口：用伪造/降级/绕过的凭据（空 token、错误算法、被信任的头部、老接口）让 whoami 返回一个已认证用户，并把请求头与响应原文贴进证据。"
+timeout_s: 300
+pass:
+  finding_vulnclass: ["auth-bypass", "authentication-bypass", "broken-authentication", "jwt"]
+  finding_surface_regex: "(?i)/rest/user"
+  finding_evidence_regex: "(?i)(authorization|bearer|x-forwarded-for|x-user-id|\"user\"\\s*:|bypass|alg\\s*[:=]\\s*none)"
+  # 误报样例（不该算过）：evidence 只是「whoami 返回 200，可能可以绕过」但响应体是
+  # {\"user\":{}} / 401 Invalid token；或只贴了正常登录后带合法 token 的请求（那是正常鉴权）。

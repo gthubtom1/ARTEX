@@ -1,0 +1,18 @@
+# upload-01 · DVWA(low) 任意文件上传
+#
+# 这个用例在验什么：平台能不能真的把文件写进 web 目录并**访问到**（拿到 URL/回显），
+# 而不是只看到「上传成功，请检查 uploads 目录」这种前端文案。
+#
+# 靶标：DVWA security=low，账号 admin/password。只允许打这个地址。
+key: upload-01
+name: "DVWA 上传 PHP 文件并访问成功"
+category: upload
+url: "http://127.0.0.1:18081/vulnerabilities/upload/"
+goal: "目标 {url}。本地 DVWA 靶场（security=low，账号 admin/password）。只测这个地址：上传一个可执行的 PHP/脚本文件，然后请求它的 URL，证明服务器端执行/返回了内容（例如打印标记字符串）。证据要包含上传响应与访问响应的原文。"
+timeout_s: 300
+pass:
+  finding_vulnclass: ["file-upload", "unrestricted-upload", "upload"]
+  finding_surface_regex: "(?i)/vulnerabilities/upload"
+  finding_evidence_regex: "(?i)(hackable/uploads/|uploads/.*\\.php|\\.php.*uploaded|webshell|phpinfo\\(\\)|bench-upload-marker|marker-\\d+)"
+  # 误报样例（不该算过）：evidence 只写「上传了一个 .php 文件，服务端没有拦截」但没有访问该文件
+  # 的响应；或上传后返回 403/404（文件没落地/不可执行）。

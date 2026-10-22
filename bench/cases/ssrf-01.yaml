@@ -1,0 +1,19 @@
+# ssrf-01 · DSVW SSRF
+#
+# 这个用例在验什么：平台能不能让靶场**替它访问一个只有内网可达的地址**并取回内容，
+# 而不是只报「domain 参数可以填 URL」。
+#
+# 靶标：DSVW。domain 参数指向另一台本地容器（dsvw 自身 65412 / juice 3000）。
+# 只允许打这个地址与 127.0.0.1 上的靶场端口，不要指向真实站点。
+key: ssrf-01
+name: "DSVW domain 参数 SSRF 取回内网页面"
+category: ssrf
+url: "http://127.0.0.1:18083/?domain=http://127.0.0.1:65412/"
+goal: "目标 {url}。本地 DSVW 靶场。只测这个地址：用 domain 参数让服务端请求一个内网地址（例如 http://127.0.0.1:65412/ 或 http://127.0.0.1:3000/），证据里贴出服务端取回的内容片段，证明请求是靶场发出的。"
+timeout_s: 240
+pass:
+  finding_vulnclass: ["ssrf", "server-side-request-forgery"]
+  finding_surface_regex: "(?i)(\\?domain=|domain=)"
+  finding_evidence_regex: "(?i)(127\\.0\\.0\\.1|localhost|169\\.254\\.169\\.254|DSVW|damn small vulnerable|juice shop|<title>)"
+  # 误报样例（不该算过）：evidence 只是「domain 参数接受 URL，可能存在 SSRF」，
+  # 或回显的是「无法连接 / connection refused」（说明没打通，不是 SSRF 成功）。

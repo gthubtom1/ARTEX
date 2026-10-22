@@ -12,7 +12,13 @@ python scripts/audit_links.py
 
 echo "== 0.5/3 设置归属审计（同一个 setting 键不许被两个页面写）=="
 python scripts/settings_owners.py
-python scripts/settings_contract.py   # 契约：settingsPayload 回显的键必须在前端 Settings 里声明
+python scripts/settings_contract.py
+echo "== 0.6/3 仓库完整性（基准用例必须被 git 跟踪）=="
+if [ -z "$(git ls-files bench/cases | head -1)" ]; then
+  echo "bench/cases 没有被 git 跟踪 —— 克隆下来没有用例，P8-1 会静默失效"; exit 1
+fi
+echo "bench/cases 已跟踪：$(git ls-files bench/cases | wc -l) 个用例"
+   # 契约：settingsPayload 回显的键必须在前端 Settings 里声明
 
 echo "== 1/3 go build ./... =="
 go build ./...

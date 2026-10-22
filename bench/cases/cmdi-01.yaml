@@ -1,0 +1,18 @@
+# cmdi-01 · DVWA(low) 命令注入
+#
+# 这个用例在验什么：平台能不能把「输入被拼进 shell」这件事用命令回显证明出来
+# （id / whoami / cat 的真实输出），而不是只靠「页面回显了 127.0.0.1」。
+#
+# 靶标：DVWA security=low，账号 admin/password。只允许打这个地址。
+key: cmdi-01
+name: "DVWA 命令注入执行 id 并回显"
+category: cmdi
+url: "http://127.0.0.1:18081/vulnerabilities/exec/"
+goal: "目标 {url}。本地 DVWA 靶场（security=low，账号 admin/password）。只测这个地址：在 ping 输入框的参数里注入一条命令（例如 id / whoami / cat /etc/passwd），证明命令真的被执行，并把原始响应贴进证据。"
+timeout_s: 300
+pass:
+  finding_vulnclass: ["command-injection", "cmdi", "os-command"]
+  finding_surface_regex: "(?i)/vulnerabilities/exec"
+  finding_evidence_regex: "(?i)(uid=\\d+\\(|gid=\\d+\\(|root:.*:0:0:|www-data|\\bping\\s+-c\\s+\\d+)"
+  # 误报样例（不该算过）：evidence 只有「输入 127.0.0.1; ls 后页面有变化 / 可能存在命令注入」，
+  # 没有命令回显；或者只贴了 ping 的正常输出（说明没注入成功）。

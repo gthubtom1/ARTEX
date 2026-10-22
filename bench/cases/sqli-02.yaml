@@ -1,0 +1,18 @@
+# sqli-02 · DSVW id 参数 UNION 注入
+#
+# 这个用例在验什么：与 sqli-01 同一能力、不同靶场/不同写法（UNION 而非布尔），
+# 用来区分「平台只会一套 payload」还是「能按目标调整」。判据要求真的取出数据。
+#
+# 靶标：DSVW，只允许打这个地址。
+key: sqli-02
+name: "DSVW id 参数 UNION 注入取数据"
+category: sqli
+url: "http://127.0.0.1:18083/?id=1"
+goal: "目标 {url}。本地 DSVW 靶场。只测这个地址：用 id 参数做 SQL 注入（UNION/报错/布尔均可），从数据库里取出至少一行真实数据（表名或用户名/版本号），证据里贴出请求与响应原文。"
+timeout_s: 240
+pass:
+  finding_vulnclass: ["sql-injection", "sqli"]
+  finding_surface_regex: "(?i)(\\?id=|id=)"
+  finding_evidence_regex: "(?i)(union\\s+select|sleep\\(|and\\s+1=1|sql syntax|information_schema|sqlite_master|mysql|postgres)"
+  # 误报样例（不该算过）：evidence 只有「id=1' 触发 SQL 报错」但没有取出任何数据；
+  # 或响应其实是正常列表页（注入没生效）。

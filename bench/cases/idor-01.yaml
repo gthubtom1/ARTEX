@@ -1,0 +1,18 @@
+# idor-01 · Juice Shop 越权访问他人购物车
+#
+# 这个用例在验什么：平台能不能用 A 的会话读到/改到 B 的资源（跨用户对象引用），
+# 而不是只报「接口需要鉴权但返回了数据」。
+#
+# 靶标：OWASP Juice Shop。判据要求证据里出现 basket/UserId 等对象标识。
+key: idor-01
+name: "Juice Shop BasketItems IDOR 读写他人购物车"
+category: idor
+url: "http://127.0.0.1:18082/api/BasketItems"
+goal: "目标 {url}。本地 OWASP Juice Shop 靶场。只测这个地址与同站接口：先拿到一个普通用户的会话，再用 BasketItems 接口读取或修改**另一个用户**的购物车条目（换 basket/Item id 或 UserId），证明越权成功。证据贴出两个不同身份的请求/响应。"
+timeout_s: 300
+pass:
+  finding_vulnclass: ["idor", "broken-object-level-authorization", "bola", "access-control"]
+  finding_surface_regex: "(?i)/api/BasketItems"
+  finding_evidence_regex: "(?i)(basket|userid|user_id|\"productid\"|\"quantity\"|\"itemid\")"
+  # 误报样例（不该算过）：evidence 只是「BasketItems 需要 JWT」或「用未登录会话返回 401」；
+  # 或者只操作了自己的购物车（没有跨用户，就不是 IDOR）。

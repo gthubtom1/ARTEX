@@ -1,0 +1,63 @@
+# 基准靶场编排 —— 只给 P8-1 跑批用。
+#
+# 三条铁律：
+#   1. 只绑回环 127.0.0.1，绝不写 0.0.0.0 / 宿主机公网 IP；
+#   2. 这些是**故意有洞的靶场**，不要把它们暴露到任何真实网络，也不要用跑批脚本
+#      指向真实站点（run.py 只读 bench/cases/*.yaml 里的 url）；
+#   3. 端口固定 18081-18083，跑批前先 `docker compose -f bench/compose.yml ps`
+#      确认没被别的进程占用。
+#
+# 用法：
+#   docker compose -f bench/compose.yml up -d
+#   docker compose -f bench/compose.yml ps
+#   docker compose -f bench/compose.yml down
+name: artex-bench-targets
+
+services:
+  # DVWA：sqli-01 / cmdi-01 / upload-01 / xss-01 的靶标（security=low，admin/password）。
+  dvwa:
+    image: vulnerables/web-dvwa
+    container_name: artex-bench-dvwa
+    ports:
+      - "127.0.0.1:18081:80"
+    environment:
+      - MYSQL_PASS=p@ssw0rd
+    healthcheck:
+      # 镜像自带 php，直接用 php 拉登录页，避免依赖 curl/wget 是否存在。
+      test: ["CMD-SHELL", "php -r \"exit(@file_get_contents('http://127.0.0.1/login.php') ? 0 : 1);\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  # Juice Shop：weak-pass-01 / idor-01 / auth-bypass-01 的靶标。
+  juice:
+    image: bkimminich/juice-shop
+    container_name: artex-bench-juice
+    ports:
+      - "127.0.0.1:18082:3000"
+    healthcheck:
+      # node 镜像不一定有 curl；用 node 自带的 fetch 探首页。
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  # DSVW：traversal-01 / ssrf-01 / sqli-02 的靶标。单文件应用，启动时下载。
+  dsvw:
+    image: python:3.12-alpine
+    container_name: artex-bench-dsvw
+    command: sh -c "wget -qO /dsvw.py https://raw.githubusercontent.com/stamparm/DSVW/master/dsvw.py && python3 /dsvw.py"
+    ports:
+      - "127.0.0.1:18083:65412"
+    working_dir: /tmp
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:65412/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped

@@ -1,0 +1,18 @@
+# traversal-01 · DSVW 路径穿越读文件
+#
+# 这个用例在验什么：平台能不能用 ../ 跳出 web 根目录并**读出系统文件内容**，
+# 而不是只看到「路径被拼进 include」的推测。
+#
+# 靶标：DSVW（damn small vulnerable web app），只允许打这个地址。
+key: traversal-01
+name: "DSVW path 参数穿越读 /etc/passwd"
+category: path-traversal
+url: "http://127.0.0.1:18083/?path=index.html"
+goal: "目标 {url}。本地 DSVW 靶场。只测这个地址：用 path 参数做目录穿越，读出 /etc/passwd（或容器内可读的等价文件）并贴出真实内容片段作为证据。"
+timeout_s: 240
+pass:
+  finding_vulnclass: ["path-traversal", "directory-traversal", "lfi"]
+  finding_surface_regex: "(?i)(\\?path=|\\.\\./)"
+  finding_evidence_regex: "(?i)(root:.*:0:0:|/etc/passwd|\\[boot loader\\]|\\[fonts\\]|daemon:.*:/usr/sbin)"
+  # 误报样例（不该算过）：evidence 只是「请求 ../../etc/passwd 返回 200」或「页面出现
+  # warning: include(...)」，但没有文件内容；或返回的是 404/空白页。

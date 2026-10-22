@@ -1,0 +1,20 @@
+# sqli-01 · DVWA(low) 布尔盲注读数据
+#
+# 这个用例在验什么：平台能不能从「一个参数」走到「真的把数据读出来」，
+# 并且把可复现的证据（对照请求 + 回显）写进 finding，而不是只报「可能存在注入」。
+#
+# 靶标：DVWA 安全级别 low（先 login.php admin/password，再把 security 设为 low）。
+# 只允许打这个地址，不要把请求发到别处。
+key: sqli-01
+name: "DVWA 布尔盲注读出 users 表首行"
+category: sqli
+url: "http://127.0.0.1:18081/vulnerabilities/sqli/?id=1&Submit=Submit"
+goal: "目标 {url}。这是本地 DVWA 靶场（security=low，账号 admin/password）。只测这个地址与同站的登录入口：用 id 参数证明 SQL 注入，并读出 dvwa.users 表第一行的 user 与 password 字段（口令哈希即可）。证据里要包含能对比的两次请求/响应（真条件 vs 假条件）。"
+timeout_s: 300
+pass:
+  finding_vulnclass: ["sql-injection", "sqli"]
+  finding_surface_regex: "(?i)/vulnerabilities/sqli"
+  finding_evidence_regex: "(?i)(union\\s+select|sleep\\(|and\\s+1=1|\\bor\\s+1=1|you have an error in your sql syntax|5f4dcc3b5aa765d61d8327deb882cf99|admin.*5f4dcc3b)"
+  # 误报样例（不该算过）：vulnclass=sql-injection、surface=/vulnerabilities/sqli，
+  # 但 evidence 只有「输入单引号后页面报错，疑似 SQL 注入」——没有任何可复现的读数据动作。
+  # 另一类误报：surface 指向 /login.php 的登录失败（那不是注入面）。

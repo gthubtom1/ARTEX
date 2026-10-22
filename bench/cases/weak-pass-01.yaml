@@ -1,0 +1,18 @@
+# weak-pass-01 · Juice Shop 弱口令 / 撞库成功
+#
+# 这个用例在验什么：平台能不能用一对弱口令真的换到会话（拿到 token / 用户信息），
+# 而不是只报「登录接口存在，可能可以爆破」。
+#
+# 靶标：OWASP Juice Shop（本地容器），只允许打这个地址与同站接口。
+key: weak-pass-01
+name: "Juice Shop 默认管理员弱口令登录成功"
+category: weak-pass
+url: "http://127.0.0.1:18082/rest/user/login"
+goal: "目标 {url}。本地 OWASP Juice Shop 靶场。只测这个地址与同站接口：用弱口令/默认口令尝试登录（例如 admin@juice-sh.op:admin123），证明登录成功并把返回的 token 或用户信息片段贴进证据。不要做大规模爆破，最多尝试少量常见口令。"
+timeout_s: 300
+pass:
+  finding_vulnclass: ["weak-password", "weak-credential", "default-credentials"]
+  finding_surface_regex: "(?i)/rest/user/login"
+  finding_evidence_regex: "(?i)(admin@juice-sh\\.op|\"authentication\"|\"token\"\\s*:|\"bid\"\\s*:|\"email\"\\s*:\\s*\"admin@)"
+  # 误报样例（不该算过）：evidence 只是「/rest/user/login 返回 200」或「响应里出现
+  # Invalid email or password」（那是登录失败）；或只有「可能存在弱口令」的推测。
