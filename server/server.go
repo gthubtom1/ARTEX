@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -4407,6 +4408,11 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		}
 		tools := v.([]env.Tool)
 		if _, ok := s.envDisc.Find(tools, name); ok {
+			return true, ""
+		}
+		// 发现表漏了但 PATH 里其实有（R3 实测：powershell 在本机存在，却在发现表里查不到）。
+		// 再问一次 LookPath，避免"明明装了却说没有"。
+		if _, err := exec.LookPath(name); err == nil {
 			return true, ""
 		}
 		return false, "本机未找到 " + name + "。可以改用等价工具继续（例如 nmap↔masscan+nc、sqlmap↔内置注入脚本），或到环境页安装后再试。"

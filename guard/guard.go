@@ -76,6 +76,34 @@ var shellBuiltins = map[string]bool{
 	"jobs": true, "bg": true, "fg": true, "local": true, "declare": true,
 }
 
+// pyKeywords 是 Python 语句关键字：heredoc/临时脚本里的行首单词不该被当成命令。
+var pyKeywords = map[string]bool{
+	"import": true, "from": true, "def": true, "class": true, "return": true,
+	"lambda": true, "async": true, "await": true, "yield": true, "assert": true,
+}
+
+// isDigitOrRange 判断是不是 PowerShell 的区间表达式（1..3 / 1..$n / 1-3）。
+//
+// 注意别写成"全是数字和符号"：那样 `7z`、`7za` 这类真实命令会被当成区间而跳过检查。
+// 判据是"数字开头 **且** 含 `..` 或 `-数字/-$变量`"。
+func isDigitOrRange(s string) bool {
+	if s == "" || s[0] < '0' || s[0] > '9' {
+		return false
+	}
+	if strings.Contains(s, "..") {
+		return true
+	}
+	for i := 1; i+1 < len(s); i++ {
+		if s[i] != '-' {
+			continue
+		}
+		if s[i+1] == '$' || (s[i+1] >= '0' && s[i+1] <= '9') {
+			return true
+		}
+	}
+	return false
+}
+
 // psKeywords 是 PowerShell 语法关键字：它们后面跟的是语句不是命令。
 var psKeywords = map[string]bool{
 	"try": true, "catch": true, "finally": true, "if": true, "else": true,
@@ -151,6 +179,10 @@ func firstCommand(cmd string) string {
 		f = strings.TrimRight(f, ";,)|&")
 		low := strings.ToLower(f)
 		if low == "" {
+			return ""
+		}
+		// PowerShell 的数字区间表达式（1..3）与 Python 语句关键字：都不是命令名。
+		if isDigitOrRange(f) || pyKeywords[low] {
 			return ""
 		}
 		if psKeywords[low] {

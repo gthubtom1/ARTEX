@@ -15,6 +15,12 @@ func TestFirstCommandNoFalsePositive(t *testing.T) {
 		`export FOO=1; echo ok`,
 		`echo "hi"`,
 		`try { throw "x" } catch { }`,
+		// R3 实测仍会误拦的两类（P9 收尾时补）
+		`1..3 | ForEach-Object { $_ }`,
+		`1..$n | % { $_ }`,
+		`import os, sys`,
+		`from urllib.parse import urljoin`,
+		`def main(): pass`,
 	}
 	for _, cmd := range skip {
 		if got := firstCommand(cmd); got != "" {
