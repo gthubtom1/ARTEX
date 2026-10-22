@@ -37,7 +37,7 @@ P8-2  内置默认人设 + 每请求现取 + 主对话/对话页全覆盖
 | 要验什么 | 怎么验 |
 |---|---|
 | 0004 迁移在真 PG 上执行 | 起 PG → 启动 artex → 看日志无迁移错误 |
-| 10 个靶标 + 基线跑批 | `docker compose -f bench/compose.yml up -d` → `python scripts/bench/run.py --set smoke` |
+| 3 个靶标（10 个用例复用） + 基线跑批 | `docker compose -f bench/compose.yml up -d` → `python scripts/bench/run.py --set smoke` |
 | 贴 URL 3 分钟出第一张卡 | 首页 QuickStartCard 贴 `http://127.0.0.1:18083/`（DSVW） |
 | 台账 3 次失败 → lost | 关掉靶标端口，等复查 3 轮 |
 | 换目标后不再派单 | 能力菜单点"换目标"，看 planner 是否被拒 |

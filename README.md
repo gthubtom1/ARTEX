@@ -1,3 +1,26 @@
+> ### 这是 **gthubtom1 的二开版**（上游：[RuoJi6/ARTEX](https://github.com/RuoJi6/ARTEX)，再上游：[Autumn-27/ARTEX](https://github.com/Autumn-27/ARTEX)，AGPL-3.0）
+>
+> 上游是"AI 自主探索一个目标"的工作台；**本仓库在它上面加了一层"可交付"**：
+> 证据三门校验、能力菜单（13 组 91 项）、持有资产台账 + 定期复查、凭据加密库、
+> 跨任务长期持有、按任务状态挂载工具（省 token）、零基础一键部署、基准跑分看板。
+>
+> **要给 AI 装：让它读 [`INSTALL-AI.md`](INSTALL-AI.md)**（命令式、带退出码与失败分支）。
+> **人要看：读 [`使用教程.md`](使用教程.md)**（点哪里、说什么话）。
+> **想知道做到哪、哪些不做：读 [`docs/00-总纲v2-唯一事实源.md`](docs/00-总纲v2-唯一事实源.md)**。
+>
+> #### 三步跑起来
+> ```
+> 1) Kali/Debian/Ubuntu:  bash scripts/deploy_vps.sh        # 一条命令（含装 docker、起 PG）
+   Windows:            bash scripts/package_local.sh v1   # 产出 dist/artex.exe，然后双击 start.bat
+>    Linux 无 Docker:     go build -o artex ./cmd/artex && ./start.sh
+> 2) 浏览器打开 http://127.0.0.1:8787 ，用户名 ARTEX，首次自己设密码
+> 3) 系统 → 首次配置（四步：数据库 / 模型 / 出口自检 / 完成）→ 首页"贴一个网址，直接开跑"
+> ```
+> 前置只有一样：**PostgreSQL**（Docker 路线由脚本起；其它路线需已有库，见 §部署）。
+> 应用内**不再有代理/Clash 配置**——出网由宿主层负责（VPS 直连或虚拟机 TUN）。
+
+---
+
 <div align="center">
 
 # ARTEX
