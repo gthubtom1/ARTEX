@@ -144,9 +144,6 @@ export default function DashboardPage() {
   const [usageStats, setUsageStats] = React.useState<UsageStats | null>(null);
   const [assetCounts, setAssetCounts] = React.useState<Record<string, number>>({});
   const [traffic, setTraffic] = React.useState<TrafficExchange[]>([]);
-  const [agents, setAgents] = React.useState<Agent[]>([]);
-  const [mcpServers, setMcpServers] = React.useState<MCPServer[]>([]);
-  const [skills, setSkills] = React.useState<SkillItem[]>([]);
   const [tools, setTools] = React.useState<Tool[]>([]);
   const [llmProfiles, setLLMProfiles] = React.useState<LLMProfile[]>([]);
 
@@ -225,12 +222,11 @@ export default function DashboardPage() {
     let alive = true;
     const load = async () => {
       try {
-        const [traf, counts, agentList, mcpList, skillList, toolList, profileList, usage] = await Promise.all([
+        // D-5（2026-10-23）：原来还拉 api.agents()/mcpServers()/skills()，三个结果
+        // 存进 state 后零读取 —— 每 15s 白发 3 个请求。已移除。
+        const [traf, counts, toolList, profileList, usage] = await Promise.all([
           api.traffic(0, 50),
           api.assetCounts(),
-          api.agents(),
-          api.mcpServers(),
-          api.skills(),
           api.tools(),
           api.llmProfiles(),
           api.usageStats(365),
@@ -238,9 +234,6 @@ export default function DashboardPage() {
         if (!alive) return;
         setTraffic(traf.exchanges ?? []);
         setAssetCounts(counts ?? {});
-        setAgents(agentList);
-        setMcpServers(mcpList);
-        setSkills(skillList);
         setTools(toolList);
         setLLMProfiles(profileList);
         setUsageStats(usage);

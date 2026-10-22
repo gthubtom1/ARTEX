@@ -348,6 +348,21 @@ func (t *ToolSet) insertAssets() actool.CoreTool {
 				}
 				results = append(results, result{Index: i, ID: id, Type: typ})
 				t.writes.Assets++
+				// D-3（2026-10-23）：资产自动补全。enrich 引擎原来被构造、SetEnrich 也赋了值，
+				// 但 t.enrich 全仓从未被读取 —— 这条链一次都没跑过，资产节点只能靠 worker 手写。
+				// 这里对每笔新登记的资产触发一次后台补全（异步队列 + 冷却，不阻塞工具返回）。
+				if t.enrich != nil {
+					switch typ {
+					case "root_domain", "subdomain":
+						if item.Domain != "" {
+							t.enrich.ResolveDomain(id, item.Domain)
+						}
+					case "service", "endpoint":
+						if item.URL != "" {
+							t.enrich.ProbeSite(id, item.URL)
+						}
+					}
+				}
 				t.anchorOwner(id)
 				if taskID > 0 {
 					var sourceNodeID *int64

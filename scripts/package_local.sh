@@ -24,6 +24,12 @@ case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) OUT="dist/artex.exe" ;;
   *) OUT="dist/artex" ;;
 esac
-go build -tags embedui -ldflags "-X main.buildVersion=${VER}" -o "$OUT" ./cmd/artex
+# 守门：-X 的符号名写错时 Go **不报错**、静默忽略（历史 bug：这里曾写 main.buildVersion，
+# 而 cmd/artex 里是 main.version → 二进制永远报 dev）。先断言符号存在再编译。
+grep -q '^var version = ' cmd/artex/main.go || {
+  echo "[!] cmd/artex/main.go 里没有 'var version = ...'，-ldflags -X main.version 会失效"
+  exit 1
+}
+go build -tags embedui -ldflags "-X main.version=${VER}" -o "$OUT" ./cmd/artex
 ls -lh "$OUT"
 echo "[+] 成品：$OUT（前端已内嵌；运行时仍需 PostgreSQL + LLM 配置）"

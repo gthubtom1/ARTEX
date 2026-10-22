@@ -884,6 +884,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/tokens/usage", s.pgUsageStats) // 全局 llm_usage 聚合（仪表盘新版视图）
 
 	mux.HandleFunc("GET /api/audit", s.getAudit)
+	// 快照（写前留档）列表与回滚 —— D1/D2 审查后接线，见 server/snapshot_api.go
+	mux.HandleFunc("GET /api/snapshots", s.listSnapshots)
+	mux.HandleFunc("GET /api/snapshots/{id}", s.getSnapshot)
+	mux.HandleFunc("POST /api/snapshots/{id}/restore", s.restoreSnapshot)
 	mux.HandleFunc("GET /api/traffic", s.getTraffic)
 	mux.HandleFunc("GET /api/traffic/hosts", s.getTrafficHosts)
 	mux.HandleFunc("DELETE /api/traffic", s.deleteTraffic)

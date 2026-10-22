@@ -283,6 +283,16 @@ function schedulePayload(input: ScheduleInput) {
   };
 }
 
+export interface SnapshotRow {
+  id: string;
+  task_id: number;
+  reason: string;
+  created_at: unknown;
+  files: number;
+  bytes: number;
+  sample_paths: string[];
+}
+
 export const api = {
   // 后端应用版本号（release 时由 ldflags 注入，默认 "dev"）。
   health: () => get<{ ok: boolean; service: string; version: string }>("/health"),
@@ -293,6 +303,20 @@ export const api = {
   initPassword: (password: string) => post<{ token: string }>("/auth/init", { password }),
   changePassword: (oldPassword: string, newPassword: string) =>
     post<{ ok: boolean }>("/auth/change-password", { old_password: oldPassword, new_password: newPassword }),
+
+  // ---- snapshots（写前留档 / 回滚）----
+  snapshots: (taskId?: number, limit = 100) => {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (taskId && taskId > 0) q.set("task_id", String(taskId));
+    return get<{ snapshots: SnapshotRow[] }>(`/snapshots?${q.toString()}`).then((r) => ({
+      snapshots: arr(r.snapshots),
+    }));
+  },
+  restoreSnapshot: (id: string) =>
+    post<{ ok: boolean; restored: number; id: string }>(
+      `/snapshots/${encodeURIComponent(id)}/restore`,
+      { confirm: true },
+    ),
 
   // ---- tasks ----
   tasks: () =>
