@@ -192,8 +192,14 @@ func (s *Store) Get(ctx context.Context, id int64) (Owned, error) {
 
 // List 列出持有记录（status 为空 → 全部；cleaned/lost 默认也返回，由调用方过滤）。
 func (s *Store) List(ctx context.Context, status string, limit int) ([]Owned, error) {
-	if limit <= 0 {
+	// limit 语义：0 = 默认 200（列表页）；<0 = 全量（统计与导出用）。
+	// 之前一律截到 200，台账超过 200 条后 Stats().total 与导出文件会静默变少（R2 审查发现）。
+	// 归一到具体数字而不是保留 -1：下面的 out[:limit] 分支没有 limit>0 守卫。
+	if limit == 0 {
 		limit = 200
+	}
+	if limit < 0 {
+		limit = 1 << 30
 	}
 	if s.db == nil {
 		s.mu.Lock()
@@ -382,7 +388,7 @@ func (s *Store) Cleanup(ctx context.Context, id int64, detail string) error {
 
 // Stats 返回各状态计数。
 func (s *Store) Stats(ctx context.Context) (map[string]int, error) {
-	all, err := s.List(ctx, "", 0)
+	all, err := s.List(ctx, "", -1)
 	if err != nil {
 		return nil, err
 	}
@@ -396,7 +402,7 @@ func (s *Store) Stats(ctx context.Context) (map[string]int, error) {
 
 // ExportJSON 导出整本台账（报告/前端用）。
 func (s *Store) ExportJSON(ctx context.Context) ([]byte, error) {
-	all, err := s.List(ctx, "", 0)
+	all, err := s.List(ctx, "", -1)
 	if err != nil {
 		return nil, err
 	}

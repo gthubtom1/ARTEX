@@ -19,7 +19,6 @@ import (
 // Defaults 是可调运行参数的默认值。改这里等于改出厂设置。
 var Defaults = map[string]string{
 	// 并发与预算
-	"work.workers":            "3",      // 同时运行的 worker 数
 	"work.max_turns":          "40",     // 单次 run 最大轮数（0=不限）
 	"budget.tokens_per_task":  "800000", // 单任务 token 上限（0=不限）
 	"budget.seconds_per_task": "7200",   // 单任务墙钟上限（秒）
@@ -33,8 +32,8 @@ var Defaults = map[string]string{
 	"tool.output_cap_kb":  "2048",
 
 	// 出口（netguard）
-	"net.verify_every_s":   "300",
-	"net.verify_urls":      "https://api.ipify.org,https://ifconfig.me",
+	"net.verify_every_s": "300",
+	"net.verify_urls":    "https://api.ipify.org,https://ifconfig.me",
 
 	// 知识/注入
 	"kb.path":             "kb",

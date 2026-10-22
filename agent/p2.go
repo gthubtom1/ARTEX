@@ -237,6 +237,9 @@ func (t *ToolSet) buildStall(ctx context.Context) (stall.Report, adviser.Ledger,
 		Rounds: rounds, Intents: refs, LayerFacts: layerFacts,
 		AssetsInScope: 0, AssetsTested: 0,
 	}
+	if el, bud := t.taskClock(); bud > 0 {
+		in.Elapsed, in.Budget = el, bud
+	}
 	if t.as != nil && t.taskID > 0 {
 		if counts, err := t.as.CountsByTypeForTask(t.taskID); err == nil {
 			for _, n := range counts {
@@ -1218,7 +1221,11 @@ func (p *P2) DecideCapability(ctx context.Context, ts *db.ExplorationStore, capI
 			return decision.Verdict{}, fmt.Errorf("能力卡 %d 的 source_node_ids 解析失败：%w", capID, err)
 		}
 	}
-	it.AssetIDs = nodeIDs
+	// 能力卡的 source_node_ids 是**探索节点 id**，不是资产 id。
+	// decision.Decide 把它当资产 id 用 -> "换目标"冻结出来的是一串节点 id，
+	// add_intent 拿它跟真实 anchors(资产 id) 比，永远对不上，冻结等于没做。
+	// 这里从节点 payload.asset_ids 反查真实资产 id；查不到就退回原值（不比原来更差）。
+	it.AssetIDs = p.resolveAssetIDs(ctx, nodeIDs)
 	v, err := decision.Decide(it, action, note)
 	if err != nil {
 		return decision.Verdict{}, err
@@ -1251,6 +1258,51 @@ func (p *P2) DecideCapability(ctx context.Context, ts *db.ExplorationStore, capI
 		_, _ = ts.AddNode(db.KindHint, map[string]any{"text": v.Hint}, 0, "active", by, nil)
 	}
 	return v, nil
+}
+
+// taskClock 返回（已运行时长，任务预算）。预算取 tasks.timeout_seconds，为 0 表示不限时。
+// 不填这两个值时 stall.Detect 的 budget_burn 信号永远算 0（R2 审查发现）。
+func (t *ToolSet) taskClock() (time.Duration, time.Duration) {
+	if t == nil || t.p2 == nil || t.p2.DB == nil || t.taskID <= 0 {
+		return 0, 0
+	}
+	var started time.Time
+	var timeoutSec int
+	if err := t.p2.DB.QueryRowContext(context.Background(),
+		`SELECT created_at, COALESCE(timeout_seconds,0) FROM tasks WHERE id = $1`,
+		t.taskID).Scan(&started, &timeoutSec); err != nil {
+		return 0, 0
+	}
+	return time.Since(started), time.Duration(timeoutSec) * time.Second
+}
+
+// resolveAssetIDs 把探索节点 id 映射成资产 id（节点的 payload.asset_ids）。
+// 失败或映射为空时原样返回，保证不比改动前更差。
+func (p *P2) resolveAssetIDs(ctx context.Context, nodeIDs []int64) []int64 {
+	if p == nil || p.DB == nil || len(nodeIDs) == 0 {
+		return nodeIDs
+	}
+	rows, err := p.DB.QueryContext(ctx, `
+		SELECT DISTINCT a::bigint
+		  FROM exploration_nodes n,
+		       jsonb_array_elements_text(COALESCE(n.payload->'asset_ids', '[]'::jsonb)) AS a
+		 WHERE n.id = ANY($1::bigint[])
+		   AND a ~ '^[0-9]+$'`, int64ArrayLiteral(nodeIDs))
+	if err != nil {
+		return nodeIDs
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if rows.Scan(&id) == nil && id > 0 {
+			out = append(out, id)
+		}
+	}
+	if len(out) == 0 {
+		return nodeIDs
+	}
+	return out
 }
 
 // decideCapability 给主 agent 的工具入口。

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/Autumn-27/artex/db"
 )
@@ -105,7 +106,7 @@ func (s *Server) egressCheck(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("fresh") == "1" {
 		s.netguard.InvalidateCache()
 	}
-	st, err := s.netguard.VerifyCached(r.Context(), 60e9)
+	st, err := s.netguard.VerifyCached(r.Context(), s.egressTTL())
 	out["exit_ip"] = st.EgressIP
 	out["baseline_ip"] = st.BaselineIP
 	out["ok"] = st.OK
@@ -152,7 +153,7 @@ func (s *Server) quickstartTask(w http.ResponseWriter, r *http.Request) {
 	egress := map[string]any{"ok": true, "detail": ""}
 	allowDirect := tier == tierLab && isLoopbackHost(host)
 	if s.netguard != nil && !allowDirect {
-		st, verr := s.netguard.VerifyCached(r.Context(), 60e9)
+		st, verr := s.netguard.VerifyCached(r.Context(), s.egressTTL())
 		detail := st.Detail
 		if verr != nil {
 			detail = verr.Error()
@@ -247,4 +248,19 @@ func isLoopbackHost(host string) bool {
 		return false
 	}
 	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+}
+
+// egressTTL 是出口自检的缓存时长，读 net.verify_every_s（默认 300s，下限 30s）。
+// 之前这里写死 60s、而设置页回显 300 —— "改了不生效"，R2 契约审查发现。
+func (s *Server) egressTTL() time.Duration {
+	sec := 300
+	if s.settings != nil {
+		if v := s.settings.Int("net.verify_every_s", 300); v > 0 {
+			sec = v
+		}
+	}
+	if sec < 30 {
+		sec = 30
+	}
+	return time.Duration(sec) * time.Second
 }

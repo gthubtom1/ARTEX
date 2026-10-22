@@ -3584,6 +3584,8 @@ func (s *Server) settingsPayload() map[string]any {
 		"inject_persona_mode":         personaModeSetting(s),
 		"inject_preset":               injectPresetSetting(s),
 		"findings_verify_gate":        findingGateSetting(s),
+		"adviser_enabled":             s.settings.Bool("adviser.enabled", false),
+		"verifier_enabled":            s.settings.Bool("verifier.enabled", false),
 		"cred_key_fingerprint":        s.credKeyFP,
 		"inject_default_persona":      inject.DefaultPersona(),
 		"inject_default_persona_name": inject.DefaultPersonaName,
@@ -3675,6 +3677,8 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		InjectPersonaMode   *string `json:"inject_persona_mode"`
 		InjectPreset        *string `json:"inject_preset"`
 		FindingsVerifyGate  *string `json:"findings_verify_gate"`
+		AdviserEnabled      *bool   `json:"adviser_enabled"`
+		VerifierEnabled     *bool   `json:"verifier_enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, 400, err.Error())
@@ -3764,6 +3768,23 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.settings != nil {
 			_ = s.settings.Set(r.Context(), "inject.preset", v)
+		}
+	}
+	// P9-3 的两个开关。少了这段，前端把 adviser_enabled 发上来后端不认识，
+	// 设置页上那个勾选框点了等于没点（R2 契约审查发现的 bug）。
+	for key, v := range map[string]*bool{
+		"adviser.enabled":  req.AdviserEnabled,
+		"verifier.enabled": req.VerifierEnabled,
+	} {
+		if v == nil {
+			continue
+		}
+		if err := s.m.pg.SetBool(key, *v); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), key, fmt.Sprintf("%t", *v))
 		}
 	}
 	if req.FindingsVerifyGate != nil {

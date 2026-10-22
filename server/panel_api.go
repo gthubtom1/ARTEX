@@ -50,7 +50,7 @@ func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request) {
 	settings := map[string]string{}
 	if s.settings != nil {
 		for _, k := range []string{"tool.scan_mode", "tool.scan_timeout_s", "tool.auto_install", "tool.max_parallel",
-			"tool.cmd_timeout_s", "tool.output_cap_kb", "work.workers", "work.max_turns",
+			"tool.cmd_timeout_s", "tool.output_cap_kb", "workers", "work.max_turns",
 			"budget.tokens_per_task", "budget.seconds_per_task", "asset.recheck_hours", "asset.stale_days", "asset.recheck_minutes"} {
 			settings[k] = s.settings.String(k, "")
 		}
