@@ -1326,12 +1326,25 @@ func (d *DB) TaskListMetricsAll() (map[int64]TaskListMetrics, error) {
 		       COALESCE(finding_metrics.low,0)
 		FROM tasks task
 		LEFT JOIN LATERAL (
-			SELECT SUM(input_tokens) AS input_tokens,
-			       SUM(output_tokens) AS output_tokens,
-			       SUM(cache_read_tokens) AS cache_read_tokens,
-			       SUM(cache_write_tokens) AS cache_write_tokens
-			FROM activity
-			WHERE exploration_id=task.exploration_id AND kind='result'
+			-- activity 里的 usage/result 行带的是**累计**计数（每次请求都重发当前总量），
+			-- 直接 SUM 会把同一份 token 重复计几十遍（实测：真实约 39 万，SUM 出来 1000 万）。
+			-- 正确口径：每个 worker 取自己的峰值（=该 worker 的总量），再跨 worker 相加。
+			-- 2026-10-22 真靶场实测修正：原实现是 SUM(...) WHERE kind='result'，
+			-- 既漏掉没有 result 行的运行中任务，又把各意图的快照叠加。
+			SELECT SUM(w.max_in) AS input_tokens,
+			       SUM(w.max_out) AS output_tokens,
+			       SUM(w.max_cr) AS cache_read_tokens,
+			       SUM(w.max_cw) AS cache_write_tokens
+			FROM (
+				SELECT worker,
+				       MAX(input_tokens) AS max_in,
+				       MAX(output_tokens) AS max_out,
+				       MAX(cache_read_tokens) AS max_cr,
+				       MAX(cache_write_tokens) AS max_cw
+				FROM activity
+				WHERE exploration_id=task.exploration_id AND kind IN ('usage','result')
+				GROUP BY worker
+			) w
 		) token_metrics ON true
 		LEFT JOIN LATERAL (
 			SELECT EXTRACT(EPOCH FROM created_at)::bigint AS created_at

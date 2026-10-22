@@ -7,11 +7,11 @@ import (
 
 func TestNormalizeTarget(t *testing.T) {
 	ok := map[string]string{
-		"example.com":                 "http://example.com/",
-		"http://example.com":          "http://example.com/",
-		"https://a.b/c?d=1":           "https://a.b/c?d=1",
-		"  127.0.0.1:8080  ":          "http://127.0.0.1:8080/",
-		"http://user:pass@host/p":     "http://user:pass@host/p",
+		"example.com":             "http://example.com/",
+		"http://example.com":      "http://example.com/",
+		"https://a.b/c?d=1":       "https://a.b/c?d=1",
+		"  127.0.0.1:8080  ":      "http://127.0.0.1:8080/",
+		"http://user:pass@host/p": "http://user:pass@host/p",
 	}
 	for in, want := range ok {
 		got, host, err := normalizeTarget(in)
@@ -91,6 +91,31 @@ func TestIsLoopbackHost(t *testing.T) {
 	for _, h := range no {
 		if isLoopbackHost(h) {
 			t.Errorf("isLoopbackHost(%q) 应为 false", h)
+		}
+	}
+}
+
+func TestScopeKindFor(t *testing.T) {
+	cases := map[string]string{
+		"php.testsparker.com": "subdomain",
+		"example.com":         "subdomain",
+		"127.0.0.1":           "ip",
+		"10.0.0.5":            "ip",
+		"::1":                 "ip",
+	}
+	for host, want := range cases {
+		if got := scopeKindFor(host); got != want {
+			t.Errorf("scopeKindFor(%q)=%q want %q", host, got, want)
+		}
+	}
+	// 资产体系只认这几个枚举，别的会被 AddAgentScope 拒
+	allowed := map[string]bool{
+		"company": true, "root_domain": true, "subdomain": true,
+		"ip": true, "cidr": true, "icp": true, "keyword": true,
+	}
+	for _, host := range []string{"a.com", "8.8.8.8"} {
+		if k := scopeKindFor(host); !allowed[k] {
+			t.Fatalf("scopeKindFor(%q)=%q 不在资产体系枚举内", host, k)
 		}
 	}
 }

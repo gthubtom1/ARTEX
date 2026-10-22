@@ -64,18 +64,78 @@ func errEvent(ctx context.Context, class, tool, detail string) {
 
 // firstCommand 从一行 shell 里取出真正要执行的命令名：
 // 跳过 VAR=val 前缀、sudo/timeout/env 包装与路径前缀。
+// shellBuiltins 是"不是可执行文件、但一定存在"的 shell 内建/关键字。
+// 它们的"缺失"没有意义，不该触发"缺工具"提示（Windows 上 where cd 永远找不到）。
+var shellBuiltins = map[string]bool{
+	"cd": true, "pwd": true, "ls": true, "ll": true, "echo": true, "printf": true,
+	"test": true, "[": true, "[[": true, "export": true, "unset": true, "set": true,
+	"source": true, ".": true, "true": true, "false": true, "exit": true, "read": true,
+	"which": true, "type": true, "alias": true, "unalias": true, "umask": true,
+	"wait": true, "kill": true, "trap": true, "shift": true, "eval": true, "exec": true,
+	":": true, "pushd": true, "popd": true, "dirs": true, "history": true,
+	"jobs": true, "bg": true, "fg": true, "local": true, "declare": true,
+}
+
+// psKeywords 是 PowerShell 语法关键字：它们后面跟的是语句不是命令。
+var psKeywords = map[string]bool{
+	"try": true, "catch": true, "finally": true, "if": true, "else": true,
+	"elseif": true, "foreach": true, "for": true, "while": true, "do": true,
+	"switch": true, "function": true, "param": true, "return": true, "throw": true,
+}
+
+// firstCommand 取一行 shell 里"真正要执行的第一个命令名"。
+// 返回 "" 表示不做存在性检查（内建命令 / PowerShell 语句 / 解析不出来）。
+//
+// 2026-10-22 真靶场实测：这个函数原来只会按空格切，然后取第一个非 - 开头的词，
+// 于是在 Windows 上把 agent 自己的 8 条命令全判成"缺工具"并拦下：
+//
+//	"cd /d/tmp/..."        → 判成缺 cd
+//	"pwd; ls -la"          → 判成缺 "pwd;"（带分号）
+//	"curl.exe -sS ..."     → 判成缺 "curl.exe"（带扩展名）
+//	"$ProgressPreference=...; try {" → 判成缺 "try"
+//	"Get-ChildItem | ..."  → 判成缺 Get-ChildItem
+//
+// 代价是白烧好几轮 token，还让 agent 以为自己环境坏了。
 func firstCommand(cmd string) string {
-	fields := strings.Fields(cmd)
+	// 1) 先切到第一个控制符之前：; && || | 之后是另一条命令
+	cut := len(cmd)
+	for _, op := range []string{";", "&&", "||", "|"} {
+		if i := strings.Index(cmd, op); i >= 0 && i < cut {
+			cut = i
+		}
+	}
+	head := cmd[:cut]
+
+	fields := strings.Fields(head)
 	for i := 0; i < len(fields); i++ {
-		f := fields[i]
+		f := strings.TrimFunc(fields[i], func(r rune) bool {
+			return r == 0x22 || r == 0x27 || r == 0x60 || r == 0x28 || r == 0x29
+		})
+		if f == "" {
+			continue
+		}
+		// PowerShell 变量赋值 / 语句片段：不是命令
+		if strings.HasPrefix(f, "$") || strings.HasPrefix(f, "@") || strings.HasPrefix(f, "{") {
+			return ""
+		}
 		if strings.Contains(f, "=") && !strings.HasPrefix(f, "/") && !strings.HasPrefix(f, "./") {
 			continue // 环境变量前缀 FOO=bar
 		}
-		switch f {
-		case "sudo", "env", "timeout", "nohup", "nice", "stdbuf", "proxychains4", "proxychains":
-			// 包装器：继续看下一个（timeout 还带一个时长参数）
-			if f == "timeout" && i+1 < len(fields) {
+		if f == "sudo" {
+			// sudo 自己带参数：-u user / -g group / -p prompt / -C fd / -t type / -r role / -U user
+			for i+1 < len(fields) && strings.HasPrefix(fields[i+1], "-") {
+				flag := strings.TrimLeft(fields[i+1], "-")
 				i++
+				if len(flag) == 1 && strings.ContainsAny(flag, "ugUphCtr") && i+1 < len(fields) {
+					i++ // 跳过这个选项的参数（用户/组/提示语）
+				}
+			}
+			continue
+		}
+		switch f {
+		case "env", "timeout", "nohup", "nice", "stdbuf", "proxychains4", "proxychains":
+			if f == "timeout" && i+1 < len(fields) {
+				i++ // 跳过时长参数
 			}
 			continue
 		}
@@ -85,9 +145,44 @@ func firstCommand(cmd string) string {
 		if idx := strings.LastIndex(f, "/"); idx >= 0 {
 			f = f[idx+1:]
 		}
+		if idx := strings.LastIndex(f, "\\"); idx >= 0 {
+			f = f[idx+2:]
+		}
+		f = strings.TrimRight(f, ";,)|&")
+		low := strings.ToLower(f)
+		if low == "" {
+			return ""
+		}
+		if psKeywords[low] {
+			return ""
+		}
+		// PowerShell 的 Verb-Noun cmdlet（Get-ChildItem / Invoke-WebRequest）
+		if i := strings.Index(f, "-"); i > 0 && isPSVerb(f[:i]) {
+			return ""
+		}
+		for _, ext := range []string{".exe", ".cmd", ".bat", ".com"} {
+			if strings.HasSuffix(low, ext) {
+				f = f[:len(f)-len(ext)]
+				break
+			}
+		}
+		if shellBuiltins[strings.ToLower(f)] {
+			return ""
+		}
 		return f
 	}
 	return ""
+}
+
+// isPSVerb 判断前缀是不是 PowerShell 的已批准动词（Get/Invoke/New/Set/Remove/...）。
+func isPSVerb(v string) bool {
+	switch v {
+	case "Get", "Set", "New", "Remove", "Invoke", "Start", "Stop", "Test", "Add",
+		"Clear", "Copy", "Move", "Rename", "Select", "Where", "ForEach", "Write",
+		"Read", "Out", "Import", "Export", "Enable", "Disable", "Restart", "Update":
+		return true
+	}
+	return false
 }
 
 // New creates a Guard without user-configured intercept rules (used for pentest

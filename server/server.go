@@ -1156,7 +1156,10 @@ func (s *Server) listTasks(w http.ResponseWriter, r *http.Request) {
 		active = t.ID
 	}
 	list := s.m.List()
-	metrics, _ := s.m.PG().TaskListMetricsAll()
+	metrics, merr := s.m.PG().TaskListMetricsAll()
+	if merr != nil {
+		log.Printf("[tasks] 列表指标查询失败（tokens/goals/findings 会显示 0）: %v", merr)
+	}
 	distinct, _ := s.m.pg.DistinctFindingStatsByTask()
 	archiveBlockers, _ := s.m.PG().TaskArchiveBlockers()
 	dtos := make([]TaskDTO, 0, len(list))
@@ -1868,8 +1871,50 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 	}
 	dto := taskDTO(t, s.resolvedTaskStatus(t))
 	archiveBlockers, _ := s.m.PG().TaskArchiveBlockers()
-	applyTaskArchiveBlocker(&dto, archiveBlockers)
+	applyTaskArchiveBlockers := archiveBlockers
+	applyTaskArchiveBlocker(&dto, applyTaskArchiveBlockers)
+	// 详情接口原先**没有**填指标：任务页（用户看进度最常打开的页面）里
+	// tokens / goals / in_flight / findings 恒为 0，而列表页正常。
+	// 2026-10-22 真靶场实测发现（同一次任务：列表 839158 tokens、详情 0）。
+	s.fillTaskMetrics(&dto, t)
 	writeJSON(w, 200, dto)
+}
+
+// fillTaskMetrics 用批量指标补齐单个任务的统计字段。
+// 与 listTasks 同一份查询，保证两个接口口径一致。
+func (s *Server) fillTaskMetrics(dto *TaskDTO, t *Task) {
+	if dto == nil || t == nil || s.m == nil {
+		return
+	}
+	metrics, err := s.m.PG().TaskListMetricsAll()
+	if err != nil {
+		// 以前这里是 `metrics, _ :=`，SQL 一挂就静默显示全 0，没人发现。
+		log.Printf("[tasks] 指标查询失败（tokens/goals/findings 会显示 0）: %v", err)
+		return
+	}
+	metric, ok := metrics[t.ExpID]
+	if !ok {
+		return
+	}
+	dto.Tokens = tokenTotalDTO(metric.Tokens)
+	if metric.LastActivity > dto.LastActivity {
+		dto.LastActivity = metric.LastActivity
+	}
+	if live := s.engine.LastActivity(t.ID); live > dto.LastActivity {
+		dto.LastActivity = live
+	}
+	dto.GoalsTotal = metric.Goals.Total
+	dto.GoalsMet = metric.Goals.Met
+	dto.InFlight = metric.RunningIntents
+	dto.Findings = FindingSeverityDTO{
+		Critical: metric.Findings.Critical,
+		High:     metric.Findings.High,
+		Medium:   metric.Findings.Medium,
+		Low:      metric.Findings.Low,
+	}
+	if distinct, derr := s.m.pg.DistinctFindingStatsByTask(); derr == nil {
+		dto.DistinctFindings = distinct[t.ID]
+	}
 }
 
 // taskCoverage returns a task's rough asset test coverage (denominator/tested/backlog).

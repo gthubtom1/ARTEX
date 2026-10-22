@@ -183,10 +183,10 @@ func (s *Server) quickstartTask(w http.ResponseWriter, r *http.Request) {
 	// 3) 把目标写进 task_scope（netguard / 资产拦截都读它）。失败只告警。
 	if as := s.m.Assets(); as != nil {
 		taskID, _ := parseInt64(t.ID)
-		kind := "domain"
-		if net.ParseIP(host) != nil {
-			kind = "ip"
-		}
+		// kind 必须用资产体系认识的枚举：company/root_domain/subdomain/ip/cidr/icp/keyword。
+		// 2026-10-22 真机实测：这里原本写的是 "domain"，AddAgentScope 直接拒 →
+		// 任务在「零登记范围」下开跑（真靶场首跑就是这个状态）。
+		kind := scopeKindFor(host)
 		if _, serr := as.AddAgentScope(taskID, kind, host, "quickstart 自动登记", "manual"); serr != nil {
 			log.Printf("[quickstart] 登记 task_scope 失败(忽略): %v", serr)
 			warnings = append(warnings, "目标范围自动登记失败（"+serr.Error()+"），可以在任务页手动补：系统会按「未登记」处理。")
@@ -210,6 +210,17 @@ func (s *Server) quickstartTask(w http.ResponseWriter, r *http.Request) {
 		"warnings": warnings,
 		"redirect": "/function/capabilities?task=" + t.ID,
 	})
+}
+
+// scopeKindFor 把目标 host 映射成资产体系认识的 scope 枚举。
+//
+// 资产体系只认 company/root_domain/subdomain/ip/cidr/icp/keyword（见 AddAgentScope）。
+// 2026-10-22 真机实测踩过：这里原本写 "domain"，直接被拒 → 任务在"零登记范围"下开跑。
+func scopeKindFor(host string) string {
+	if net.ParseIP(strings.TrimSpace(host)) != nil {
+		return "ip"
+	}
+	return "subdomain"
 }
 
 // isLoopbackHost 判断是否本机/内网地址（本地靶场档位据此决定是否跳过出口校验）。
