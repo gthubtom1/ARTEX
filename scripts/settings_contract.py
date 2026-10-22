@@ -255,14 +255,7 @@ def check_second_round() -> int:
                     key = m.group(1) or consts.get(m.group(2), "")
                     if key:
                         readers.add(key)
-    KNOWN_FAKE_KEYS = {
-        # R2 契约审查确认：有默认值、但全仓没有读者；环境页却把它们当"生效参数"展示。
-        # 记账而不是删除，是因为它们的本意是旋钮，将来接线时直接从这个清单里划掉即可。
-        "budget.seconds_per_task", "budget.tokens_per_task", "work.max_turns",
-        "tool.scan_mode", "tool.scan_timeout_s", "tool.auto_install",
-        "tool.max_parallel", "tool.cmd_timeout_s", "tool.output_cap_kb",
-        "kb.search_limit",
-    }
+    KNOWN_FAKE_KEYS: dict[str, str] = {}  # 2026-10-23: 已清空，10 个假旋钮全部从 Defaults 删除
     fake_knobs = sorted(k for k in default_keys() if k not in readers and k not in KNOWN_FAKE_KEYS)
 
     fail = False

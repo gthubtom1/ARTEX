@@ -19,26 +19,12 @@ import (
 // Defaults 是可调运行参数的默认值。改这里等于改出厂设置。
 var Defaults = map[string]string{
 	"workers": "3", // 同时运行的 worker 数（运行时真键；work.workers 已删）
-	// 并发与预算
-	"work.max_turns":          "40",     // 单次 run 最大轮数（0=不限）
-	"budget.tokens_per_task":  "800000", // 单任务 token 上限（0=不限）
-	"budget.seconds_per_task": "7200",   // 单任务墙钟上限（秒）
-
-	// 工具面
-	"tool.scan_mode":      "full", // fast(只扫 PATH/常见目录) | full(含全盘)
-	"tool.scan_timeout_s": "180",
-	"tool.auto_install":   "true",
-	"tool.max_parallel":   "3",
-	"tool.cmd_timeout_s":  "300",
-	"tool.output_cap_kb":  "2048",
-
 	// 出口（netguard）
 	"net.verify_every_s": "300",
 	"net.verify_urls":    "https://api.ipify.org,https://ifconfig.me",
 
 	// 知识/注入
 	"kb.path":             "kb",
-	"kb.search_limit":     "5",
 	"inject.mode":         "hybrid", // always | on-miss | on-refusal | hybrid | off
 	"inject.max_retries":  "2",      // 单次 run 最多做几次拒答重定向
 	"inject.custom":       "",       // 用户自定义破甲词/人设（整段原文）

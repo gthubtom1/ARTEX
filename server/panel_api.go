@@ -49,9 +49,10 @@ func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	settings := map[string]string{}
 	if s.settings != nil {
-		for _, k := range []string{"tool.scan_mode", "tool.scan_timeout_s", "tool.auto_install", "tool.max_parallel",
-			"tool.cmd_timeout_s", "tool.output_cap_kb", "workers", "work.max_turns",
-			"budget.tokens_per_task", "budget.seconds_per_task", "asset.recheck_hours", "asset.stale_days", "asset.recheck_minutes"} {
+		// 只展示**真的有消费者**的键（2026-10-23 全量审查：tool.*、work.max_turns、
+		// budget.*、kb.search_limit 共 10 个键在环境页被当"生效参数"展示，实际全仓无人读，
+		// 已从 Defaults 删除。展示假旋钮比不展示更糟 —— 人会以为改了有用。）
+		for _, k := range []string{"workers", "asset.recheck_hours", "asset.stale_days", "asset.recheck_minutes"} {
 			settings[k] = s.settings.String(k, "")
 		}
 	}

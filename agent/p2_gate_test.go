@@ -300,3 +300,50 @@ func TestVisibleToolCountMeetsBudget(t *testing.T) {
 		t.Fatalf("planner 空态可见工具 %d 个，超过预算 12（%v）", ptotal, toolNames(pvGated))
 	}
 }
+
+// 守门：工具名单与门控分组必须严丝合缝 —— 这是"功能没接上"最容易出问题的地方。
+//
+//	① 门控分组里出现的名字，必须在 p2WorkerToolsAll() 里真的存在（否则是死名字，永远不生效）
+//	② p2WorkerToolsAll() 里的每个工具，必须被某个分组覆盖（漏了就会永远可见，白占 token）
+//	③ 同一个名字不许出现在两个分组里（判定会互相覆盖）
+func TestGateGroupsMatchToolSurface(t *testing.T) {
+	ts := gateTestToolSet(t)
+	all := toolNames(ts.p2WorkerToolsAll())
+	exists := map[string]bool{}
+	for _, n := range all {
+		exists[n] = true
+	}
+
+	groups := map[string]map[string]bool{
+		"core": gateWorkerCore, "creds": gateWorkerCreds, "foothold": gateWorkerFoothold,
+		"owned": gateWorkerOwned, "both": gateWorkerBoth, "data": gateWorkerData,
+	}
+	seen := map[string]string{}
+	for gname, g := range groups {
+		for n := range g {
+			if !exists[n] {
+				t.Errorf("分组 %s 里的 %q 在 p2WorkerToolsAll() 里不存在（死名字）", gname, n)
+			}
+			if prev, dup := seen[n]; dup {
+				t.Errorf("%q 同时出现在 %s 与 %s 两个分组里（判定会互相覆盖）", n, prev, gname)
+			}
+			seen[n] = gname
+		}
+	}
+	for _, n := range all {
+		if _, ok := seen[n]; !ok {
+			t.Errorf("%q 没有被任何门控分组覆盖（会永远可见，白占 token）", n)
+		}
+	}
+
+	// 基础工具的延迟名单同样要能对上
+	base := map[string]bool{}
+	for _, n := range toolNames(ts.WorkerTools()) {
+		base[n] = true
+	}
+	for n := range workerBaseDeferred {
+		if !base[n] {
+			t.Errorf("workerBaseDeferred 里的 %q 不在 WorkerTools() 里（死名字）", n)
+		}
+	}
+}

@@ -11,17 +11,23 @@ func TestDefaultsAndOverrides(t *testing.T) {
 	if err := s.Load(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.String("tool.scan_mode", ""); got != "full" {
-		t.Fatalf("default scan_mode=%q", got)
+	// 2026-10-23：原来断言的 tool.scan_mode / tool.auto_install / tool.cmd_timeout_s
+	// 属于"有默认值但全仓无读者"的假旋钮，已从 Defaults 删除（见 docs/03 §5.8）。
+	// 这里改为断言**真有消费者**的键。
+	if got := s.String("inject.mode", ""); got != "hybrid" {
+		t.Fatalf("default inject.mode=%q", got)
 	}
-	if !s.Bool("tool.auto_install", false) {
-		t.Fatal("auto_install default should be true")
+	if s.Bool("adviser.enabled", true) {
+		t.Fatal("adviser.enabled 默认必须是 false（零额外 LLM 调用）")
 	}
 	if got := s.Int("workers", 0); got != 3 {
 		t.Fatalf("workers=%d", got)
 	}
-	if got := s.Duration("tool.cmd_timeout_s", 0); got != 300*time.Second {
-		t.Fatalf("timeout=%v", got)
+	if got := s.Int("asset.recheck_minutes", 0); got != 60 {
+		t.Fatalf("recheck_minutes=%d", got)
+	}
+	if got := s.Duration("net.verify_every_s", 0); got != 300*time.Second {
+		t.Fatalf("verify_every=%v", got)
 	}
 
 	// 覆盖：无 DB 时只写内存
