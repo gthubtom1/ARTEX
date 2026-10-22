@@ -413,6 +413,7 @@ func (p *Planner) Plan(ctx context.Context, taskID int64, as *db.AssetStore, ts 
 	}
 	// 本任务的工作目录 <workDir>/tasks/<taskID>，先建好。
 	taskDir := ensureRunDir(p.workDir, taskID, 0)
+	tsx.SetWorkDir(taskDir) // 同 worker：让适配器原始输出进任务目录
 	ctx = intercept.WithReviewContext(ctx, taskDir, intercept.ReviewBackground{})
 	sysBody := plannerSystem(goal, p.workDir, taskDir)
 	sysBody += injectPromptBlock(goal) // 注入层：正向执行上下文（off/on-refusal 时为空）

@@ -224,7 +224,19 @@ fi
 # ════════════════════════════════════════════════════════════
 # ④ 仓库完整性
 # ════════════════════════════════════════════════════════════
-step "④ 确认部署文件齐全"
+step "④ 
+# 镜像需要 dist/<arch>/artex（Dockerfile COPY 的路径）。缺了就给出可执行的下一步，
+# 而不是等 docker build 报 "COPY failed"。
+if [ ! -f "dist/amd64/artex" ]; then
+  warn "未找到 dist/amd64/artex（Dockerfile 需要的 Linux 二进制）"
+  if command -v go >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+    ok "检测到 Go 与 Node，自动构建：bash scripts/package_linux.sh"
+    bash scripts/package_linux.sh || die "构建失败：看上面的报错"
+  else
+    die "缺 Go/Node 无法本地构建。二选一：①装 go+node 后跑 bash scripts/package_linux.sh；②下载 Release 里的 Linux 包，把 artex 放到 dist/amd64/artex"
+  fi
+fi
+确认部署文件齐全"
 missing=()
 for f in Dockerfile docker-compose.yml; do
   [ -f "$REPO/$f" ] || missing+=("$f")

@@ -120,10 +120,11 @@ func (s *Server) egressCheck(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) quickstartTask(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		URL          string `json:"url"`
-		Tier         string `json:"tier"`
-		TimeoutMin   int    `json:"timeout_min"`
-		Workers      int    `json:"workers"`
+		URL        string `json:"url"`
+		Tier       string `json:"tier"`
+		TimeoutMin int    `json:"timeout_min"`
+		// 注意：这里**没有** workers 字段。全局并发由「系统 → 环境」的 workers 控制，
+		// 任务级并发不支持；旧版这里收过一个 workers 字段但从未使用（D2 审查发现），已删除。
 		LLMProfileID *int64 `json:"llm_profile_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

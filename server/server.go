@@ -884,7 +884,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/tokens/usage", s.pgUsageStats) // 全局 llm_usage 聚合（仪表盘新版视图）
 
 	mux.HandleFunc("GET /api/audit", s.getAudit)
-	mux.HandleFunc("POST /api/gc", s.gc)
 	mux.HandleFunc("GET /api/traffic", s.getTraffic)
 	mux.HandleFunc("GET /api/traffic/hosts", s.getTrafficHosts)
 	mux.HandleFunc("DELETE /api/traffic", s.deleteTraffic)
@@ -4298,10 +4297,6 @@ func (s *Server) getAudit(w http.ResponseWriter, r *http.Request) {
 }
 
 // gc is a no-op stub (GC not yet implemented in the new asset store).
-func (s *Server) gc(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]any{"removed": 0})
-}
-
 // --- utils ---
 
 func cors(next http.Handler) http.Handler {
@@ -4371,6 +4366,13 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		}
 	}
 	s.snapshots = snapshot.New(filepath.Join(dataDir, "snapshots"))
+	// D2 审查：Prune 原来零调用 → data/snapshots 只增不减（每个写文件工具都留一份）。
+	// 启动时按"保留最近 500 份"清一次；Restore 仍未接线（见 docs/00 §7.6）。
+	if n, perr := s.snapshots.Prune(500); perr != nil {
+		log.Printf("[snapshot] prune 失败（忽略）: %v", perr)
+	} else if n > 0 {
+		log.Printf("[snapshot] 已清理 %d 份旧快照（保留最近 500）", n)
+	}
 	s.netguard = netguard.New(s.egressConfig, m.pg)
 
 	// 本地工具发现：后台异步扫描（不阻塞启动），结果供"命令首词不存在"时给替代建议。

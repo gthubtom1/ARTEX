@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,8 +53,13 @@ func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request) {
 		// 只展示**真的有消费者**的键（2026-10-23 全量审查：tool.*、work.max_turns、
 		// budget.*、kb.search_limit 共 10 个键在环境页被当"生效参数"展示，实际全仓无人读，
 		// 已从 Defaults 删除。展示假旋钮比不展示更糟 —— 人会以为改了有用。）
-		for _, k := range []string{"workers", "asset.recheck_hours", "asset.stale_days", "asset.recheck_minutes"} {
+		for _, k := range []string{"asset.recheck_hours", "asset.stale_days", "asset.recheck_minutes"} {
 			settings[k] = s.settings.String(k, "")
+		}
+		// workers 的真值在 Manager 内存里（settings 缓存不会随 SetWorkers 回刷），
+		// 读缓存会永远显示旧值 —— D2 审查发现。
+		if s.m != nil {
+			settings["workers"] = strconv.Itoa(s.m.Workers())
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

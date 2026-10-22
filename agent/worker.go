@@ -413,6 +413,9 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 	sysBody := workerSystem(w.proxyAddr, w.proxyCACert, w.workDir, runDir)
 	// 跨 worker/跨会话接力：上一段留下的便条（已完成原语 / 已证死路 / 下一步）。
 	taskDir := filepath.Join(w.workDir, "tasks", strconv.FormatInt(taskID, 10))
+	// D2 审查：SetWorkDir 原来零调用 → nmap/httpx/nuclei 的原始输出落到 os.TempDir()，
+	// 任务的 raw_ref 指向一个不随任务归档、重启即消失的临时路径。这里补上。
+	tsx.SetWorkDir(taskDir)
 	if mem := relay.Read(taskDir, 6000); mem != "" {
 		sysBody += "\n\n【上一段留下的接力便条（先看「下一步」再决定动手；不要重复已完成的部分）】：\n" + mem
 	}

@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 set "REPO=gthubtom1/ARTEX"
-set "TAG=v0.5.9"
+set "TAG=local"
 set "EXE=artex.exe"
 
 echo ============================================

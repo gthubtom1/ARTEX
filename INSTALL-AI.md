@@ -69,6 +69,16 @@ bash scripts/deploy_vps.sh --dry-run   # 先看计划，不发包不改系统
 bash scripts/deploy_vps.sh             # 真执行
 ```
 
+> **Docker 路线有个前置**：镜像要用 `Dockerfile` **本地构建**（默认不再拉上游镜像
+> `ruoji6/artex` —— 那是上游作者的，不含本 fork 能力且数据库迁移对不上）。
+> `deploy_vps.sh` 会检查 `dist/amd64/artex`：缺了就**自动**用
+> `bash scripts/package_linux.sh` 构建（需要 Go + Node）；两者都没有时报错并给两条出路。
+> 手工等价命令：
+> ```bash
+> bash scripts/package_linux.sh        # → dist/amd64/artex（前端已内嵌）
+> docker compose up -d --build
+> ```
+
 `deploy_vps.sh` 做的事：检测发行版 → 装 docker（缺失时）→ 生成随机 PG 密码写 `.env` → `docker compose up -d --build` → 轮询 `/api/health` 90s。
 
 **按退出码处理（这是它设计好的契约）**：
@@ -81,10 +91,11 @@ bash scripts/deploy_vps.sh             # 真执行
 | 4 | 容器启动失败 | `docker compose ps` + `logs`；常见是 5432/8787 端口被占 |
 | 5 | 健康检查 90s 超时 | 首次建表可能慢：再等 60s 重试一次 `curl /api/health`；仍失败看 `logs artex` |
 
-Windows 有 Docker 时不需要这个脚本，直接：
+Windows 有 Docker 时不需要这个脚本，但要先生成 Linux 二进制（Git Bash 里）：
 
 ```bash
-docker compose up -d
+bash scripts/package_linux.sh    # 需要 Go + Node
+docker compose up -d --build
 ```
 
 ---
