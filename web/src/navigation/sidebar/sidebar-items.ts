@@ -111,6 +111,7 @@ export const sidebarItems: NavGroup[] = [
       { id: "replay", title: "回放", url: "/system/replay", icon: Activity },
       { id: "verifier", title: "复核", url: "/system/verifier", icon: ShieldCheck },
       { id: "logs", title: "日志", url: "/system/logs", icon: ScrollText },
+      { id: "injection", title: "注入层", url: "/system/injection", icon: ShieldAlert },
       { id: "settings", title: "系统配置", url: "/system/settings", icon: Settings2 },
     ],
   },
