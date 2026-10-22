@@ -91,8 +91,13 @@ func (t *ToolSet) P2WorkerTools() []actool.CoreTool {
 }
 
 // P2WorkerDeferred 返回本次 run 被状态门挡掉的 worker P2 工具名（排序）。
-// 调用方应把它并入 DeferredInfo.GlobalNames，让模型仍能在
-// <available-deferred-tools> 里看到这些名字（见 worker.go 的 AugmentTools 之后）。
+//
+// 刻意**不**并入 DeferredInfo.GlobalNames：被挡掉的是 list/status/lease/exec/run
+// 这类"读与操作"工具，它们此刻真的不可调用；把名字列进 <available-deferred-tools>
+// 只会诱导模型去调一个会失败的工具。工具会在状态出现后于下一轮自动挂上，
+// 而"发现能做什么"的路径由常驻的 *_plan / *_register / data_locate 承担。
+//
+// 保留这个导出是给排障用的（审计日志/调试接口可以回答"这一轮为什么少了 19 个工具"）。
 func (t *ToolSet) P2WorkerDeferred() []string { return p2WorkerDeferredNames(t) }
 
 // P2PlannerDeferred 返回本次 run 被状态门挡掉的 planner P2 工具名（排序）。

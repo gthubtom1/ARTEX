@@ -57,12 +57,12 @@ func TestGateWorkerToolsByState(t *testing.T) {
 		state     *gateState
 		wantCount int
 	}{
-		{"empty", &gateState{}, 4},
-		{"creds", &gateState{HasCreds: true}, 10},
-		{"foothold", &gateState{HasFoothold: true}, 9},
-		{"creds+foothold", &gateState{HasCreds: true, HasFoothold: true}, 22},
-		{"owned", &gateState{HasOwned: true}, 9},
-		{"data-finding", &gateState{HasDataFinding: true}, 6},
+		{"empty", &gateState{}, 10},
+		{"creds", &gateState{HasCreds: true}, 16},
+		{"foothold", &gateState{HasFoothold: true}, 14},
+		{"creds+foothold", &gateState{HasCreds: true, HasFoothold: true}, 24},
+		{"owned", &gateState{HasOwned: true}, 14},
+		{"data-finding", &gateState{HasDataFinding: true}, 11},
 		{"all", &gateState{HasCreds: true, HasFoothold: true, HasOwned: true, HasDataFinding: true}, 29},
 	}
 	for _, tc := range cases {
@@ -76,12 +76,13 @@ func TestGateWorkerToolsByState(t *testing.T) {
 
 	// Empty state: exactly the four always-on tools.
 	empty := toolNameSet(gateWorkerTools(&gateState{}, all))
-	for _, name := range []string{"record_capability", "list_capabilities", "verify_claim", "cred_add"} {
+	for _, name := range []string{"record_capability", "list_capabilities", "verify_claim", "cred_add",
+		"session_register", "owned_register", "privesc_plan", "lateral_plan", "route_plan", "data_locate"} {
 		if !empty[name] {
 			t.Fatalf("empty state missing core tool %q", name)
 		}
 	}
-	for _, name := range []string{"cred_list", "session_exec", "owned_register", "privesc_run", "data_locate"} {
+	for _, name := range []string{"cred_list", "session_exec", "owned_list", "privesc_run", "data_mask"} {
 		if empty[name] {
 			t.Fatalf("empty state should gate %q", name)
 		}
@@ -150,10 +151,11 @@ func TestGateDeferredNamesCoverBlockedTools(t *testing.T) {
 	ts := gateTestToolSet(t)
 	all := ts.p2WorkerToolsAll()
 	deferred := missingToolNames(all, gateWorkerTools(&gateState{}, all))
-	if len(deferred) != 25 {
-		t.Fatalf("empty-state worker deferred = %d names, want 25 (%v)", len(deferred), deferred)
+	// 29 个 P2 工具 - 空状态下常驻的 10 个 = 19 个进 deferred 名单
+	if len(deferred) != 19 {
+		t.Fatalf("empty-state worker deferred = %d names, want 19 (%v)", len(deferred), deferred)
 	}
-	want := map[string]bool{"cred_list": true, "session_exec": true, "owned_list": true, "privesc_run": true, "data_locate": true}
+	want := map[string]bool{"cred_list": true, "session_exec": true, "owned_list": true, "privesc_run": true, "data_mask": true}
 	got := make(map[string]bool, len(deferred))
 	for _, name := range deferred {
 		got[name] = true

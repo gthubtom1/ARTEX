@@ -21,29 +21,39 @@ type gateState struct {
 // Worker groups. Keep these in sync with p2WorkerToolsAll; TestGateWorkerToolsByState
 // asserts the groups cover every registered worker P2 tool exactly once.
 var (
+	// 核心集：除了"永远要用的上报/校验"，还**必须**放这几类，否则会出现鸡生蛋：
+	//   *_register（要登记第一条凭据/立足点/台账，就得先能调它）
+	//   *_plan（规划本身就是"发现能做什么"的入口，不需要任何既有状态）
+	//   data_locate（是对已有文本做解析，不依赖任何前置状态）
+	// 只把"读/操作/执行"类按状态门控（list/status/check/lease/exec/run/resolve/...）。
 	gateWorkerCore = map[string]bool{
 		"record_capability": true, "list_capabilities": true,
 		"verify_claim": true, "cred_add": true,
+		// 写第一条：注册类永远可用
+		"session_register": true, "owned_register": true,
+		// 规划类：不需要前置状态，且是"发现能力"的入口
+		"privesc_plan": true, "lateral_plan": true, "route_plan": true,
+		// 解析类：只对已抓到的文本做分析
+		"data_locate": true,
 	}
 	gateWorkerCreds = map[string]bool{
 		"cred_list": true, "cred_reuse_plan": true, "cred_verify": true,
 		"cred_harvest": true, "cred_stale_scan": true, "cred_reuse_run": true,
 	}
 	gateWorkerFoothold = map[string]bool{
-		"session_register": true, "session_lease": true, "session_list": true,
+		"session_lease": true, "session_list": true,
 		"session_release": true, "session_exec": true,
 	}
 	gateWorkerOwned = map[string]bool{
-		"owned_register": true, "owned_list": true, "owned_check": true,
+		"owned_list": true, "owned_check": true,
 		"owned_status": true, "owned_cleanup": true,
 	}
 	gateWorkerBoth = map[string]bool{
-		"privesc_plan": true, "privesc_run": true,
-		"lateral_plan": true, "lateral_run": true,
-		"route_plan": true, "route_resolve": true, "cleanup_run": true,
+		"privesc_run": true, "lateral_run": true,
+		"route_resolve": true, "cleanup_run": true,
 	}
 	gateWorkerData = map[string]bool{
-		"data_locate": true, "data_mask": true,
+		"data_mask": true,
 	}
 )
 
