@@ -12,7 +12,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { api } from "@/lib/api";
+import { api, p2api } from "@/lib/api";
 import type { Task } from "@/lib/types";
 
 // verifier 复核页：独立角色对 finding 的对抗式复核结果（verified/inferred/rejected）。
@@ -63,15 +63,7 @@ export default function VerifierPage() {
     const request = ++requestRef.current;
     setLoading(true);
     try {
-      const qs = id ? `?task_id=${encodeURIComponent(id)}` : "";
-      const r = await fetch(`/api/p2/verifier${qs}`, { headers: authHeaders() });
-      if (request !== requestRef.current) return;
-      if (!r.ok) {
-        setRows([]);
-        toast.error(`读取复核记录失败：HTTP ${r.status}`);
-        return;
-      }
-      const d = await r.json();
+      const d = await p2api.verifierReviews(id || undefined, 100);
       if (request !== requestRef.current) return;
       setRows(d.reviews ?? []);
     } catch (e) {
