@@ -1339,6 +1339,9 @@ func (t *ToolSet) addFinding() actool.CoreTool {
 		}
 		// P8-3 三门质量闸：证据不够的结论不入 finding（off/infer/strict 三档）。
 		// 质量闸不是权限门：被拦下来的结论会改写为一条 inferred 事实，线索不丢。
+		// 绑定了流量证据时不过闸：那是一条真实抓到的请求/响应快照，它本身就是 grounding。
+		// 这条分支很重要 —— 报告 Agent 的上报通常 evidence 文本为空、证据全在 traffic_refs 里，
+		// 如果强行要求 evidence 文本，会把合法上报全部打成"待验证"。
 		if out := runGate(findingGateMode(), gateArgs{
 			Name:          a.Name,
 			VulnClass:     a.VulnClass,
@@ -1346,7 +1349,7 @@ func (t *ToolSet) addFinding() actool.CoreTool {
 			Evidence:      a.Evidence,
 			ControlTested: a.ControlTested,
 			ControlNote:   a.ControlNote,
-		}); !out.Store {
+		}, len(refs) > 0); !out.Store {
 			if _, ferr := t.recordOneFact(factItem{
 				Summary:    "【待验证】" + a.Summary,
 				Detail:     a.VulnClass + "\n" + a.Evidence,

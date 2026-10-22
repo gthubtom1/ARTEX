@@ -23,17 +23,56 @@ import (
 // 为什么不做成"库里存全量"：一次跑批的 cases 明细包含每题的证据片段，属于可再生成数据，
 // 进库只会让备份变大；而"哪次跑批通过率多少"这种一行摘要才是需要被查询的。
 
-// benchResultsDir 解析结果目录：ARTEX_BENCH_DIR > <可执行文件目录>/bench/results。
+// benchRoot 解析 bench/ 根目录。
+//
+// 为什么要一串候选：打包后二进制在 dist/ 下，而 bench/ 在仓库根（与 skills/、kb/ 同级）。
+// 只认 <exe目录>/bench 会让"dist 里跑起来"看不到用例。顺序：
+//  1. ARTEX_BENCH_DIR（显式指定，直接当 results 目录用）
+//  2. <exe目录>/bench
+//  3. <exe目录>/../bench（dist/artex.exe → 仓库根/bench）
+//  4. 当前工作目录/bench
+//
+// 选第一个"真的存在 cases 或 results 子目录"的；都不存在时用 <exe目录>/bench（会自建）。
+func benchRoot() string {
+	if v := strings.TrimSpace(os.Getenv("ARTEX_BENCH_DIR")); v != "" {
+		return filepath.Dir(v) // 传进来的按 results 目录理解
+	}
+	base := config.BaseDir()
+	cands := []string{
+		filepath.Join(base, "bench"),
+		filepath.Join(base, "..", "bench"),
+		filepath.Join(".", "bench"),
+	}
+	for _, c := range cands {
+		if st, err := os.Stat(filepath.Join(c, "cases")); err == nil && st.IsDir() {
+			if abs, aerr := filepath.Abs(c); aerr == nil {
+				return abs
+			}
+			return c
+		}
+	}
+	for _, c := range cands {
+		if st, err := os.Stat(filepath.Join(c, "results")); err == nil && st.IsDir() {
+			return c
+		}
+	}
+	if abs, err := filepath.Abs(cands[0]); err == nil {
+		return abs
+	}
+	return cands[0]
+}
+
+// benchResultsDir 是结果目录；ARTEX_BENCH_DIR 显式指定时直接用它。
 func benchResultsDir() string {
 	if v := strings.TrimSpace(os.Getenv("ARTEX_BENCH_DIR")); v != "" {
 		return v
 	}
-	return filepath.Join(config.BaseDir(), "bench", "results")
+	return filepath.Join(benchRoot(), "results")
 }
 
-// benchCasesDir 解析用例目录（与 results 同级）。
+// benchCasesDir 是用例目录。
 func benchCasesDir() string {
-	return filepath.Join(filepath.Dir(benchResultsDir()), "cases")
+	return filepath.Join(benchRoot(), "cases")
 }
 
 func (s *Server) registerBenchRoutes(mux *http.ServeMux) {

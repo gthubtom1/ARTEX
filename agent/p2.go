@@ -1198,13 +1198,22 @@ func (p *P2) DecideCapability(ctx context.Context, ts *db.ExplorationStore, capI
 		return decision.Verdict{}, err
 	}
 	var it decision.Item
-	var nodeIDs []int64
+	var nodeRaw string
+	// bigint[] 不能直接 Scan 进 []int64（database/sql + pgx 会把数组当字符串给），
+	// 必须先 array_to_json 取成文本再解析 —— 仓库里反复踩过这个坑。
 	err = p.DB.QueryRowContext(ctx,
-		`SELECT id, COALESCE(task_id,0), grp, item, can, surface, status, source_node_ids
+		`SELECT id, COALESCE(task_id,0), grp, item, can, surface, status,
+		        COALESCE(array_to_json(source_node_ids)::text,'[]')
 		 FROM capabilities WHERE id = $1`, capID).
-		Scan(&it.CapID, &it.TaskID, &it.Group, &it.Item, &it.Can, &it.Surface, &it.Status, &nodeIDs)
+		Scan(&it.CapID, &it.TaskID, &it.Group, &it.Item, &it.Can, &it.Surface, &it.Status, &nodeRaw)
 	if err != nil {
 		return decision.Verdict{}, fmt.Errorf("能力卡 %d 不存在：%w", capID, err)
+	}
+	var nodeIDs []int64
+	if strings.TrimSpace(nodeRaw) != "" && strings.TrimSpace(nodeRaw) != "null" {
+		if err := json.Unmarshal([]byte(nodeRaw), &nodeIDs); err != nil {
+			return decision.Verdict{}, fmt.Errorf("能力卡 %d 的 source_node_ids 解析失败：%w", capID, err)
+		}
 	}
 	it.AssetIDs = nodeIDs
 	v, err := decision.Decide(it, action, note)

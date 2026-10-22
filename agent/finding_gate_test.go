@@ -36,7 +36,7 @@ func gateArgsFor(ev string) gateArgs {
 
 func TestRunGate_OffAlwaysStores(t *testing.T) {
 	for _, ev := range []string{gateVersionOnly, gateGoodEvidence, ""} {
-		out := runGate(findinggate.ModeOff, gateArgsFor(ev))
+		out := runGate(findinggate.ModeOff, gateArgsFor(ev), false)
 		if !out.Store {
 			t.Fatalf("off 档不应拦任何 finding，ev=%q", ev)
 		}
@@ -47,7 +47,7 @@ func TestRunGate_OffAlwaysStores(t *testing.T) {
 }
 
 func TestRunGate_InferRejectsVersionOnly(t *testing.T) {
-	out := runGate(findinggate.ModeInfer, gateArgsFor(gateVersionOnly))
+	out := runGate(findinggate.ModeInfer, gateArgsFor(gateVersionOnly), false)
 	if out.Store {
 		t.Fatalf("只有版本号的结论不应入库（verdict level=%s gates=%+v）", out.Verdict.Level, out.Verdict.Gates)
 	}
@@ -61,7 +61,7 @@ func TestRunGate_InferRejectsVersionOnly(t *testing.T) {
 }
 
 func TestRunGate_InferStoresGoodEvidence(t *testing.T) {
-	out := runGate(findinggate.ModeInfer, gateArgsFor(gateGoodEvidence))
+	out := runGate(findinggate.ModeInfer, gateArgsFor(gateGoodEvidence), false)
 	if !out.Store {
 		t.Fatalf("完整 PoC 应入库（verdict level=%s reasons=%v）", out.Verdict.Level, out.Verdict.Reasons)
 	}
@@ -76,37 +76,45 @@ func TestRunGate_StrictRejectsInferred(t *testing.T) {
 	a.ControlTested = false
 	a.ControlNote = ""
 
-	relaxed := runGate(findinggate.ModeInfer, a)
-	strict := runGate(findinggate.ModeStrict, a)
+	relaxed := runGate(findinggate.ModeInfer, a, false)
+	strict := runGate(findinggate.ModeStrict, a, false)
 
 	if !relaxed.Store {
-		t.Fatalf("infer 档下缺对照组不应直接拒（level=%s）", relaxed.Verdict.Level)
+		t.Fatalf("infer 档下证据不足但非幻觉不应拒（level=%s）", relaxed.Verdict.Level)
 	}
-	if relaxed.Verdict.Level != "verified" && !strings.HasPrefix(relaxed.Summary, findinggate.SummaryFlag) {
-		t.Fatalf("inferred 的结论应带【未独立复现】前缀，实际 summary=%q", relaxed.Summary)
+	if relaxed.Verdict.Level == "verified" {
+		t.Skip("该证据被判为 verified，本用例不适用")
 	}
-	if strict.Store && relaxed.Verdict.Level != "verified" {
-		t.Fatal("strict 档下 inferred 不应入库")
+	if strict.Store {
+		t.Fatalf("strict 档下 inferred 不应入库（level=%s）", strict.Verdict.Level)
+	}
+	if strict.Message == "" {
+		t.Fatal("strict 拒绝时必须给模型一句可执行的补证说明")
 	}
 }
 
-// 闸门必须真的改变了入库内容（而不是只返回一个 decision 没人用）。
-func TestRunGate_FlaggedRewritesFields(t *testing.T) {
+// 闸门**不许**改写 summary / evidence：
+// report_finding 的返回契约（"finding recorded: N" + 一行 JSON）和调用方对 evidence 原文的
+// 比对都不能被质量闸破坏。闸门的职责是挡住幻觉，不是给真结论贴标签。
+func TestRunGate_FlaggedDoesNotRewriteFields(t *testing.T) {
 	a := gateArgsFor(gateGoodEvidence)
 	a.ControlTested = false
 	a.ControlNote = ""
-	if strings.Contains(a.Evidence, findinggate.SummaryFlag) {
-		t.Fatal("测试前提不成立")
-	}
-	out := runGate(findinggate.ModeInfer, a)
+	out := runGate(findinggate.ModeInfer, a, false)
 	if out.Verdict.Level == "verified" {
 		t.Skip("该证据被判为 verified，本用例不适用")
 	}
-	if !strings.HasPrefix(out.Summary, findinggate.SummaryFlag) {
-		t.Fatalf("summary 未加前缀：%q", out.Summary)
+	if !out.Store {
+		t.Fatalf("infer 档下证据不足但非幻觉不应拒（level=%s）", out.Verdict.Level)
 	}
-	if !strings.Contains(out.Evidence, "[gate:inferred]") {
-		t.Fatalf("evidence 未追加 [gate:inferred]：%q", out.Evidence)
+	if out.Summary != a.Summary {
+		t.Fatalf("闸门改写了 summary：%q", out.Summary)
+	}
+	if out.Evidence != a.Evidence {
+		t.Fatalf("闸门改写了 evidence：%q", out.Evidence)
+	}
+	if out.Note == "" {
+		t.Fatal("store_flagged 应带一条日志说明（Note）")
 	}
 }
 
@@ -124,5 +132,20 @@ func TestFindingGateModeDefault(t *testing.T) {
 	FindingGateMode = func() string { return "bogus" }
 	if got := findingGateMode(); got != findinggate.ModeInfer {
 		t.Fatalf("非法值应回落 infer，实际 %q", got)
+	}
+}
+
+// 绑定了录制的流量快照时不过闸：证据在 traffic_refs 里，evidence 文本为空是正常的。
+// 这条守的是"报告 Agent 的合法上报不能被质量闸打成待验证"。
+func TestRunGateBoundTrafficSkipsGate(t *testing.T) {
+	a := gateArgs{Name: "报告 Agent 的上报", VulnClass: "idor", Summary: "越权读取他人订单", Evidence: ""}
+	for _, mode := range []findinggate.Mode{findinggate.ModeInfer, findinggate.ModeStrict} {
+		out := runGate(mode, a, true)
+		if !out.Store {
+			t.Fatalf("mode=%s 且绑定流量时不应拦，实际拒了：%s", mode, out.Message)
+		}
+		if out.Summary != a.Summary {
+			t.Fatalf("绑定流量时不应改写 summary：%q", out.Summary)
+		}
 	}
 }
