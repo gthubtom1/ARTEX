@@ -6,12 +6,12 @@ source: self
 license: MIT
 version: 1
 updated: 2026-10-22
-dedupe_key: ""
+dedupe_key: ""                    # 已作废字段：真实去重是 sha256 内容寻址，见 README §二
 ---
 
 # 案例卡模板（复制成 `cases/<YYYYMMDD>-<短名>.md` 再填）
 
-> **谁写**：ARTEX 任务收尾时自动生成（见 `docs/案例库自动沉淀.md`），或人工/AI 事后补。
+> **谁写**：ARTEX 任务收尾时自动生成（规则见 `kb/cases/README.md`），或人工/AI 事后补。
 > **一条案例 = 一次真实打下来的经验**，不是教程。没有真实证据的不要写进 cases/。
 
 ## 元信息（frontmatter 必填）
@@ -24,10 +24,12 @@ source: self                          # self = 自己打出来的
 license: MIT
 version: 1
 updated: 2026-10-22
-dedupe_key: thinkphp-5.0.23|rce|GET /index.php?s=captcha|_method=__construct
+dedupe_key: thinkphp-5.0.23|rce|GET /index.php?s=captcha|_method=__construct   # 旧字段，可留作人类可读标签
 ```
 
-`dedupe_key = <指纹>|<手法>|<面形状>|<payload 类>` —— 这套系统靠它把"同一个洞"合并成一条经验。
+> ⚠️ **`dedupe_key` 不再是去重依据**（2026-10-23）：代码用 `sha256(Title/Target/VulnClass/ProofLevel/
+> Confidence/Summary/Evidence/Negative/Tags)[:12]` 做文件名，同证据重复采集不会产生第二张卡。
+> 上面的 `dedupe_key` 只当作"这条经验长什么样"的人类可读标签保留。详见 `kb/cases/README.md` §二。
 
 ## 目标画像
 

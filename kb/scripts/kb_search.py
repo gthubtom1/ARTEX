@@ -37,7 +37,7 @@ def tok(s: str) -> list[str]:
 
 def load():
     if not INDEX.exists():
-        raise SystemExit("index.json 不存在，先运行: python scripts/kb_index.py")
+        raise SystemExit("index.json 不存在，先运行: python kb/scripts/kb_index.py")
     d = json.loads(INDEX.read_text(encoding="utf-8"))
     return [e for e in d["entries"] if not e.get("duplicate_of") and not e.get("near_duplicate_of")]
 

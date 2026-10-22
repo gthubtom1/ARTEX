@@ -4,7 +4,7 @@
 - 条目：13 条（有效 13 / 重复 0）
 - 字符量：30,777
 
-> 重建：`python scripts/kb_index.py`　检索：`python scripts/kb_search.py "关键词"`
+> 重建：`python kb/scripts/kb_index.py`　检索：`python kb/scripts/kb_search.py "关键词"`
 
 ## capability（1）
 

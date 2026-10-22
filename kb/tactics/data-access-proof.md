@@ -82,6 +82,6 @@ curl -s "http://TARGET/api/users?page=1&size=1" -o /dev/null -w '%{size_download
 
 ## 关联
 
-- 能力卡设计：`docs/两阶段模式-能力卡与决策面板.md`
+- 能力卡设计：`docs/00` 附录 C + `使用教程.md` §6.1（D1–D4 分级）
 - 注入类入口：`tactics/sqli.md`
 - 越权读取：`tactics/access-control.md`

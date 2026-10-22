@@ -22,16 +22,18 @@
 ## 三条硬规则
 
 1. **一切条目必须带 frontmatter**（`id/type/tags/source/license/version/updated`），否则 `kb_index.py` 会归到默认值，检索会漏。
-2. **重复只留一份**：精确重复（内容 sha256 相同）与近似重复（3-gram Jaccard ≥ 0.90）由 `kb_index.py` 标出，人确认后删；case 另有语义键 `dedupe_key` 去重。
+2. **重复只留一份**：精确重复（内容 sha256 相同）与近似重复（3-gram Jaccard ≥ 0.90）由 `kb_index.py` 标出，人确认后删；
+   机器自动写的案例卡按 **sha256 内容寻址**去重（`internal/cases`，同证据不会写第二张卡）；
+   人工补卡时若填了 `dedupe_key`，`kb_index.py` 会拿它做一次语义去重（可选字段，见 `cases/README.md`）。
 3. **不整包下载大库**：nuclei/SecLists 这类只登记到 `sources/`，用时按 path 取。`kb/` 目标体积 < 50MB。
 
 ## 日常流程
 
 ```bash
 # 补知识（人或任何 AI 按 prompts/00-补充知识库.md 执行）→ 产出落到 inbox/ 或对应目录
-python scripts/kb_index.py          # 重建索引（会报重复）
-python scripts/kb_index.py --check   # CI/定时任务：索引是否过期
-python scripts/kb_search.py "thinkphp 5.0 rce" -n 3
+python kb/scripts/kb_index.py          # 重建索引（会报重复）
+python kb/scripts/kb_index.py --check   # CI/定时任务：索引是否过期
+python kb/scripts/kb_search.py "thinkphp 5.0 rce" -n 3
 
 # 从外网补料（GitHub API 未认证只有 60 次/小时，批量时先设 token）
 export GITHUB_TOKEN=ghp_xxx
@@ -42,12 +44,14 @@ python scripts/kb_fetch.py get  swisskyrepo/PayloadsAllTheThings "SQL Injection/
 
 ## 与 ARTEX 的接法
 
-三个自定义工具（`系统 → Tools`，`kind = script`，脚本目录指向 `kb/scripts/`）：
+两个自定义工具（MCP 内建：`server/mcp_kb.go`，只读；脚本在 `kb/scripts/`）：
 
 | 工具 | 入参 | 出参 |
 |---|---|---|
 | `kb_search` | `{"query","limit","type","tags"}` | `{"hits":[{id,path,score,summary}]}` |
 | `kb_read` | `{"id"}` | 正文（由 agent 用 Read 按 path 读，工具只回 path） |
-| `kb_case_save` | 案例卡字段 | `{"id","dedupe":"new|merged"}` |
+
+案例卡的写入**不需要自定义工具**：任务收尾时由 `internal/cases` 自动写（sha256 内容寻址去重），
+规则见 `kb/cases/README.md`。旧文档里的 `kb_case_save` 脚本工具（`kb/scripts/kb_case_save.py`）**不存在，已作废**。
 
 配一个 skill：**什么时候必须查（写下含 version 的 fact 时 / 看到一个 endpoint 形状时 / 确定手法时）**，查不到就老实说查不到，别编。

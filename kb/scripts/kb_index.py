@@ -23,9 +23,9 @@
 
 用法
 ----
-  python scripts/kb_index.py            # 重建
-  python scripts/kb_index.py --check    # 校验 index.json 是否过期
-  python scripts/kb_index.py --strict   # 有重复即失败
+  python kb/scripts/kb_index.py            # 重建
+  python kb/scripts/kb_index.py --check    # 校验 index.json 是否过期
+  python kb/scripts/kb_index.py --strict   # 有重复即失败
 """
 from __future__ import annotations
 
@@ -164,7 +164,7 @@ def render_index(entries: list[dict], problems: list[dict]) -> str:
              f"- 生成时间：{now}",
              f"- 条目：{len(entries)} 条（有效 {len(live)} / 重复 {len(entries) - len(live)}）",
              f"- 字符量：{sum(e['chars'] for e in live):,}",
-             "", "> 重建：`python scripts/kb_index.py`　检索：`python scripts/kb_search.py \"关键词\"`", ""]
+             "", "> 重建：`python kb/scripts/kb_index.py`　检索：`python kb/scripts/kb_search.py \"关键词\"`", ""]
     by_type: dict[str, list[dict]] = {}
     for e in live:
         by_type.setdefault(e["type"], []).append(e)
@@ -207,7 +207,7 @@ def main() -> int:
         old_sig = {(e["id"], e.get("sha256")) for e in old_entries}
         new_sig = {(e["id"], e.get("sha256")) for e in entries}
         if old_sig != new_sig:
-            print("[stale] index.json 与磁盘不一致，请运行: python scripts/kb_index.py")
+            print("[stale] index.json 与磁盘不一致，请运行: python kb/scripts/kb_index.py")
             return 1
         print(f"[ok] index.json 是最新的（{len(entries)} 条）")
         return 0

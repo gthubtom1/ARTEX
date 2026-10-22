@@ -100,3 +100,27 @@ description: 二十年资深渗透操作者的隐性纪律：先判轻重、三�
 | 本 skill vs 任务目标 | 任务目标优先（但清理不可省） |
 | 本 skill vs `kill-chain` 阶段门 | 阶段门优先（不许跳级） |
 | 本 skill vs 顾问建议 | 顾问建议优先（它有全局态势） |
+
+---
+
+## 附：这十条落到哪些字段/表（2026-10-23 补录）
+
+> 原 `docs/资产与漏洞生命周期-借鉴融合.md` §4 的十条与本 skill 1–10 **逐条一一对应**，已去重合并；
+> 源文件已删除，变更检测/凭据生命周期的细节留在 `docs/00` **附录 F.3/F.4**。这里只留"纪律 → 系统"的接法。
+
+| 纪律 | 落在哪 | 怎么用 |
+|---|---|---|
+| 1 先判轻重 | `assets.criticality` / `assets_owned` 优先级 | 只并行 2–3 条主线；`criticality` 高的先打 |
+| 2 三重复现 | 三门校验（M08）+ `confidence` | 三次都成立才写 `observed` |
+| 3 收尾记"下次怎么更快" | `kb/cases`（sha256 去重，见 `kb/cases/README.md`） | 不写复盘的仗等于白打 |
+| 4 资产分级持有 | `assets.tags` = `core\|jump\|throwaway` | 不同标签不同复查频率（daily/daily/weekly） |
+| 5 证据优先 | `evidence_timeline` + sha256 | 报告只引有 timeline 的结论 |
+| 6 凭据记账 | `creds_vault` 生命周期 `discovered→verified→in_use→rotated→invalid→archived` | 一条凭据 ≤3 目标；登录失败立刻标 `invalid` |
+| 7 不用别人资产当跳板 | `assets_owned.via_asset` 链路 | 追不到自己台账里的跳板就不用 |
+| 8 报告写给要修的人 | `reporter` 修复建议 | 必须可执行，不写"加强校验" |
+| 9 收尾写复盘 | `kb/cases`（正/负） | 含"如果重来我会怎么做" |
+| 10 走之前清理 | `assets_owned.status = cleaned` | 删 shell/临时文件/测试账号并记录 |
+
+**另外两条与"资产老手"直接相关的纪律**（也在 `docs/00` 附录 F）：
+- **变更只在"新增"时提示**：端口/子域/技术栈/证书四类 diff（`change_events`），消失的一般是下线，不报警。
+- **复查只用最小只读命令**：`id`、状态码、证书；不重复利用、不触发告警。
