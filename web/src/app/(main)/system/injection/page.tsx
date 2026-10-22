@@ -23,12 +23,14 @@ function estimateTokens(text: string): number {
 export default function InjectionPage() {
   const [enabled, setEnabled] = React.useState(true);
   const [custom, setCustom] = React.useState("");
+  const [personaMode, setPersonaMode] = React.useState<"cached" | "every-turn">("cached");
   const [loaded, setLoaded] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
   const apply = React.useCallback((s: Record<string, unknown>) => {
     setEnabled(((s.inject_mode as string) ?? "hybrid") !== "off");
     setCustom(String(s.inject_custom ?? ""));
+    setPersonaMode((s.inject_persona_mode as "cached" | "every-turn") ?? "cached");
   }, []);
 
   React.useEffect(() => {
@@ -47,6 +49,7 @@ export default function InjectionPage() {
       const s = await api.setSettings({
         inject_mode: enabled ? "hybrid" : "off",
         inject_custom: custom,
+        inject_persona_mode: personaMode,
       } as never);
       apply(s as unknown as Record<string, unknown>);
       toast.success("已保存（对之后启动的 run 生效）");
@@ -80,6 +83,23 @@ export default function InjectionPage() {
               onChange={(e) => setEnabled(e.target.checked)}
             />
             <span>{enabled ? "已启用（hybrid）" : "已关闭（off）"}</span>
+          </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">注入方式</CardTitle>
+          <CardDescription>和 pi-web 一样：默认“缺失时补”，上下文里没有这份人设时才重新注入。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <input type="radio" className="mt-1" checked={personaMode === "cached"} disabled={!loaded} onChange={() => setPersonaMode("cached")} />
+            <span><b>缺失时补（推荐）</b><span className="ml-2 text-muted-foreground">上下文里还有人设就不重复发；被压缩/丢了才补一次。</span></span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <input type="radio" className="mt-1" checked={personaMode === "every-turn"} disabled={!loaded} onChange={() => setPersonaMode("every-turn")} />
+            <span><b>每轮注入</b><span className="ml-2 text-muted-foreground">每轮都发一次完整人设，最贵，只在模型确实会忘时用。</span></span>
           </label>
         </CardContent>
       </Card>

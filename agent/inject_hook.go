@@ -18,10 +18,11 @@ import (
 
 // InjectConfig 是注入层运行参数（由 server 从 settings 解析）。
 type InjectConfig struct {
-	Mode       inject.Mode `json:"mode"`
-	MaxChars   int         `json:"max_chars"`
-	MaxRetries int         `json:"max_retries"`
-	Custom     string      `json:"custom"`
+	Mode        inject.Mode `json:"mode"`
+	MaxChars    int         `json:"max_chars"`
+	MaxRetries  int         `json:"max_retries"`
+	Custom      string      `json:"custom"`
+	PersonaMode string      `json:"persona_mode"` // cached（缺失时补）| every-turn
 }
 
 // InjectConfigFor 由 server 安装；nil = 默认 hybrid / 900 / 2。
@@ -41,6 +42,9 @@ func resolveInjectConfig() InjectConfig {
 			c.MaxRetries = got.MaxRetries
 		}
 		c.Custom = got.Custom
+		if got.PersonaMode != "" {
+			c.PersonaMode = got.PersonaMode
+		}
 	}
 	return c
 }
@@ -67,14 +71,18 @@ type InjectHook struct {
 }
 
 // NewInjectHook 构造；inner 可为 nil。
-func NewInjectHook(inner harness.HookRunner, mode inject.Mode, goal func() string, maxChars, maxRetries int, custom string) *InjectHook {
+func NewInjectHook(inner harness.HookRunner, mode inject.Mode, goal func() string, maxChars, maxRetries int, custom ...string) *InjectHook {
 	if maxChars <= 0 {
 		maxChars = 900
 	}
 	if maxRetries < 0 {
 		maxRetries = 0
 	}
-	return &InjectHook{inner: inner, mode: mode, goal: goal, maxChars: maxChars, retries: maxRetries, custom: custom}
+	c := ""
+	if len(custom) > 0 {
+		c = custom[0]
+	}
+	return &InjectHook{inner: inner, mode: mode, goal: goal, maxChars: maxChars, retries: maxRetries, custom: c}
 }
 
 func (h *InjectHook) PreToolUse(ctx context.Context, name string, input []byte) (bool, string, []byte) {
@@ -169,5 +177,8 @@ func WrapProvider(prov llm.Provider, goal func() string) llm.Provider {
 	if prov == nil || !c.Mode.ShouldCheckRequest() {
 		return prov
 	}
-	return inject.NewInjector(prov, c.Mode, goal, c.MaxChars)
+	inj := inject.NewInjector(prov, c.Mode, goal, c.MaxChars)
+	inj.Custom = c.Custom
+	inj.PersonaEveryTurn = c.PersonaMode == "every-turn"
+	return inj
 }

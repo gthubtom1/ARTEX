@@ -41,12 +41,13 @@ var Defaults = map[string]string{
 	"net.verify_urls":      "https://api.ipify.org,https://ifconfig.me",
 
 	// 知识/注入
-	"kb.path":            "kb",
-	"kb.search_limit":    "5",
-	"inject.mode":        "hybrid", // always | on-miss | on-refusal | hybrid | off
-	"inject.max_chars":   "900",
-	"inject.max_retries": "2", // 单次 run 最多做几次拒答重定向
-	"inject.custom":      "",  // 用户自定义破甲词/人设（原样拼进执行上下文与拒答重定向）
+	"kb.path":             "kb",
+	"kb.search_limit":     "5",
+	"inject.mode":         "hybrid", // always | on-miss | on-refusal | hybrid | off
+	"inject.max_chars":    "900",
+	"inject.max_retries":  "2",      // 单次 run 最多做几次拒答重定向
+	"inject.custom":       "",       // 用户自定义破甲词/人设（整段原文）
+	"inject.persona_mode": "cached", // cached=缺失时补 | every-turn=每轮注入
 
 	// 审批自动裁决（off=完全保持原人工/模型路径；reviewer=本地规则自动裁决；allow_all=直接放行）
 	"intercept_auto_decide": "off",

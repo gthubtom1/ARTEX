@@ -2,7 +2,10 @@ package inject
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"iter"
+	"strings"
 	"sync/atomic"
 
 	"github.com/Autumn-27/norma/llm"
@@ -22,6 +25,9 @@ type Injector struct {
 
 	injected atomic.Int64 // 补注入次数
 	chars    atomic.Int64 // 累计补注入字符数
+	// Custom 是用户人设/破甲词；PersonaEveryTurn=true 时每轮都带，否则只在上下文里缺失时补。
+	Custom           string
+	PersonaEveryTurn bool
 }
 
 // NewInjector 包装 provider；inner 为 nil 时 Stream/Complete 返回空实现。
@@ -42,14 +48,30 @@ func (p *Injector) Stats() (int, int) {
 
 // Patch 返回补齐了注入块的请求（导出版本便于测试/复用）。
 func (p *Injector) Patch(req llm.CompletionRequest) llm.CompletionRequest {
-	if p == nil || !p.mode.ShouldCheckRequest() || requestHasMarker(req) {
+	if p == nil {
+		return req
+	}
+	needCtx := p.mode.ShouldCheckRequest() && !requestHasMarker(req)
+	pm := PersonaMarker(p.Custom)
+	needPersona := strings.TrimSpace(p.Custom) != "" &&
+		(p.PersonaEveryTurn || !requestHasText(req, pm))
+	if !needCtx && !needPersona {
 		return req
 	}
 	goal := ""
 	if p.goal != nil {
 		goal = p.goal()
 	}
-	block := PromptBlock(goal, p.maxChars)
+	block := ""
+	if needCtx {
+		block = PromptBlock(goal, p.maxChars)
+	}
+	if needPersona {
+		if block != "" {
+			block += string(rune(10)) + string(rune(10))
+		}
+		block += PersonaBlock(p.Custom)
+	}
 	if block == "" {
 		return req
 	}
@@ -69,6 +91,40 @@ func (p *Injector) Complete(ctx context.Context, req llm.CompletionRequest) (llm
 }
 
 // requestHasMarker 检查系统提示与全部消息里是否还有指纹。
+// PersonaBlock 生成带指纹的人设块（原样全文，不截断）。
+func PersonaBlock(custom string) string {
+	custom = strings.TrimSpace(custom)
+	if custom == "" {
+		return ""
+	}
+	return PersonaMarker(custom) + string(rune(10)) + "【人设 / 执行约定（用户提供，原样生效）】" + string(rune(10)) + custom
+}
+
+// PersonaMarker 是人设指纹（用于判断当前上下文里还有没有人设）。
+func PersonaMarker(custom string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(custom)))
+	return "[[ARTEX-PERSONA:" + hex.EncodeToString(sum[:6]) + "]]"
+}
+
+func requestHasText(req llm.CompletionRequest, text string) bool {
+	if text == "" {
+		return false
+	}
+	for _, s := range req.System {
+		if strings.Contains(s, text) {
+			return true
+		}
+	}
+	for _, m := range req.Messages {
+		for _, c := range m.Content {
+			if c.Type == llm.BlockText && strings.Contains(c.Text, text) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func requestHasMarker(req llm.CompletionRequest) bool {
 	for _, s := range req.System {
 		if HasMarker(s) {

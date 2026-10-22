@@ -3452,6 +3452,13 @@ func autoDecideSetting(pg *db.DB) string {
 	}
 }
 
+func personaModeSetting(s *Server) string {
+	if s.settings != nil && strings.TrimSpace(s.settings.String("inject.persona_mode", "cached")) == "every-turn" {
+		return "every-turn"
+	}
+	return "cached"
+}
+
 func injectSetting(s *Server) string {
 	if s.settings == nil {
 		return "hybrid"
@@ -3503,6 +3510,7 @@ func (s *Server) settingsPayload() map[string]any {
 		"inject_max_chars":      s.settings.Int("inject.max_chars", 900),
 		"inject_max_retries":    s.settings.Int("inject.max_retries", 2),
 		"inject_custom":         s.settings.String("inject.custom", ""),
+		"inject_persona_mode":   personaModeSetting(s),
 		// 漏洞 IM 推送的全局项。渠道本身是独立资源，走 /api/notify/* 管理；
 		// 这里只放「作用于全部渠道」的三项。
 		"notify_enabled":             s.m.pg.GetBool(settingNotifyEnabled, true),
@@ -3589,6 +3597,7 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		InjectMaxChars      *int    `json:"inject_max_chars"`
 		InjectMaxRetries    *int    `json:"inject_max_retries"`
 		InjectCustom        *string `json:"inject_custom"`
+		InjectPersonaMode   *string `json:"inject_persona_mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, 400, err.Error())
@@ -3636,6 +3645,20 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.settings != nil {
 			_ = s.settings.Set(r.Context(), "inject.max_chars", strconv.Itoa(n))
+		}
+	}
+	if req.InjectPersonaMode != nil {
+		v := strings.ToLower(strings.TrimSpace(*req.InjectPersonaMode))
+		if v != "cached" && v != "every-turn" {
+			writeErr(w, 400, "inject_persona_mode 只接受 cached|every-turn")
+			return
+		}
+		if err := s.m.pg.SetSetting("inject.persona_mode", v); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "inject.persona_mode", v)
 		}
 	}
 	if req.InjectCustom != nil {
@@ -4227,10 +4250,11 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 	// 注入层参数（每 run 读一次）：mode/max_chars/max_retries。
 	agent.InjectConfigFor = func() agent.InjectConfig {
 		return agent.InjectConfig{
-			Mode:       inject.ParseMode(s.settings.String("inject.mode", "hybrid")),
-			MaxChars:   s.settings.Int("inject.max_chars", 900),
-			MaxRetries: s.settings.Int("inject.max_retries", 2),
-			Custom:     s.settings.String("inject.custom", ""),
+			Mode:        inject.ParseMode(s.settings.String("inject.mode", "hybrid")),
+			MaxChars:    s.settings.Int("inject.max_chars", 900),
+			MaxRetries:  s.settings.Int("inject.max_retries", 2),
+			Custom:      s.settings.String("inject.custom", ""),
+			PersonaMode: s.settings.String("inject.persona_mode", "cached"),
 		}
 	}
 	s.snapshots = snapshot.New(filepath.Join(dataDir, "snapshots"))
