@@ -40,7 +40,6 @@ var Defaults = map[string]string{
 	"kb.path":             "kb",
 	"kb.search_limit":     "5",
 	"inject.mode":         "hybrid", // always | on-miss | on-refusal | hybrid | off
-	"inject.max_chars":    "900",
 	"inject.max_retries":  "2",      // 单次 run 最多做几次拒答重定向
 	"inject.custom":       "",       // 用户自定义破甲词/人设（整段原文）
 	"inject.persona_mode": "cached", // cached=缺失时补 | every-turn=每轮注入

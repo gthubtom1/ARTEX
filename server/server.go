@@ -3579,7 +3579,6 @@ func (s *Server) settingsPayload() map[string]any {
 		"noa_compaction":              s.m.NoaCompactionEnabled(),
 		"intercept_auto_decide":       autoDecideSetting(s.m.pg),
 		"inject_mode":                 injectSetting(s),
-		"inject_max_chars":            s.settings.Int("inject.max_chars", 900),
 		"inject_max_retries":          s.settings.Int("inject.max_retries", 2),
 		"inject_custom":               s.settings.String("inject.custom", ""),
 		"inject_persona_mode":         personaModeSetting(s),
@@ -3672,7 +3671,6 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		// 拦截自动裁决：off|reviewer|allow_all（用户可在系统设置页切换）。
 		InterceptAutoDecide *string `json:"intercept_auto_decide"`
 		InjectMode          *string `json:"inject_mode"`
-		InjectMaxChars      *int    `json:"inject_max_chars"`
 		InjectMaxRetries    *int    `json:"inject_max_retries"`
 		InjectCustom        *string `json:"inject_custom"`
 		InjectPersonaMode   *string `json:"inject_persona_mode"`
@@ -3713,20 +3711,6 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.settings != nil {
 			_ = s.settings.Set(r.Context(), "inject.mode", v)
-		}
-	}
-	if req.InjectMaxChars != nil {
-		n := *req.InjectMaxChars
-		if n < 200 || n > 4000 {
-			writeErr(w, 400, "inject_max_chars 范围 200–4000")
-			return
-		}
-		if err := s.m.pg.SetSetting("inject.max_chars", strconv.Itoa(n)); err != nil {
-			writeErr(w, 500, err.Error())
-			return
-		}
-		if s.settings != nil {
-			_ = s.settings.Set(r.Context(), "inject.max_chars", strconv.Itoa(n))
 		}
 	}
 	if req.InjectPersonaMode != nil {
@@ -4379,7 +4363,6 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 	agent.InjectConfigFor = func() agent.InjectConfig {
 		return agent.InjectConfig{
 			Mode:        inject.ParseMode(s.settings.String("inject.mode", "hybrid")),
-			MaxChars:    s.settings.Int("inject.max_chars", 900),
 			MaxRetries:  s.settings.Int("inject.max_retries", 2),
 			Custom:      s.settings.String("inject.custom", ""),
 			PersonaMode: s.settings.String("inject.persona_mode", "cached"),

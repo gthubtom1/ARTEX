@@ -1001,7 +1001,6 @@ export interface Settings {
 
   // 注入层（防拒答）：off|always|on-miss|on-refusal|hybrid
   inject_mode?: "off" | "always" | "on-miss" | "on-refusal" | "hybrid";
-  inject_max_chars?: number;
   inject_max_retries?: number;
   inject_custom?: string;
   inject_persona_mode?: "cached" | "every-turn";

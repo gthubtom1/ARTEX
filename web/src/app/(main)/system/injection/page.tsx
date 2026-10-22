@@ -37,7 +37,6 @@ export default function InjectionPage() {
   const [custom, setCustom] = React.useState("");
   const [personaMode, setPersonaMode] = React.useState<"cached" | "every-turn">("cached");
   const [preset, setPreset] = React.useState<"on" | "off">("on");
-  const [maxChars, setMaxChars] = React.useState("900");
   const [maxRetries, setMaxRetries] = React.useState("2");
   const [presetText, setPresetText] = React.useState("");
   const [presetName, setPresetName] = React.useState("内置人设");
@@ -49,7 +48,6 @@ export default function InjectionPage() {
     setCustom(String(s.inject_custom ?? ""));
     setPersonaMode((s.inject_persona_mode as "cached" | "every-turn") ?? "cached");
     setPreset((s.inject_preset as "on" | "off") ?? "on");
-    setMaxChars(String(s.inject_max_chars ?? 900));
     setMaxRetries(String(s.inject_max_retries ?? 2));
     setPresetText(String(s.inject_default_persona ?? ""));
     setPresetName(String(s.inject_default_persona_name ?? "内置人设"));
@@ -75,7 +73,6 @@ export default function InjectionPage() {
         inject_custom: custom,
         inject_persona_mode: personaMode,
         inject_preset: preset,
-        inject_max_chars: Math.min(4000, Math.max(200, Number(maxChars) || 900)),
         inject_max_retries: Math.min(5, Math.max(0, Number(maxRetries) || 0)),
       } as never);
       apply(s as unknown as Payload);
@@ -247,23 +244,14 @@ export default function InjectionPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">高级（一般不用动）</CardTitle>
           <CardDescription>
-            这两个只影响「执行上下文块」和「拒答重定向」，不影响上面的人设正文。
+            这里只影响「拒答重定向」，不影响上面的人设正文。
+            （原先还有一个「执行上下文块字数上限」，实测那块正文固定约 330 字、永远碰不到上限，
+            属于假旋钮，已删除。）
             <b>注：本页是注入层的唯一入口</b>——系统设置页里已经不再重复放这些项，避免两处互相覆盖。
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">自动上下文块上限（人设不受此限）</span>
-            <input
-              type="number"
-              min={200}
-              max={4000}
-              className="h-8 w-24 rounded-md border bg-background px-2 text-sm"
-              value={maxChars}
-              disabled={!loaded}
-              onChange={(e) => setMaxChars(e.target.value)}
-            />
-          </label>
+
           <label className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">单次 run 最多重定向</span>
             <input
