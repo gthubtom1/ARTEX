@@ -91,6 +91,15 @@ web 新页面           能力菜单/台账/知识/报告/审计/环境/网络/�
 前端依赖：本机 `NODE_ENV=production` 时 `npm ci` 会跳过 devDeps；
 正确命令 `NODE_ENV=development npm ci --include=dev --ignore-scripts`。
 
+## 实机验收（DSVW，2026-10-22）
+
+- 靶场：GitHub `stamparm/DSVW`，`http://127.0.0.1:65412`（单文件 Python；Juice Shop 因 sqlite3 原生模块在 Node 24/22 构建失败且本机无 docker 未用）。
+- 模型：`openai` 兼容端点 cpa / `deepseek-v4.1-flash`（运行时 env 注入，不入库）。
+- 首次确认战果（任务创建 → 首个 finding）：**81.9s**（#1）、**56.5s**（#2）、**52.1s**（#4）；总时长 92.3s / 64.8s / 85.8s。
+- 任务 #4：finding#5 路径穿越/任意文件读取（high，含 win.ini 与 dsvw.py 源码 PoC）；2 张能力卡（4.1 命令执行 P3、5.1 任意文件读取 P3）；`assets_owned#1` 127.0.0.1:65412 webshell status=verified；`/api/report?task=4` 含「能力菜单」与「持有资产台账」。
+- 证据文件：`docs/实机验收-DSVW.md`（由真实 DB 数据生成：计时/finding 证据/能力卡/台账/复查记录）。
+- 全量测试：`ARTEX_PG_DSN=… go test ./... -count=1 -p 1` → exit 0（并行跑曾出现一次 PG 40P01 死锁 flake；单包复跑绿）。
+
 ## 本轮新增（P2–P5，详见 `docs/P2-P5-实现说明.md`）
 
 ```

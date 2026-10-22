@@ -26,8 +26,7 @@ web/public/demo-version.json
 *.swp
 *.swo
 
-# docs
-/docs/
+# docs：二开方案/进度台账/验收证据需要进仓库（不再忽略）
 
 # os
 .DS_Store
