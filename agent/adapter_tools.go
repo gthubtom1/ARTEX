@@ -13,6 +13,7 @@ import (
 
 	"github.com/Autumn-27/artex/internal/adapter"
 	"github.com/Autumn-27/artex/internal/egress"
+	"github.com/Autumn-27/artex/internal/envfilter"
 	actool "github.com/Autumn-27/norma/tool"
 )
 
@@ -135,7 +136,8 @@ func (t *ToolSet) runAdapter(ctx context.Context, tool string, args []string, ti
 	defer cancel()
 
 	cmd := exec.CommandContext(c, bin, args...)
-	cmd.Env = os.Environ()
+	// P8-7：剥掉凭据主密钥/数据库口令等，Bash 子进程不该看到它们。
+	cmd.Env = envfilter.Strip(os.Environ())
 	if len(egress.ProxyEnv) > 0 {
 		cmd.Env = append(cmd.Env, egress.ProxyEnv...)
 	}

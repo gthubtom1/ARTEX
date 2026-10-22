@@ -16,6 +16,7 @@ import (
 	"github.com/Autumn-27/artex/internal/creds"
 	"github.com/Autumn-27/artex/internal/dbiface"
 	"github.com/Autumn-27/artex/internal/decision"
+	"github.com/Autumn-27/artex/internal/frozen"
 	"github.com/Autumn-27/artex/internal/gatechain"
 	"github.com/Autumn-27/artex/internal/lateral"
 	"github.com/Autumn-27/artex/internal/ledger"
@@ -1217,12 +1218,20 @@ func (p *P2) DecideCapability(ctx context.Context, ts *db.ExplorationStore, capI
 	if action == decision.ActionContinue {
 		budgetMinutes, budgetRounds = v.BudgetMinutes, v.BudgetRounds
 	}
+	// P8-5：action=switch 时把"要冻结的资产"落库，供 add_intent 消费。
+	// 不落库的话，Verdict.FreezeAssetIDs 算完就没人用，"换目标"按钮等于只写了一句 hint。
+	frozenLit := ""
+	if action == decision.ActionSwitch && len(v.FreezeAssetIDs) > 0 {
+		frozenLit = int64ArrayLiteral(v.FreezeAssetIDs)
+	}
 	if _, err := p.DB.ExecContext(ctx,
 		`UPDATE capabilities SET status = $2, decided_at = now(), decided_by = $3,
 		 decision_action = $4, decision_note = $5,
 		 budget_started_at = CASE WHEN $6 > 0 THEN now() ELSE budget_started_at END,
-		 budget_minutes = $6, budget_rounds = $7, updated_at = now() WHERE id = $1`,
-		capID, v.Status, by, string(action), note, budgetMinutes, budgetRounds); err != nil {
+		 budget_minutes = $6, budget_rounds = $7,
+		 frozen_asset_ids = CASE WHEN $8 <> '' THEN $8::bigint[] ELSE frozen_asset_ids END,
+		 updated_at = now() WHERE id = $1`,
+		capID, v.Status, by, string(action), note, budgetMinutes, budgetRounds, frozenLit); err != nil {
 		return decision.Verdict{}, fmt.Errorf("裁决落库失败：%w", err)
 	}
 	// 裁决必须变成规划者能读到的提示，否则"点了按钮"等于没点。
@@ -1269,6 +1278,26 @@ func (t *ToolSet) decideCapability() actool.CoreTool {
 
 // int64ArrayLiteral 把 []int64 编码成 PostgreSQL 数组字面量（"{1,2}"），
 // 避免 database/sql 驱动对 []int64 参数不支持的问题。
+// frozenAssets 读本任务所有 action=switch 的"冻结资产"集合（P8-5）。
+//
+// 为什么需要：decision.Verdict.FreezeAssetIDs 早就算出来了，但一直没有消费者，
+// 用户点"换目标"等于只写了一句 hint。这里把它变成 add_intent 之前的一道检查。
+// 读不到库/无任务上下文时返回空集合（不影响派单）。
+func (t *ToolSet) frozenAssets() frozen.Set {
+	if t == nil || t.p2 == nil || t.p2.DB == nil || t.taskID <= 0 {
+		return frozen.Set{}
+	}
+	var raw string
+	err := t.p2.DB.QueryRowContext(context.Background(),
+		`SELECT COALESCE(array_to_json(array_agg(DISTINCT a))::text, '[]')
+		   FROM capabilities c, unnest(c.frozen_asset_ids) AS a
+		  WHERE c.task_id = $1`, t.taskID).Scan(&raw)
+	if err != nil {
+		return frozen.Set{}
+	}
+	return frozen.FromJSON(raw)
+}
+
 func int64ArrayLiteral(ids []int64) string {
 	if len(ids) == 0 {
 		return "{}"

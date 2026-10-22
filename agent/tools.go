@@ -1137,6 +1137,13 @@ func (t *ToolSet) addOneIntent(it intentItem) (int64, error) {
 	if attempts, yields := t.directionStats(it.Summary, anchors); gatechain.ShouldFreeze(attempts, yields) {
 		return 0, fmt.Errorf("该方向已冻结：同锚点同手法已尝试 %d 次且没有新增事实。换一个锚点或换一层（端口/认证后/数据层）再派。", attempts)
 	}
+	// 决策冻结（P8-5）：用户在能力菜单里点过"换目标"的资产不再派单。
+	// 只拒绝"为这个资产派单"，不拒绝其他资产，所以不会把方向锁死。
+	if set := t.frozenAssets(); set.Len() > 0 {
+		if id, hit := set.Any(anchors); hit {
+			return 0, fmt.Errorf("资产 #%d 已被决策队列判定为「换目标」，当前任务不再为它派单。要重开请在能力菜单把对应卡改判为「继续深挖」。", id)
+		}
+	}
 	payload := map[string]any{"summary": it.Summary}
 	if len(anchors) > 0 {
 		payload["asset_ids"] = anchors
@@ -1294,8 +1301,8 @@ func (t *ToolSet) addFinding() actool.CoreTool {
 		"vulnclass": str("漏洞类别"), "name": str("漏洞名称"), "severity": str("critical|high|medium|low"), "summary": str("发现摘要"),
 		"intent_id": idp("当前任务的意图 id"), "asset_ids": map[string]any{"type": "array", "items": map[string]any{"type": "integer"}, "description": "受影响资产 id"},
 		"evidence":         str("证据/PoC 文本"),
-		"control_tested": map[string]any{"type": "boolean", "description": "可选：是否做过对照组（同请求去掉 payload，或换一个不存在的 id）。有对照组时证据才可能过 grounding 门。"},
-		"control_note":   str("可选：对照组怎么做的（一句话，会写进证据）"),
+		"control_tested":   map[string]any{"type": "boolean", "description": "可选：是否做过对照组（同请求去掉 payload，或换一个不存在的 id）。有对照组时证据才可能过 grounding 门。"},
+		"control_note":     str("可选：对照组怎么做的（一句话，会写进证据）"),
 		"evidence_hint_id": idp("可选：本任务中对应此漏洞的提示节点 ID，自动携带其结构化 traffic_refs；不能引用继承提示或其他漏洞的提示"),
 		"traffic_refs": map[string]any{"type": "array", "description": "可选；HTTP/HTTPS 漏洞先检索并逐条核实请求/响应确实支持漏洞结论，再按复现顺序填写真实 ID。TCP 等非 HTTP 漏洞、未采集或找不到确切记录时省略或传 []，不阻止上报；可在 evidence 说明原因并提供其他可验证证据。不要猜测 ID、按域名/时间推定关联或仅为补包重复探测。用途 baseline 正常对照 / proof 漏洞证明 / verification 补充验证 / supporting 辅助证据。",
 			"items": obj(map[string]any{"traffic_id": str("traffic_search 返回的真实流量 ID"), "role": map[string]any{"type": "string", "enum": []string{"baseline", "proof", "verification", "supporting"}}, "note": str("该流量如何支持漏洞结论")}, "traffic_id")},

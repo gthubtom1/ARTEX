@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Autumn-27/artex/internal/egress"
+	"github.com/Autumn-27/artex/internal/envfilter"
 	"github.com/Autumn-27/artex/internal/replay"
 	"github.com/Autumn-27/norma/transcript"
 )
@@ -145,7 +146,7 @@ func (x shellReplayExec) Exec(ctx context.Context, command string) (string, erro
 	defer cancel()
 	cmd := exec.CommandContext(c, "sh", "-c", command)
 	if len(egress.ProxyEnv) > 0 {
-		cmd.Env = append(os.Environ(), egress.ProxyEnv...)
+		cmd.Env = append(envfilter.Strip(os.Environ()), egress.ProxyEnv...)
 	}
 	out, err := cmd.CombinedOutput()
 	if len(out) > 200*1024 {

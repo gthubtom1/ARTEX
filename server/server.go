@@ -25,6 +25,7 @@ import (
 	"github.com/Autumn-27/artex/guard"
 	"github.com/Autumn-27/artex/intercept"
 	"github.com/Autumn-27/artex/internal/audit"
+	"github.com/Autumn-27/artex/internal/creds"
 	"github.com/Autumn-27/artex/internal/egress"
 	"github.com/Autumn-27/artex/internal/env"
 	"github.com/Autumn-27/artex/internal/idem"
@@ -65,6 +66,7 @@ type Server struct {
 	p2               *agent.P2    // P2~P5 装配包（顾问/能力卡/凭据/立足点池/台账）
 	adviserCooldown  adviserGate  // LLM 顾问调用冷却（每任务 10 分钟一次）
 	verifierCooldown verifierGate // verifier 专判冷却（每任务 5 分钟一次）
+	credKeyFP        string       // P8-7：凭据主密钥指纹（空=用临时密钥）
 
 	skillDir  string // root directory for skill subdirectories
 	jwtKey    []byte // HS256 signing key loaded from / generated into dataDir/jwt.key
@@ -3535,6 +3537,7 @@ func (s *Server) settingsPayload() map[string]any {
 		"inject_persona_mode":         personaModeSetting(s),
 		"inject_preset":               injectPresetSetting(s),
 		"findings_verify_gate":        findingGateSetting(s),
+		"cred_key_fingerprint":        s.credKeyFP,
 		"inject_default_persona":      inject.DefaultPersona(),
 		"inject_default_persona_name": inject.DefaultPersonaName,
 		// 漏洞 IM 推送的全局项。渠道本身是独立资源，走 /api/notify/* 管理；
@@ -4382,7 +4385,15 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 
 	// ── P2~P5 装配：意图闸门 / 顾问 / 能力卡 / 凭据库 / 立足点池 / 持有台账 ──
 	// 全部 best-effort：任何一步失败只打日志，不影响任务起跑。
-	p2, perr := agent.NewP2(m.pg, os.Getenv("ARTEX_CRED_KEY"))
+	// P8-7：凭据主密钥按 环境变量 → <dataDir>/cred.key → 首次生成 的顺序解析。
+	// 注意：**不写回 os.Setenv** —— norma 的 Bash 工具会 append(os.Environ())，
+	// 一旦密钥进了进程环境，worker 里一句 `env` 就把主密钥打进 transcript。
+	credKey, credFP, credErr := creds.LoadOrCreateKey(dataDir)
+	if credErr != nil {
+		log.Printf("[creds] 警告：无法取得凭据主密钥（%v）；凭据库将使用临时密钥，重启后旧密文不可解", credErr)
+	}
+	s.credKeyFP = credFP
+	p2, perr := agent.NewP2(m.pg, credKey)
 	if perr != nil {
 		log.Printf("[p2] init failed (degraded): %v", perr)
 	}
@@ -4413,8 +4424,7 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		})
 		go s.recheckLoop(ctx)
 		s.installErrevSink() // P8-0：任务级错误事件落库通道
-		log.Printf("[p2] gatechain/adviser/capability/creds/access/ledger wired (cred_key_set=%v)",
-			os.Getenv("ARTEX_CRED_KEY") != "")
+		log.Printf("[p2] gatechain/adviser/capability/creds/access/ledger wired (cred_key_fp=%s)", credFP)
 	}
 
 	agent.SnapshotHook = func(c context.Context, tool string, in json.RawMessage) {

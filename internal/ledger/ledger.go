@@ -9,6 +9,7 @@ package ledger
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -21,23 +22,24 @@ import (
 
 // Owned 是一条持有记录。
 type Owned struct {
-	ID             int64     `json:"id"`
-	AssetKey       string    `json:"asset_key"`
-	AssetID        int64     `json:"asset_id,omitempty"`
-	Host           string    `json:"host,omitempty"`
-	IP             string    `json:"ip,omitempty"`
-	Port           int       `json:"port,omitempty"`
-	AccessType     string    `json:"access_type"` // shell|webshell|ssh|vpn|jump|admin|db
-	Privilege      string    `json:"privilege"`   // user|root|admin|system
-	Depth          int       `json:"depth"`
-	ViaAsset       int64     `json:"via_asset,omitempty"`
-	Status         string    `json:"status"` // owned|verified|stale|lost|cleaned
-	FirstTaskID    int64     `json:"first_task_id,omitempty"`
-	FirstOwnedAt   time.Time `json:"first_owned_at"`
-	LastVerifiedAt time.Time `json:"last_verified_at,omitempty"`
-	NextCheckAt    time.Time `json:"next_check_at,omitempty"`
-	Evidence       string    `json:"evidence,omitempty"`
-	Notes          string    `json:"notes,omitempty"`
+	ID               int64     `json:"id"`
+	AssetKey         string    `json:"asset_key"`
+	AssetID          int64     `json:"asset_id,omitempty"`
+	Host             string    `json:"host,omitempty"`
+	IP               string    `json:"ip,omitempty"`
+	Port             int       `json:"port,omitempty"`
+	AccessType       string    `json:"access_type"` // shell|webshell|ssh|vpn|jump|admin|db
+	Privilege        string    `json:"privilege"`   // user|root|admin|system
+	Depth            int       `json:"depth"`
+	ViaAsset         int64     `json:"via_asset,omitempty"`
+	Status           string    `json:"status"`                      // owned|verified|stale|lost|cleaned
+	ConsecutiveFails int       `json:"consecutive_fails,omitempty"` // P8-5：连续复查失败次数
+	FirstTaskID      int64     `json:"first_task_id,omitempty"`
+	FirstOwnedAt     time.Time `json:"first_owned_at"`
+	LastVerifiedAt   time.Time `json:"last_verified_at,omitempty"`
+	NextCheckAt      time.Time `json:"next_check_at,omitempty"`
+	Evidence         string    `json:"evidence,omitempty"`
+	Notes            string    `json:"notes,omitempty"`
 }
 
 // Check 是一次复查结果。
@@ -267,27 +269,55 @@ func (s *Store) RecordCheck(ctx context.Context, c Check) error {
 			if o.ID != c.OwnedID {
 				continue
 			}
-			o.LastVerifiedAt = c.TS
+			// P8-5：统一走状态机（连续 3 次失败 → lost），不要各处手写 if。
+			tr := Transition(TransitionInput{
+				Current:      OwnedStatus(o.Status),
+				OK:           c.OK,
+				Fails:        o.ConsecutiveFails,
+				LastVerified: o.LastVerifiedAt,
+				Now:          c.TS,
+				StaleAfter:   s.staleAfter,
+			})
+			o.Status = string(tr.Next)
+			o.ConsecutiveFails = tr.Fails
+			if tr.TouchVerify {
+				o.LastVerifiedAt = c.TS
+			}
 			next := s.recheck
 			if !c.OK {
 				next = 30 * time.Minute // 失败尽快重试，而不是等满一个周期
 			}
 			o.NextCheckAt = c.TS.Add(next)
-			if c.OK {
-				o.Status = "verified"
-			} else if c.TS.Sub(o.LastVerifiedAt) > s.staleAfter {
-				o.Status = "stale"
-			} else {
-				o.Status = "stale"
-			}
 			return nil
 		}
 		return fmt.Errorf("ledger: owned %d 不存在", c.OwnedID)
 	}
-	status := "stale"
-	if c.OK {
-		status = "verified"
+	// P8-5：先读当前状态/连续失败次数/上次验证时间，交给状态机算，再写回。
+	// 老数据（无该列默认 0）行为不变：owned → 失败 → stale。
+	var (
+		curStatus    string
+		curFails     int
+		lastVerified sql.NullTime
+	)
+	row := s.db.QueryRowContext(ctx,
+		`SELECT status, COALESCE(consecutive_fails,0), last_verified_at FROM assets_owned WHERE id = $1`, c.OwnedID)
+	switch err := row.Scan(&curStatus, &curFails, &lastVerified); {
+	case err == sql.ErrNoRows:
+		// 台账行不存在：保持原行为，让后面的 UPDATE 影响 0 行（调用方能看到）。
+		curStatus, curFails = "owned", 0
+	case err != nil:
+		return fmt.Errorf("ledger: 读台账状态: %w", err)
 	}
+	tr := Transition(TransitionInput{
+		Current:      OwnedStatus(curStatus),
+		OK:           c.OK,
+		Fails:        curFails,
+		LastVerified: lastVerified.Time,
+		Now:          c.TS,
+		StaleAfter:   s.staleAfter,
+	})
+	status := string(tr.Next)
+
 	checkKey := c.TS.UTC().Format("2006-01-02T15") // 同一小时同一类型只记一条
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO asset_checks (owned_id, asset_id, ts, kind, ok, latency_ms, changed, check_key, detail)
@@ -303,9 +333,10 @@ func (s *Store) RecordCheck(ctx context.Context, c Check) error {
 		next = 30 * time.Minute
 	}
 	_, err = s.db.ExecContext(ctx,
-		`UPDATE assets_owned SET status = $2, last_verified_at = CASE WHEN $3 THEN $4 ELSE last_verified_at END,
-		 next_check_at = $4 + $5::interval WHERE id = $1`,
-		c.OwnedID, status, c.OK, c.TS, fmt.Sprintf("%d seconds", int(next.Seconds())))
+		`UPDATE assets_owned SET status = $2, consecutive_fails = $3,
+		 last_verified_at = CASE WHEN $4 THEN $5 ELSE last_verified_at END,
+		 next_check_at = $5 + $6::interval WHERE id = $1`,
+		c.OwnedID, status, tr.Fails, tr.TouchVerify, c.TS, fmt.Sprintf("%d seconds", int(next.Seconds())))
 	return err
 }
 
