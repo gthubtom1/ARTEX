@@ -177,6 +177,14 @@ func (r *taskLLMRuntime) activeCfg() (agent.Config, bool) {
 			return cfg, true
 		}
 	}
+	// P8-9：档位映射也要在 activeCfg 里生效。
+	// 否则会出现"provider 跑在高档 model 上，但流式开关 / 输出上限 / 压缩窗口还是任务链那一档"的错配
+	// （nonStreaming/maxTokens/CompactionWindow 全部读这里）。
+	if pid := r.s.tierProfileFor(r.agentKey); pid > 0 {
+		if _, cfg, ok := r.s.providerForProfile(pid); ok {
+			return cfg, true
+		}
+	}
 	if _, cfg, ok := r.s.globalProvider(); ok {
 		return cfg, true
 	}
