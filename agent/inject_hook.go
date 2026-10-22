@@ -110,10 +110,6 @@ func (h *InjectHook) Stop(ctx context.Context, messages []llm.Message) (bool, []
 		goal = h.goal()
 	}
 	redirect := inject.Redirect(text, goal, h.maxChars)
-	if strings.TrimSpace(h.custom) != "" {
-		redirect = strings.TrimSpace(h.custom) + string(rune(10)) + redirect
-		redirect = clipRunes(redirect, h.maxChars)
-	}
 	if strings.TrimSpace(redirect) == "" {
 		return false, nil, ""
 	}
@@ -174,12 +170,4 @@ func WrapProvider(prov llm.Provider, goal func() string) llm.Provider {
 		return prov
 	}
 	return inject.NewInjector(prov, c.Mode, goal, c.MaxChars)
-}
-
-func clipRunes(s string, n int) string {
-	r := []rune(strings.TrimSpace(s))
-	if n <= 0 || len(r) <= n {
-		return string(r)
-	}
-	return string(r[:n]) + "…"
 }
