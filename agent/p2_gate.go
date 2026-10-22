@@ -83,9 +83,14 @@ const gateStateSQL = `SELECT
            JOIN assets_owned o ON o.id = ar.owned_id
            WHERE o.first_task_id = $1),
     EXISTS(SELECT 1 FROM assets_owned WHERE first_task_id = $1),
-    -- 继承型：本任务有来源任务（source_task_ids 非空）时，来源任务的台账对本任务可用。
+    -- 继承型：本任务有来源任务时，来源任务的台账对本任务可用。
     -- 不加这条，"跨任务长期持有"这个核心卖点在新任务里连 owned_* 工具都挂不上。
-    EXISTS(SELECT 1 FROM tasks WHERE id = $1 AND cardinality(COALESCE(source_task_ids,'{}')) > 0),
+    --
+    -- ⚠️ 关系在 task_relations(task_id, source_task_id) 这张连接表里，**不是** tasks 上的列。
+    -- 2026-10-22 R3 真跑审查抓到的致命回归：这里曾写成 tasks.source_task_ids（那是 task_archives
+    -- 的列），SQL 直接报"column does not exist" -> gateState 返回 nil -> fail-open ->
+    -- 工具门控**整个失效**（59 个工具全挂）。一个拼错的列名能让优化静默归零。
+    EXISTS(SELECT 1 FROM task_relations WHERE task_id = $1),
     EXISTS(SELECT 1 FROM findings
            WHERE task_id = $1
              AND (lower(vulnclass) LIKE '%sql%'
