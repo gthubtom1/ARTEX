@@ -308,3 +308,35 @@ func TestDecide_StoreFlaggedSuffixUsesJoinedReasons(t *testing.T) {
 		t.Errorf("summary prefix must stay single-line: %q", d.SummaryPrefix)
 	}
 }
+
+// 2026-10-22：日期被当成路径 → "两条独立路径复现"这一门（门 3）被白送。
+// 门 3 是唯一能证明"这个结论不是一次性巧合"的证据，不能有这种后门。
+func TestIndependentFromEvidenceRejectsDates(t *testing.T) {
+	notIndependent := []string{
+		"2024/01/02 与 2024/03/04 两次抓包都看到该响应头",
+		"对比 2026/10/22 和 2026/10/23 的记录，响应一致",
+		"版本 v1.1 与 3.2.1 都存在相同缺陷",
+		"1/2 与 3/4 两条记录",
+	}
+	for _, ev := range notIndependent {
+		if IndependentFromEvidence(ev) {
+			t.Errorf("IndependentFromEvidence(%q)=true，日期/版本不该算独立路径", ev)
+		}
+	}
+
+	independent := []string{
+		"GET /api/order/detail?id=1002 返回 B 的手机号\nGET /api/user/info?uid=1002 返回同样数据",
+		"GET /admin/list 200\nPOST /admin/export 200",
+		"POST /index.php?s=captcha 回显 uid=33\nGET /public/index.php?s=captcha 同样回显",
+	}
+	for _, ev := range independent {
+		if !IndependentFromEvidence(ev) {
+			t.Errorf("IndependentFromEvidence(%q)=false，应判为独立复现", ev)
+		}
+	}
+
+	// 只有方法词、没有路径：不算复现
+	if IndependentFromEvidence("我 get 和 post 都试过了，都返回 200") {
+		t.Error("只有方法词出现在散文里，不该算独立复现")
+	}
+}

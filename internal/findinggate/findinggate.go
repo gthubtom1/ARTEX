@@ -164,9 +164,6 @@ func IndependentFromEvidence(evidence string) bool {
 	for _, m := range httpMethodRe.FindAllString(evidence, -1) {
 		methods[strings.ToUpper(m)] = struct{}{}
 	}
-	if len(methods) >= 2 {
-		return true
-	}
 	clean := httpVersionRe.ReplaceAllString(evidence, " ")
 	paths := map[string]struct{}{}
 	for _, m := range httpPathRe.FindAllStringSubmatch(clean, -1) {
@@ -174,12 +171,63 @@ func IndependentFromEvidence(evidence string) bool {
 			continue
 		}
 		p := strings.TrimRight(m[1], ".,;:")
-		if p == "" || p == "/" {
+		if p == "" || p == "/" || isNotAPath(p) {
 			continue
 		}
 		paths[p] = struct{}{}
 	}
-	return len(paths) >= 2
+	// 两条独立路径 = 强信号；只有"两个方法 + 至少一条路径"算弱信号。
+	// 单靠两个方法词在散文里出现（"get 和 post 都试过"）不算复现。
+	if len(paths) >= 2 {
+		return true
+	}
+	return len(methods) >= 2 && len(paths) >= 1
+}
+
+// isNotAPath 过滤"长得像路径但不是接口路径"的片段。
+//
+// 起因（2026-10-22）：`IndependentFromEvidence` 会把 evidence 里的日期当成路径 ——
+// "2024/01/02 与 2024/03/04 两次抓包" 会被判成"用两条独立路径复现过"，
+// 而门 3 是"独立复现"的唯一凭据，这等于给幻觉开了后门。
+func isNotAPath(p string) bool {
+	segs := strings.Split(strings.Trim(p, "/"), "/")
+	if len(segs) == 0 {
+		return true
+	}
+	digits := 0
+	for _, s := range segs {
+		if s == "" {
+			continue
+		}
+		if isAllDigits(s) {
+			digits++
+		}
+	}
+	// 全是数字段（2024/01/02、1/2、20260101）→ 日期或版本，不是路径
+	if digits == len(segs) {
+		return true
+	}
+	// 日期形状：YYYY/MM[.DD] 开头
+	if len(segs) >= 2 && len(segs[0]) == 4 && isAllDigits(segs[0]) && isAllDigits(segs[1]) {
+		return true
+	}
+	// 版本/浮点片段：v1.1 / 3.2.1 / 1.2.3.4
+	if digits*2 >= len(segs) && len(p) <= 12 {
+		return true
+	}
+	return false
+}
+
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // ControlHint：没有对照组时给模型的一句提示（用于 Message 的补充），有则返回空。
