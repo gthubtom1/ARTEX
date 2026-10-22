@@ -81,7 +81,7 @@ C:\Users\toti\pi-cwd\20261020\artex-分析\mirror
 | P0 | settings / audit / errclass / idem / snapshot / dbiface | ✅ |
 | P0 | 本地靶场 compose + 五项验收脚本 | ✅ |
 | P0.5 | 接线：审计入 guard、幂等+快照包住写工具、错误分类进 engine | ✅ |
-| P1 | netguard（出口验 IP/切节点/fail-closed） | ✅ 7 测试 |
+| P1 | netguard（出口验 IP）→ **P9 改为纯自检：Clash 切节点与 fail-closed 已删除** | ✅ 7 测试（P1 时） |
 | P1 | env（五层工具发现 + 指纹 + 缓存） | ✅ 6 测试 |
 | P1 | adapter（nmap/httpx/nuclei 结构化解析） | ✅ 10 测试 |
 | P1 | OAST（HTTP + DNS 带外） | ✅ 4 测试 |
@@ -115,7 +115,7 @@ C:\Users\toti\pi-cwd\20261020\artex-分析\mirror
 | 减法 | 4 次 0 产出方向代码层冻结；continue 预算到点自动停 | ✅ |
 | 案例消费 | planner 每轮检索 kb/cases 注入正/负案例 | ✅ |
 | 立足点 | raw shell（nc+哨兵）+ HTTP Basic 复用 | ✅ |
-| 运行时 | 真 PG18 冒烟：capabilities/owned/verifier/report/knowledge 200；复查 verified；死代理 fail-closed paused | ✅ |
+| 运行时 | 真 PG18 冒烟：capabilities/owned/verifier/report/knowledge 200；复查 verified；（P9 前）死代理 fail-closed paused —— P9 后改为只显形不阻断 | ✅ |
 | 全量测试 | `ARTEX_PG_DSN=... go test ./... -count=1` exit 0（sed/python 平台 skip） | ✅ |
 | 外部技能 | 236 技能分层：138 MIT 知识层（kb_search）+ 8 精选执行层（worker/pentest）+ 98 无许可排除 | ✅ |
 
@@ -184,7 +184,7 @@ internal/settings audit errclass idem snapshot dbiface netguard env adapter oast
 agent/relay_hook.go（MEMORY 接力）  agent/assembly.go（幂等+快照包装）
 guard/guard.go（审计 sink + 工具存在性钩子）
 server/server.go（wireP0：settings/audit/idem/snapshot/netguard/env）
-server/engine.go（启动前出口校验 fail-closed + errclass 分类日志）
+server/engine.go（errclass 分类日志；出口校验的 fail-closed 已被 P9 移除，改为启动前自检 + 只告警）
 fixtures/docker-compose.yml        靶场（DVWA/JuiceShop/VulHub，全绑 127.0.0.1）
 scripts/accept_p0.sh               五项验收
 docs/最终方案-v1.md                唯一总纲（冲突以它为准）

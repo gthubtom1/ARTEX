@@ -78,9 +78,19 @@ ARTEX_ALLOW_DIRECT=1 ./start.sh      # 打本地靶场时加这个；只让本�
 
 ## 路线 C：Windows（用户双击 start.bat）
 
+**先看有没有 Node**（`command -v node`）：`package_local.sh` 会跑 `next build`，没有 `web/node_modules` 会直接失败。
+
+有 Node：
 ```bash
 cd <repo>
+cd web && NODE_ENV=development npm ci --include=dev --ignore-scripts && cd ..
 bash scripts/package_local.sh <ver>     # 产出 dist/artex.exe（前端已内嵌）
+```
+
+没有 Node / 不想编：
+```bash
+# 让用户从 Releases 下 windows-amd64 的 zip，解压即用（zip 里 artex.exe + start.bat 已摆好）
+# 或在有 Node 的机器上执行 bash scripts/package_release.sh <ver> 打出同样的 zip
 ```
 
 然后**什么都不用搬**：`start.bat` 会自动按 `.\artex.exe → .\dist\artex.exe → .\artex-win-amd64.exe` 找二进制。
@@ -89,6 +99,9 @@ bash scripts/package_local.sh <ver>     # 产出 dist/artex.exe（前端已内�
 用户之后**双击 `start.bat`** 即用；重复双击不会起第二个实例（会提示已在运行并打开浏览器）。
 
 成功判定：黑窗口出现 `ARTEX dev backend listening on 127.0.0.1:8787`。
+
+> `package_local.sh` 只产出 `dist/artex.exe`；`package_release.sh` 产出的才是"解压即用"的 zip
+> （内部已把二进制改名成 `artex.exe` 并带上 start.bat / 启动.bat / config.example.json / 使用教程 / skills / kb）。
 
 ---
 

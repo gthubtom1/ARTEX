@@ -11,7 +11,8 @@
 > #### 三步跑起来
 > ```
 > 1) Kali/Debian/Ubuntu:  bash scripts/deploy_vps.sh        # 一条命令（含装 docker、起 PG）
-   Windows:            bash scripts/package_local.sh v1   # 产出 dist/artex.exe，然后双击 start.bat
+   Windows(有 Node):    cd web && NODE_ENV=development npm ci --include=dev --ignore-scripts && cd ..                         && bash scripts/package_local.sh v1   # 产出 dist/artex.exe，双击 start.bat
+   Windows(无 Node):    从 Releases 下 windows-amd64 的 zip，解压即用（不用编、不用改名）
 >    Linux 无 Docker:     go build -o artex ./cmd/artex && ./start.sh
 > 2) 浏览器打开 http://127.0.0.1:8787 ，用户名 ARTEX，首次自己设密码
 > 3) 系统 → 首次配置（四步：数据库 / 模型 / 出口自检 / 完成）→ 首页"贴一个网址，直接开跑"
