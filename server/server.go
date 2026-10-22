@@ -33,6 +33,7 @@ import (
 	"github.com/Autumn-27/artex/internal/inject"
 	"github.com/Autumn-27/artex/internal/ledger"
 	"github.com/Autumn-27/artex/internal/netguard"
+	"github.com/Autumn-27/artex/internal/provision"
 	"github.com/Autumn-27/artex/internal/settings"
 	"github.com/Autumn-27/artex/internal/snapshot"
 	"github.com/Autumn-27/artex/llmpool"
@@ -4401,6 +4402,11 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		// 再问一次 LookPath，避免"明明装了却说没有"。
 		if _, err := exec.LookPath(name); err == nil {
 			return true, ""
+		}
+		// 用 provision.Registry 的降级表给具体替代（19 个工具各有等价物），
+		// 而不是一句通用文案 —— 这张表之前一直没接上（生产代码零引用）。
+		if fb := provision.Fallback(name); len(fb) > 0 {
+			return false, "本机未找到 " + name + "。可以改用等价工具继续（" + strings.Join(fb, " / ") + "），或到环境页安装后再试。"
 		}
 		return false, "本机未找到 " + name + "。可以改用等价工具继续（例如 nmap↔masscan+nc、sqlmap↔内置注入脚本），或到环境页安装后再试。"
 	}
