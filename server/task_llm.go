@@ -122,7 +122,17 @@ func (r *taskLLMRuntime) current() (taskLLMSelection, error) {
 	r.s.syncTaskLLMState(pt)
 	t, _ := r.s.m.Task(r.taskID)
 	sel := taskLLMSelection{task: t, revision: pt.LLMChainRevision}
-	if prov, cfg, ok := r.s.agentBindingProvider(r.agentKey); ok {
+	// 「显式绑定」必须硬：绑了就只跑它，坏了就报错，绝不静默换成全局模型。
+	//
+	// 依据：Ostorlab 2026 九款 AI 渗透工具横评里，PentestGPT / Deadend 的典型失败是
+	// "配置了模型却反复回退到 OpenAI" —— 用户以为在跑 A 模型，实际在跑 B，账单和结论都错。
+	// 这里的判据是"有没有绑定"（而不是"能不能构建"）：绑定存在但构建失败（缺 Key / 被删）
+	// 必须显形报错，不能悄悄降级。
+	if boundID, bound := r.s.boundProfileID(r.agentKey); bound {
+		prov, cfg, ok := r.s.agentBindingProvider(r.agentKey)
+		if good, msg := decideBinding(true, boundID, ok); !good {
+			return sel, fmt.Errorf("%s（agent=%s）", msg, r.agentKey)
+		}
 		sel.provider, sel.retry = prov, cfg.Retry
 		return sel, nil
 	}
@@ -508,6 +518,32 @@ func (r *taskLLMRuntime) CompactionWindow() int {
 // when the role has no binding or the bound profile no longer builds, so callers
 // fall through to the task chain. A bound profile stays exclusive unless
 // llm_pool_bind_fallback is on, which is what poolForBinding encodes.
+// boundProfileID 返回该 agent 是否**被显式绑定**到某个 profile，以及那个 id。
+// 与 agentBindingProvider 的区别：这里只回答"有没有绑定"，不回答"能不能构建"。
+// current() 用它在"绑定坏了"时拒绝静默降级。
+// decideBinding 是"显式绑定该怎么处理"的纯判定（便于单测）：
+//
+//	没绑定          → (true, "")      不参与决策，调用方继续往下走
+//	绑定了且能构建  → (true, "")      用它
+//	绑定了但构建失败 → (false, 原因)   报错，**不允许静默降级**
+//
+// 为什么要单拎出来：这是 Ostorlab 2026 横评里 PentestGPT / Deadend 栽过的坑 ——
+// 配置了模型却回退到另一个模型，用户以为在跑 A、实际在跑 B。
+func decideBinding(bound bool, id int64, buildable bool) (ok bool, errMsg string) {
+	if !bound || buildable {
+		return true, ""
+	}
+	return false, fmt.Sprintf("显式绑定的模型配置 #%d 不可用（API Key 缺失或被删除）；不会自动改用其它模型，请到「系统 → LLM」修好或解绑后再跑", id)
+}
+
+func (s *Server) boundProfileID(agentKey string) (int64, bool) {
+	id := s.effectiveProfileForAgent(agentKey, nil)
+	if id == nil || *id <= 0 {
+		return 0, false
+	}
+	return *id, true
+}
+
 func (s *Server) agentBindingProvider(agentKey string) (llm.Provider, agent.Config, bool) {
 	id := s.effectiveProfileForAgent(agentKey, nil)
 	if id == nil {
