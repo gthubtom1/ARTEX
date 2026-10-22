@@ -25,14 +25,14 @@ import (
 
 // Config 是出口守卫的运行参数（来自 settings，每次调用实时读取）。
 type Config struct {
-	ProxyHTTP   string        // 例：http://127.0.0.1:7897
-	ProxySOCKS  string        // 例：socks5://127.0.0.1:7897（仅记录，客户端用 ProxyHTTP）
-	Controller  string        // Clash 外部控制：http://127.0.0.1:9097
-	Secret      string        // Clash secret（Bearer）
-	VerifyURLs  []string      // 出口 IP 查询源（至少两个，互证）
-	Timeout     time.Duration // 单次请求超时（默认 8s）
-	RequireProxy bool         // true（默认）= 没有代理直接判失败
-	AllowEgress []string      // 可选：出口 IP 白名单（空=不限制具体 IP）
+	ProxyHTTP    string        // 例：http://127.0.0.1:7897
+	ProxySOCKS   string        // 例：socks5://127.0.0.1:7897（仅记录，客户端用 ProxyHTTP）
+	Controller   string        // Clash 外部控制：http://127.0.0.1:9097
+	Secret       string        // Clash secret（Bearer）
+	VerifyURLs   []string      // 出口 IP 查询源（至少两个，互证）
+	Timeout      time.Duration // 单次请求超时（默认 8s）
+	RequireProxy bool          // true（默认）= 没有代理直接判失败
+	AllowEgress  []string      // 可选：出口 IP 白名单（空=不限制具体 IP）
 }
 
 // Status 是一次校验的结果。
@@ -51,6 +51,13 @@ type Guard struct {
 
 	mu   sync.RWMutex
 	last Status
+
+	// VerifyCached 的缓存（成功按 ttl，失败按 min(ttl,30s)），
+	// 让 net.verify_every_s 真正生效 —— 否则每轮规划都要打两次外网。
+	cacheAt  time.Time
+	cacheSt  Status
+	cacheErr error
+	cacheSet bool
 }
 
 func New(cfg func() Config, db dbiface.DB) *Guard { return &Guard{cfg: cfg, db: db} }
@@ -106,6 +113,47 @@ func (g *Guard) Client() (*http.Client, error) {
 //   - 所有 VerifyURLs 必须返回同一个 IP（否则说明分流规则坏了）；
 //   - 该 IP 不能是内网/回环/链路本地；
 //   - 若配置了 AllowEgress，必须命中白名单。
+//
+// VerifyCached 是 Verify 的带缓存版本。
+//
+// 为什么需要：出口校验每次要打两个独立源（互证出口 IP），一次两个外网往返。
+// 规划每轮都问一次的话，一天下来是几百次无用请求。成功结果缓存 ttl；
+// 失败结果缓存 min(ttl, 30s) —— 代理刚恢复时不能等满 5 分钟才放行。
+func (g *Guard) VerifyCached(ctx context.Context, ttl time.Duration) (Status, error) {
+	if ttl <= 0 {
+		return g.Verify(ctx)
+	}
+	now := time.Now()
+	g.mu.RLock()
+	if g.cacheSet {
+		age := now.Sub(g.cacheAt)
+		limit := ttl
+		if g.cacheErr != nil && limit > 30*time.Second {
+			limit = 30 * time.Second
+		}
+		if age < limit {
+			st, err := g.cacheSt, g.cacheErr
+			g.mu.RUnlock()
+			return st, err
+		}
+	}
+	g.mu.RUnlock()
+
+	st, err := g.Verify(ctx)
+
+	g.mu.Lock()
+	g.cacheAt, g.cacheSt, g.cacheErr, g.cacheSet = time.Now(), st, err, true
+	g.mu.Unlock()
+	return st, err
+}
+
+// InvalidateCache 清掉缓存（改代理后用，让下一次立即真校验）。
+func (g *Guard) InvalidateCache() {
+	g.mu.Lock()
+	g.cacheSet = false
+	g.mu.Unlock()
+}
+
 func (g *Guard) Verify(ctx context.Context) (Status, error) {
 	c := g.config()
 	st := Status{At: time.Now()}
@@ -257,9 +305,9 @@ func (g *Guard) ClashVersion(ctx context.Context) (string, error) {
 // CurrentNode 返回某策略组当前选中的节点。
 func (g *Guard) CurrentNode(ctx context.Context, group string) (string, error) {
 	var d struct {
-		Now   string `json:"now"`
-		Type  string `json:"type"`
-		All   []string `json:"all"`
+		Now  string   `json:"now"`
+		Type string   `json:"type"`
+		All  []string `json:"all"`
 	}
 	if err := g.clashDo(ctx, http.MethodGet, "/proxies/"+url.PathEscape(group), nil, &d); err != nil {
 		return "", err

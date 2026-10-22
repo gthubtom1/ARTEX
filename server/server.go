@@ -729,6 +729,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/stats", s.stats)
 	s.registerP2Routes(mux)     // 能力卡 / 持有台账 / 进度诊断 / 审计（只读面板）
 	s.registerErrorRoutes(mux)  // P8-8：任务级错误事件聚合（错误可解释面板）
+	s.registerTierRoutes(mux)   // P8-9：模型分层（三档预设 + 建议）
 	s.registerPanelRoutes(mux)  // 环境 / 网络 / 知识（只读面板）
 	s.registerMCPRoutes(mux)    // MCP：知识库（kb_search / kb_read）
 	s.registerReplayRoutes(mux) // 回放看板：两个任务的成本/产出对比
@@ -4355,6 +4356,17 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 	})
 	// P8-8：guard 写错误事件时需要知道当前任务 id（只读，不参与判定）。
 	guard.TaskIDOf = func(c context.Context) int64 { return agent.RunInfoFrom(c).TaskID }
+	// P8-6：Bash / WebFetch 也要过出口闸（原来只有 execx/remote/recheck/replay/adapter 过）。
+	// 用 VerifyCached 让 net.verify_every_s 真正生效，避免每轮打两次外网。
+	if os.Getenv("ARTEX_ALLOW_DIRECT") == "1" {
+		guard.EgressCheck = nil
+	} else {
+		guard.EgressCheck = func(c context.Context) error {
+			ttl := time.Duration(s.settings.Int("net.verify_every_s", 300)) * time.Second
+			_, err := s.netguard.VerifyCached(c, ttl)
+			return err
+		}
+	}
 	// P8-3：report_finding 的三门质量闸档位（每轮读，改完下一轮生效）。
 	agent.FindingGateMode = func() string { return s.settings.String("findings.verify_gate", "infer") }
 	// 执行面出口闸：所有会发包的执行器（execx/remote/recheck/replay）统一 fail-closed。

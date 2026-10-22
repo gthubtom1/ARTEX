@@ -142,6 +142,14 @@ func (g *Guard) preToolUse(ctx context.Context, ev hook.Event) hook.Result {
 			}
 		}
 	}
+	// P8-6：出口闸 —— 只在"这次调用真的要发包"时校验，纯本地命令不打扰。
+	// ARTEX_ALLOW_DIRECT=1 时 server 不会注入 EgressCheck，这里自然跳过。
+	if EgressCheck != nil && egressNeeded(ev.ToolName, cmd) {
+		if err := EgressCheck(ctx); err != nil {
+			errEvent(ctx, errev.ClassEnvError, ev.ToolName, err.Error())
+			return g.block(ev.ToolName, egressBlockMessage(err.Error()), cmd)
+		}
+	}
 	return g.applyIntercept(ctx, ev)
 }
 

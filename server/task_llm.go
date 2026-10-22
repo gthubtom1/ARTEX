@@ -138,6 +138,15 @@ func (r *taskLLMRuntime) current() (taskLLMSelection, error) {
 		sel.provider, sel.retry = prov, cfg.Retry
 		return sel, nil
 	}
+	// P8-9：模型分层——角色级"档位映射"（planner 用强模型、worker 用便宜模型）。
+	// 位置很关键：低于任务显式链（用户手选不能被覆盖），高于全局激活配置。
+	// 走这条路时 profileID 保持 0：它不参与任务级额度故障转移（那是任务链的语义）。
+	if pid := r.s.tierProfileFor(r.agentKey); pid > 0 {
+		if prov, cfg, ok := r.s.providerForProfile(pid); ok {
+			sel.provider, sel.retry = prov, cfg.Retry
+			return sel, nil
+		}
+	}
 	prov, cfg, ok := r.s.globalProvider()
 	if !ok {
 		return sel, fmt.Errorf("task %s has no available fallback LLM provider", r.taskID)
