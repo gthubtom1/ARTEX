@@ -63,6 +63,8 @@ C:\Users\toti\pi-cwd\20261020\artex-分析\mirror
 | 运行时 | 真 PG18 冒烟：capabilities/owned/verifier/report/knowledge 200；复查 verified；死代理 fail-closed paused | ✅ |
 | 全量测试 | `ARTEX_PG_DSN=... go test ./... -count=1` exit 0（sed/python 平台 skip） | ✅ |
 | 外部技能 | 236 技能分层：138 MIT 知识层（kb_search）+ 8 精选执行层（worker/pentest）+ 98 无许可排除 | ✅ |
+| 实机验收 | DSVW 靶场 + cpa/deepseek-v4.1-flash：93s/2 finding（任务1）、65s/2 finding/3 能力卡（任务2）；报告含 PoC | ✅ |
+| GitHub | fork gthubtom1/ARTEX 已推送 main（UI 收口 + 全部功能） | ✅ |
 
 ## 验证（新会话开工前先跑一遍，确认交接没坏）
 
