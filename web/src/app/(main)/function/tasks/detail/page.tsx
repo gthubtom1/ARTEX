@@ -48,6 +48,8 @@ import { GraphTab } from "./_tabs/graph-tab";
 import { InterceptTab } from "./_tabs/intercept-tab";
 import { OverviewTab } from "./_tabs/overview-tab";
 import { ReportTab } from "./_tabs/report-tab";
+
+import { TaskErrorBar } from "@/components/task-error-bar";
 import { RetestsTab } from "./_tabs/retests-tab";
 import { SessionsTab } from "./_tabs/sessions-tab";
 
@@ -420,6 +422,9 @@ function TaskDetailInner() {
           </TabsList>
         </div>
       </header>
+
+      {/* P8-8：五类错误聚合成一行（没有错误时不渲染） */}
+      <TaskErrorBar taskId={task.id} />
 
       {/* Tab content */}
       <div className="flex-1 p-4 lg:p-6">

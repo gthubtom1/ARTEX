@@ -115,7 +115,12 @@ export default function InjectionPage() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">注入方式</CardTitle>
-          <CardDescription>和 pi-web 一样：默认「缺失时补」，上下文里没有这份人设时才重新注入。</CardDescription>
+          <CardDescription>
+            默认「缺失时补」，上下文里没有这份人设时才重新注入。
+            <br />
+            注意：planner / worker 的系统提示每轮是重拼的，所以在这两个角色上「缺失时补」与「每轮注入」实际等价；
+            真正省 token 的办法是缩短人设，而不是切换方式。
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           <label className="flex cursor-pointer items-start gap-2 text-sm">

@@ -132,8 +132,10 @@ func (m *MainAgent) Chat(ctx context.Context, taskID int64, mainSeg int, as *db.
 	mainDir := ensureRunDir(m.workDir, taskID, 0)
 	ctx = intercept.WithReviewWorkingDirectory(ctx, mainDir)
 	system, boundary := deferredSystem(mainAgentSystem(goal, m.workDir, mainDir), def)
+	// 注入层：任务内主对话也要有人设与拒答重定向（原来只有 planner/worker 覆盖）。
+	system = append(system, injectPromptBlock(goal))
 	opts := agentcore.Options{
-		Provider:        m.prov,
+		Provider:        WrapProvider(m.prov, func() string { return goal }),
 		SystemPrompt:    system,
 		DynamicBoundary: boundary,
 		Tools:           tools,
@@ -163,6 +165,10 @@ func (m *MainAgent) Chat(ctx context.Context, taskID int64, mainSeg int, as *db.
 		Settlement:   wrapupSettlement("mainagent", nil),
 		NonStreaming: m.nonStreaming(), // 该 profile 选非流式时走 Provider.Complete
 		MaxTokens:    m.maxTokens(),    // 0 = 不发上限,由服务端默认值决定
+	}
+	// 拒答重定向：主对话没有内层钩子，所以内部钩子传 nil。
+	if h := WrapHooks(nil, func() string { return goal }); h != nil {
+		opts.Hooks = h
 	}
 	if m.tx != nil { // persist raw human↔AI conversation; one accumulating file per segment
 		opts.Transcript = m.tx

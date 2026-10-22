@@ -1493,3 +1493,149 @@ export const p2api = {
       `/replay/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`,
     ),
 };
+
+// ── P8：基准跑分（P8-1）/ 一条链入口（P8-4）/ 错误聚合（P8-8）/ 模型分层（P8-9） ──
+// 与 p2api 同样单独导出，不在 api 上挂动态属性（避免 TS 丢类型）。
+
+export interface BenchCaseResult {
+  key: string;
+  category: string;
+  passed: boolean;
+  duration_ms: number;
+  first_finding_ms: number;
+  tokens: number;
+  task_id: string;
+  outcome: "passed" | "failed" | "timeout" | "error" | string;
+  note: string;
+}
+
+export interface BenchRun {
+  run_key: string;
+  set_name: string;
+  model_profile: string;
+  started_at: string;
+  total: number;
+  passed: number;
+  duration_ms: number;
+  total_tokens: number;
+  cases: BenchCaseResult[];
+}
+
+export interface BenchSummary {
+  pass_rate: number;
+  avg_duration_ms: number;
+  avg_first_finding_ms: number;
+  delta_pass_rate: number;
+  delta_duration_ms: number;
+}
+
+export interface BenchRunRow {
+  run_key: string;
+  set_name: string;
+  model_profile: string;
+  total: number;
+  passed: number;
+  pass_rate: number;
+  duration_ms: number;
+  total_tokens: number;
+  notes: string;
+  created_at: string;
+  delta_pass_rate: number;
+  delta_duration_ms: number;
+  prev_run_key?: string;
+}
+
+export const benchapi = {
+  runs: () => get<{ runs: BenchRunRow[]; results_dir: string }>("/bench/runs"),
+  run: (key: string) =>
+    get<{ run: BenchRun; summary: BenchSummary }>(`/bench/run?key=${encodeURIComponent(key)}`),
+  cases: () =>
+    get<{
+      cases: { key: string; name: string; category: string; url: string; timeout_s: number }[];
+      count: number;
+      dir: string;
+      hint?: string;
+      detail?: string;
+    }>("/bench/cases"),
+  ingest: (body: {
+    run_key: string;
+    set_name: string;
+    model_profile: string;
+    total: number;
+    passed: number;
+    duration_ms: number;
+    total_tokens: number;
+    notes?: string;
+  }) => post<{ run_key: string; registered: boolean }>("/bench/ingest", body),
+};
+
+export interface QuickstartResponse {
+  task_id: string;
+  goal: string;
+  tier: "lab" | "legacy" | "public" | string;
+  url: string;
+  host: string;
+  egress: { ok: boolean; detail?: string; exit_ip?: string; node?: string };
+  warnings: string[];
+  redirect: string;
+}
+
+export interface EgressCheck {
+  ok: boolean;
+  detail?: string;
+  proxy?: string;
+  exit_ip?: string;
+  node?: string;
+}
+
+export interface TaskErrorGroup {
+  class: string;
+  label: string;
+  count: number;
+  sample: string;
+  action: string;
+  fix: string;
+  tools: string[] | null;
+}
+
+export interface TaskErrorsResponse {
+  task_id: number;
+  window_min: number;
+  total: number;
+  groups: TaskErrorGroup[];
+}
+
+export interface TierProfileView {
+  id: number;
+  name: string;
+  model: string;
+  tier: "high" | "mid" | "low" | string;
+  note: string;
+}
+
+export interface TierSuggestResponse {
+  suggest: Record<string, number>;
+  reason: string;
+  profiles: TierProfileView[];
+  current: Record<string, number>;
+  active_id: number;
+  agent_order: string[];
+}
+
+export const p8api = {
+  quickstart: (body: {
+    url: string;
+    tier: "lab" | "legacy" | "public";
+    timeout_min?: number;
+    workers?: number;
+    llm_profile_id?: number;
+  }) => post<QuickstartResponse>("/tasks/quickstart", body),
+  egressCheck: () => get<EgressCheck>("/egress/check"),
+  taskErrors: (taskId: string, windowMin = 60) =>
+    get<TaskErrorsResponse>(
+      `/tasks/${encodeURIComponent(taskId)}/errors?window_min=${windowMin}`,
+    ),
+  tierSuggest: () => get<TierSuggestResponse>("/llm/tier-suggest"),
+  putTier: (body: { planner?: number; worker?: number; verifier?: number; adviser?: number }) =>
+    put<{ current: Record<string, number> }>("/llm/tier", body),
+};

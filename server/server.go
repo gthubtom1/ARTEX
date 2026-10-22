@@ -727,14 +727,16 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/stats", s.stats)
-	s.registerP2Routes(mux)     // 能力卡 / 持有台账 / 进度诊断 / 审计（只读面板）
-	s.registerErrorRoutes(mux)  // P8-8：任务级错误事件聚合（错误可解释面板）
-	s.registerTierRoutes(mux)   // P8-9：模型分层（三档预设 + 建议）
-	s.registerPanelRoutes(mux)  // 环境 / 网络 / 知识（只读面板）
-	s.registerMCPRoutes(mux)    // MCP：知识库（kb_search / kb_read）
-	s.registerReplayRoutes(mux) // 回放看板：两个任务的成本/产出对比
-	s.registerCaseRoutes(mux)   // 正负案例卡：任务图谱自动沉淀 + 列表
-	s.registerDataRoutes(mux)   // 数据定位：解析 DB 输出（不执行 SQL）
+	s.registerP2Routes(mux)         // 能力卡 / 持有台账 / 进度诊断 / 审计（只读面板）
+	s.registerErrorRoutes(mux)      // P8-8：任务级错误事件聚合（错误可解释面板）
+	s.registerTierRoutes(mux)       // P8-9：模型分层（三档预设 + 建议）
+	s.registerBenchRoutes(mux)      // P8-1：基准跑分（列表/明细/用例）
+	s.registerQuickstartRoutes(mux) // P8-4：贴 URL 就开跑 + 出口预检
+	s.registerPanelRoutes(mux)      // 环境 / 网络 / 知识（只读面板）
+	s.registerMCPRoutes(mux)        // MCP：知识库（kb_search / kb_read）
+	s.registerReplayRoutes(mux)     // 回放看板：两个任务的成本/产出对比
+	s.registerCaseRoutes(mux)       // 正负案例卡：任务图谱自动沉淀 + 列表
+	s.registerDataRoutes(mux)       // 数据定位：解析 DB 输出（不执行 SQL）
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)
 	mux.HandleFunc("GET /api/logs/stream", s.streamLogs)

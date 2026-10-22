@@ -4,6 +4,8 @@ import * as React from "react";
 
 import Link from "next/link";
 
+import { QuickStartCard } from "@/components/quick-start-card";
+
 import {
   ActivityIcon,
   ArrowUpRightIcon,
@@ -500,6 +502,9 @@ export default function DashboardPage() {
           <p className="text-xs text-muted-foreground">系统全局状态 · 实时刷新</p>
         </div>
       </div>
+
+      {/* ── P8-4：贴一个网址直接开跑 ── */}
+      <QuickStartCard />
 
       {/* ── Row 1: 5 stat cards ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
