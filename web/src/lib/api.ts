@@ -1480,6 +1480,12 @@ export const p2api = {
   },
   environment: () => get<import("@/lib/types").EnvironmentResponse>("/environment"),
   network: () => get<import("@/lib/types").NetworkResponse>("/network"),
+  verifierReviews: (taskId?: string, limit = 100) => {
+    const qs = new URLSearchParams();
+    if (taskId) qs.set("task_id", taskId);
+    qs.set("limit", String(limit));
+    return get<import("@/lib/types").P2VerifierResponse>(`/p2/verifier?${qs.toString()}`);
+  },
   knowledge: (q: string) =>
     get<import("@/lib/types").KnowledgeResponse>(`/knowledge${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   replayCompare: (a: string, b: string) =>

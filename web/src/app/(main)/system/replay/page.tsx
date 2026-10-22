@@ -2,21 +2,33 @@
 
 import * as React from "react";
 
+import { Loader2Icon, PlayIcon, RefreshCwIcon } from "lucide-react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, p2api } from "@/lib/api";
 import type { ReplayCompareResponse, Task } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 // 回放看板（轻量版）：选两个任务 → 对比「意图/事实/发现/token/时长」。
 // 用来回答"这次改动让任务变快还是变贵了"，不重跑 transcript。
 export default function ReplayPage() {
   const [tasks, setTasks] = React.useState<Task[]>([]);
+  const [tasksLoading, setTasksLoading] = React.useState(true);
   const [a, setA] = React.useState("");
   const [b, setB] = React.useState("");
   const [data, setData] = React.useState<ReplayCompareResponse | null>(null);
   const [err, setErr] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
+    setTasksLoading(true);
     api
       .tasks()
       .then((r) => {
@@ -30,103 +42,165 @@ export default function ReplayPage() {
           setB(list[0].id);
         }
       })
-      .catch(() => setErr("读取任务列表失败"));
+      .catch((e) => {
+        const message = `读取任务列表失败：${String(e)}`;
+        setErr(message);
+        toast.error(message);
+      })
+      .finally(() => setTasksLoading(false));
   }, []);
 
-  const compare = React.useCallback(async () => {
-    if (!a || !b) return;
-    try {
-      setErr("");
-      setData(await p2api.replayCompare(a, b));
-    } catch (e) {
-      setErr(String(e));
-    }
-  }, [a, b]);
+  const compare = React.useCallback(
+    async (notify = false) => {
+      if (!a || !b) {
+        setData(null);
+        return;
+      }
+      setLoading(true);
+      setData(null);
+      try {
+        setErr("");
+        const r = await p2api.replayCompare(a, b);
+        setData(r);
+        if (notify) toast.success("对比完成");
+      } catch (e) {
+        const message = String(e);
+        setErr(message);
+        toast.error(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [a, b],
+  );
 
   React.useEffect(() => {
     void compare();
   }, [compare]);
 
   const row = (label: string, key: keyof ReplayCompareResponse["a"]) => (
-    <tr className="border-b last:border-0">
-      <td className="py-1 pr-3 text-muted-foreground">{label}</td>
-      <td className="py-1 pr-3">{String(data?.a?.[key] ?? "—")}</td>
-      <td className="py-1 pr-3">{String(data?.b?.[key] ?? "—")}</td>
-    </tr>
+    <TableRow>
+      <TableCell className="py-1 text-muted-foreground">{label}</TableCell>
+      <TableCell className="py-1">{String(data?.a?.[key] ?? "—")}</TableCell>
+      <TableCell className="py-1">{String(data?.b?.[key] ?? "—")}</TableCell>
+    </TableRow>
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
+    <div className="flex flex-1 flex-col gap-4 md:gap-6">
       <div>
-        <h1 className="text-lg font-semibold">回放看板</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-xl font-semibold tracking-tight">回放看板</h1>
+        <p className="text-muted-foreground text-sm">
           对比两个任务的成本与产出：意图/事实/发现/token/时长。用于验证改动是否真的有效。
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <select className="h-8 rounded-md border bg-background px-2 text-sm" value={a} onChange={(e) => setA(e.target.value)}>
-          <option value="">基准任务 A…</option>
-          {tasks.map((t) => (
-            <option key={t.id} value={t.id}>
-              A · {t.name || t.description || t.id}
-            </option>
-          ))}
-        </select>
-        <select className="h-8 rounded-md border bg-background px-2 text-sm" value={b} onChange={(e) => setB(e.target.value)}>
-          <option value="">对比任务 B…</option>
-          {tasks.map((t) => (
-            <option key={t.id} value={t.id}>
-              B · {t.name || t.description || t.id}
-            </option>
-          ))}
-        </select>
+        {tasksLoading ? (
+          <Skeleton className="h-8 w-64" />
+        ) : (
+          <Select value={a || "none"} onValueChange={(v) => setA(v === "none" ? "" : v)}>
+            <SelectTrigger className="w-full sm:w-72">
+              <SelectValue placeholder="基准任务 A…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">基准任务 A…</SelectItem>
+              {tasks.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  A · {t.name || t.description || t.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {tasksLoading ? (
+          <Skeleton className="h-8 w-64" />
+        ) : (
+          <Select value={b || "none"} onValueChange={(v) => setB(v === "none" ? "" : v)}>
+            <SelectTrigger className="w-full sm:w-72">
+              <SelectValue placeholder="对比任务 B…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">对比任务 B…</SelectItem>
+              {tasks.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  B · {t.name || t.description || t.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Button size="sm" variant="outline" disabled={!a || !b || loading} onClick={() => compare(true)}>
+          <RefreshCwIcon className={cn("size-4", loading && "animate-spin")} />
+          对比
+        </Button>
       </div>
 
       {err && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm">{err}</div>}
 
-      {data && (
+      {tasksLoading || (loading && !data) ? (
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-56 w-full" />
+        </div>
+      ) : data ? (
         <>
-          <div className="rounded-md border bg-muted/40 p-2 text-sm">{data.summary}</div>
+          <div className="rounded-md border bg-muted/40 p-3 text-sm">{data.summary}</div>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">指标对比</CardTitle>
             </CardHeader>
             <CardContent>
-              <table className="w-full text-xs">
-                <thead className="text-left text-muted-foreground">
-                  <tr className="border-b">
-                    <th className="py-1 pr-3">指标</th>
-                    <th className="py-1 pr-3">A（基准）</th>
-                    <th className="py-1">B（对比）</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {row("任务", "name")}
-                  {row("状态", "status")}
-                  {row("意图数", "intents")}
-                  {row("事实数", "facts")}
-                  {row("发现数", "findings")}
-                  {row("hint 数", "hints")}
-                  {row("输入 token", "input_tokens")}
-                  {row("输出 token", "output_tokens")}
-                  {row("时长（秒）", "duration_seconds")}
-                  {row("发现/意图", "findings_per_intent")}
-                  {row("事实/意图", "facts_per_intent")}
-                  {row("token/发现", "tokens_per_finding")}
-                </tbody>
-              </table>
+              <div className="max-h-[48vh] overflow-auto rounded-md border">
+                <Table className="text-xs">
+                  <TableHeader className="sticky top-0 z-10 bg-card">
+                    <TableRow>
+                      <TableHead className="h-8">指标</TableHead>
+                      <TableHead className="h-8">A（基准）</TableHead>
+                      <TableHead className="h-8">B（对比）</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {row("任务", "name")}
+                    {row("状态", "status")}
+                    {row("意图数", "intents")}
+                    {row("事实数", "facts")}
+                    {row("发现数", "findings")}
+                    {row("hint 数", "hints")}
+                    {row("输入 token", "input_tokens")}
+                    {row("输出 token", "output_tokens")}
+                    {row("时长（秒）", "duration_seconds")}
+                    {row("发现/意图", "findings_per_intent")}
+                    {row("事实/意图", "facts_per_intent")}
+                    {row("token/发现", "tokens_per_finding")}
+                  </TableBody>
+                </Table>
+              </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 {Object.entries(data.delta ?? {}).map(([k, v]) => (
-                  <span key={k} className="rounded border px-2 py-1">
+                  <Badge key={k} variant="outline" className="font-mono font-normal">
                     {k}: {v > 0 ? "+" : ""}
                     {v}
-                  </span>
+                  </Badge>
                 ))}
               </div>
             </CardContent>
           </Card>
         </>
+      ) : (
+        <Card>
+          <CardContent>
+            <Empty className="border border-dashed">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <PlayIcon />
+                </EmptyMedia>
+                <EmptyTitle>还没有可对比的结果</EmptyTitle>
+                <EmptyDescription>至少选择一个基准任务 A 和一个对比任务 B，然后点击「对比」。</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       )}
 
       <TranscriptReplay />
@@ -170,36 +244,53 @@ function authHeaders(): Record<string, string> {
 
 function TranscriptReplay() {
   const [sessions, setSessions] = React.useState<{ id: string; mod_time: string; size: number }[]>([]);
+  const [sessionsLoading, setSessionsLoading] = React.useState(true);
   const [sel, setSel] = React.useState("");
   const [doc, setDoc] = React.useState<ReplaySession | null>(null);
+  const [docLoading, setDocLoading] = React.useState(false);
   const [rerun, setRerun] = React.useState<ReplayRerun | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState("");
 
   React.useEffect(() => {
+    setSessionsLoading(true);
     fetch("/api/replay/sessions", { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : { sessions: [] }))
       .then((d) => {
         setSessions(d.sessions ?? []);
         if (d.sessions?.length) setSel(d.sessions[0].id);
       })
-      .catch(() => setMsg("读取会话列表失败"));
+      .catch((e) => {
+        const message = `读取会话列表失败：${String(e)}`;
+        setMsg(message);
+        toast.error(message);
+      })
+      .finally(() => setSessionsLoading(false));
   }, []);
 
-  const load = React.useCallback(async (id: string) => {
+  const load = React.useCallback(async (id: string, notify = false) => {
     if (!id) return;
     setMsg("");
     setRerun(null);
+    setDocLoading(true);
     try {
       const r = await fetch(`/api/replay/session?session=${encodeURIComponent(id)}`, { headers: authHeaders() });
       if (!r.ok) {
         setDoc(null);
-        setMsg(`读取会话失败：HTTP ${r.status}`);
+        const message = `读取会话失败：HTTP ${r.status}`;
+        setMsg(message);
+        toast.error(message);
         return;
       }
-      setDoc(await r.json());
+      const d = await r.json();
+      setDoc(d);
+      if (notify) toast.success("已读取会话");
     } catch (e) {
-      setMsg(String(e));
+      const message = String(e);
+      setMsg(message);
+      toast.error(message);
+    } finally {
+      setDocLoading(false);
     }
   }, []);
 
@@ -218,12 +309,17 @@ function TranscriptReplay() {
       });
       const d = await r.json();
       if (!r.ok) {
-        setMsg(d.error ?? `回放失败：HTTP ${r.status}`);
+        const message = d.error ?? `回放失败：HTTP ${r.status}`;
+        setMsg(message);
+        toast.error(message);
       } else {
         setRerun(d);
+        toast.success(d.summary || "只读重放完成");
       }
     } catch (e) {
-      setMsg(String(e));
+      const message = String(e);
+      setMsg(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -239,93 +335,134 @@ function TranscriptReplay() {
           从会话日志还原每一步工具调用；只重放白名单内的只读命令（curl GET / nmap -sV / nc -z / dig…），写操作自动跳过。
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            className="h-8 max-w-md rounded-md border bg-background px-2 text-sm"
-            value={sel}
-            onChange={(e) => setSel(e.target.value)}
+          {sessionsLoading ? (
+            <Skeleton className="h-8 w-80" />
+          ) : (
+            <Select value={sel || "none"} onValueChange={(v) => setSel(v === "none" ? "" : v)}>
+              <SelectTrigger className="w-full sm:w-80">
+                <SelectValue placeholder="选择会话…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">选择会话…</SelectItem>
+                {sessions.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.id}（{s.mod_time}）
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!sel || docLoading}
+            onClick={() => load(sel, true)}
           >
-            <option value="">选择会话…</option>
-            {sessions.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.id}（{s.mod_time}）
-              </option>
-            ))}
-          </select>
-          <Button size="sm" variant="outline" disabled={!sel} onClick={() => load(sel)}>
+            <RefreshCwIcon className={cn("size-4", docLoading && "animate-spin")} />
             读取
           </Button>
           <Button size="sm" disabled={!sel || busy} onClick={doRerun}>
+            {busy ? <Loader2Icon className="size-4 animate-spin" /> : <PlayIcon className="size-4" />}
             {busy ? "回放中…" : "只读重放 10 步"}
           </Button>
         </div>
         {msg && <div className="rounded-md border bg-muted/40 p-2 text-sm">{msg}</div>}
 
-        {doc && (
+        {docLoading && !doc ? (
+          <Skeleton className="h-48 w-full" />
+        ) : doc ? (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2 text-xs">
-              <span className="rounded border px-2 py-1">{doc.turns} 轮</span>
-              <span className="rounded border px-2 py-1">
+              <Badge variant="outline" className="font-normal">
+                {doc.turns} 轮
+              </Badge>
+              <Badge variant="outline" className="font-normal">
                 token {doc.tokens_in}+{doc.tokens_out}
-              </span>
+              </Badge>
               {(doc.tool_counts ?? []).slice(0, 8).map((t) => (
-                <span key={t} className="rounded border px-2 py-1">
+                <Badge key={t} variant="outline" className="font-normal">
                   {t}
-                </span>
+                </Badge>
               ))}
             </div>
-            <div className="max-h-[320px] overflow-auto rounded border">
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-background text-left text-muted-foreground">
-                  <tr className="border-b">
-                    <th className="py-1 pr-2">#</th>
-                    <th className="py-1 pr-2">工具</th>
-                    <th className="py-1 pr-2">只读</th>
-                    <th className="py-1 pr-2">命令</th>
-                    <th className="py-1">结果（截断）</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="max-h-[360px] overflow-auto rounded-md border">
+              <Table className="text-xs">
+                <TableHeader className="sticky top-0 z-10 bg-card">
+                  <TableRow>
+                    <TableHead className="h-8">#</TableHead>
+                    <TableHead className="h-8">工具</TableHead>
+                    <TableHead className="h-8">只读</TableHead>
+                    <TableHead className="h-8">命令</TableHead>
+                    <TableHead className="h-8">结果（截断）</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {doc.steps.map((st) => (
-                    <tr key={st.index} className="border-b last:border-0">
-                      <td className="py-1 pr-2">{st.index}</td>
-                      <td className="py-1 pr-2">
+                    <TableRow key={st.index}>
+                      <TableCell className="py-1">{st.index}</TableCell>
+                      <TableCell className="py-1">
                         {st.tool}
                         <span className="text-muted-foreground">/{st.kind}</span>
-                      </td>
-                      <td className="py-1 pr-2">{st.read_only ? "✅" : "—"}</td>
-                      <td className="max-w-[320px] truncate py-1 pr-2" title={st.command}>
+                      </TableCell>
+                      <TableCell className="py-1">{st.read_only ? "✅" : "—"}</TableCell>
+                      <TableCell className="max-w-[320px] truncate py-1" title={st.command}>
                         {st.command || "—"}
-                      </td>
-                      <td className="max-w-[420px] truncate py-1" title={st.result}>
+                      </TableCell>
+                      <TableCell className="max-w-[420px] truncate py-1" title={st.result}>
                         {st.result || "—"}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </div>
-        )}
+        ) : null}
 
         {rerun && (
           <div className="space-y-2">
             <div className="rounded-md border bg-muted/40 p-2 text-sm">{rerun.summary}</div>
-            <div className="space-y-1">
-              {rerun.comparisons.map((c) => (
-                <div key={c.index} className="rounded border p-2 text-xs">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={c.same ? "text-emerald-600" : "text-amber-600"}>
-                      {c.same ? "一致" : "有变化"}
-                    </span>
-                    <span className="text-muted-foreground">重合 {(c.overlap * 100).toFixed(0)}%</span>
-                    <span className="max-w-[520px] truncate" title={c.command}>
-                      {c.command}
-                    </span>
-                  </div>
-                  {(c.diff || c.err) && <div className="mt-1 text-muted-foreground">{c.diff || c.err}</div>}
-                </div>
-              ))}
-            </div>
+            {(rerun.comparisons?.length ?? 0) === 0 ? (
+              <Empty className="border border-dashed">
+                <EmptyHeader>
+                  <EmptyTitle>没有可重放的步骤</EmptyTitle>
+                  <EmptyDescription>该会话里没有命中只读白名单的工具调用。</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              <div className="max-h-[360px] overflow-auto rounded-md border">
+                <Table className="text-xs">
+                  <TableHeader className="sticky top-0 z-10 bg-card">
+                    <TableRow>
+                      <TableHead className="h-8">#</TableHead>
+                      <TableHead className="h-8">状态</TableHead>
+                      <TableHead className="h-8">重合</TableHead>
+                      <TableHead className="h-8">命令</TableHead>
+                      <TableHead className="h-8">差异</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rerun.comparisons.map((c) => (
+                      <TableRow key={c.index}>
+                        <TableCell className="py-1">{c.index}</TableCell>
+                        <TableCell className="py-1">
+                          <span className={c.same ? "text-emerald-600" : "text-amber-600"}>
+                            {c.same ? "一致" : "有变化"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-1 tabular-nums">{(c.overlap * 100).toFixed(0)}%</TableCell>
+                        <TableCell className="max-w-[320px] truncate py-1" title={c.command}>
+                          {c.command || "—"}
+                        </TableCell>
+                        <TableCell className="max-w-[420px] truncate py-1" title={c.diff || c.err || ""}>
+                          {c.diff || c.err || "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

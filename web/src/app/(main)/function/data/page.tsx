@@ -2,15 +2,36 @@
 
 import * as React from "react";
 
+import { ScanSearchIcon } from "lucide-react";
+import { toast } from "sonner";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 
 // 数据定位：把数据库输出解析成「表 / 行数 / 敏感列 / 证明级别」。
 // 只做展示，不执行 SQL、不导出数据。
 
-type Table = { name: string; rows: number; sensitive_columns?: string[] | null };
-type LocateResult = { tables?: Table[] | null; proof_level: string; notes?: string[] | null };
+type LocateTable = { name: string; rows: number; sensitive_columns?: string[] | null };
+type LocateResult = { tables?: LocateTable[] | null; proof_level: string; notes?: string[] | null };
+
+interface LocateResponse {
+  result?: LocateResult;
+  probe?: string[] | null;
+  error?: string;
+}
+
+const ENGINES = [
+  { value: "mysql", label: "MySQL / MariaDB" },
+  { value: "postgres", label: "PostgreSQL" },
+  { value: "mssql", label: "SQL Server" },
+] as const;
 
 function authHeaders(): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("artex_token") : null;
@@ -22,34 +43,44 @@ export default function DataPage() {
   const [output, setOutput] = React.useState("");
   const [result, setResult] = React.useState<LocateResult | null>(null);
   const [probe, setProbe] = React.useState<string[]>([]);
-  const [err, setErr] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
   const locate = React.useCallback(async () => {
+    if (busy) return;
+    const text = output.trim();
+    if (!text) return;
     setBusy(true);
-    setErr("");
     try {
       const r = await fetch("/api/data/locate", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ engine, output }),
+        body: JSON.stringify({ engine, output: text }),
       });
-      const d = await r.json();
+      const payload = (await r.json().catch(() => null)) as LocateResponse | null;
       if (!r.ok) {
-        setErr(d.error ?? `解析失败：HTTP ${r.status}`);
+        toast.error(payload?.error ?? `解析失败：HTTP ${r.status}`);
         return;
       }
-      setResult(d.result);
-      setProbe(d.probe ?? []);
+      if (!payload?.result) {
+        toast.error("解析结果为空，请检查粘贴内容。");
+        return;
+      }
+      setResult(payload.result);
+      setProbe(payload.probe ?? []);
+      const count = payload.result.tables?.length ?? 0;
+      toast.success(`解析完成，识别 ${count} 张表`);
     } catch (e) {
-      setErr(String(e));
+      toast.error(`解析失败：${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
-  }, [engine, output]);
+  }, [busy, engine, output]);
+
+  const tables = result?.tables ?? [];
+  const notes = result?.notes ?? [];
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
+    <div className="flex flex-1 flex-col gap-4 md:gap-6">
       <div>
         <h1 className="text-lg font-semibold">数据定位</h1>
         <p className="text-sm text-muted-foreground">
@@ -58,77 +89,124 @@ export default function DataPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          className="h-8 rounded-md border bg-background px-2 text-sm"
-          value={engine}
-          onChange={(e) => setEngine(e.target.value)}
-        >
-          <option value="mysql">MySQL / MariaDB</option>
-          <option value="postgres">PostgreSQL</option>
-          <option value="mssql">SQL Server</option>
-        </select>
-        <Button size="sm" disabled={busy || !output.trim()} onClick={locate}>
-          {busy ? "解析中…" : "解析输出"}
-        </Button>
-      </div>
-
-      {err && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm">{err}</div>}
-
-      <textarea
-        className="min-h-[160px] w-full rounded-md border bg-background p-2 font-mono text-xs"
-        placeholder="例：SELECT table_name, table_rows FROM information_schema.tables; 的输出…"
-        value={output}
-        onChange={(e) => setOutput(e.target.value)}
-      />
-
-      {result && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">
-              解析结果（证明级别 <Badge variant="outline">{result.proof_level || "D0"}</Badge>）
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {(result.tables?.length ?? 0) === 0 ? (
-              <div className="text-sm text-muted-foreground">没解析出表；确认粘贴的是表列表 / COUNT 输出。</div>
-            ) : (
-              <table className="w-full text-xs">
-                <thead className="text-left text-muted-foreground">
-                  <tr className="border-b">
-                    <th className="py-1 pr-2">表</th>
-                    <th className="py-1 pr-2">行数</th>
-                    <th className="py-1">敏感列</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.tables!.map((t) => (
-                    <tr key={t.name} className="border-b last:border-0">
-                      <td className="py-1 pr-2 font-medium">{t.name}</td>
-                      <td className="py-1 pr-2">{t.rows >= 0 ? t.rows : "未知"}</td>
-                      <td className="py-1">{(t.sensitive_columns ?? []).join("、") || "—"}</td>
-                    </tr>
+      <Card className="gap-3">
+        <CardHeader>
+          <CardTitle className="text-sm">粘贴数据库输出</CardTitle>
+          <CardDescription>纯本地文本解析：不连接数据库、不执行 SQL、不保存原始输出。</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <FieldGroup>
+            <Field className="max-w-60">
+              <FieldLabel htmlFor="data-engine">数据库类型</FieldLabel>
+              <Select value={engine} onValueChange={setEngine} disabled={busy}>
+                <SelectTrigger id="data-engine" className="w-full">
+                  <SelectValue placeholder="选择数据库类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ENGINES.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
                   ))}
-                </tbody>
-              </table>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="data-output">解析输入</FieldLabel>
+              <Textarea
+                id="data-output"
+                className="min-h-40 font-mono text-xs"
+                placeholder="例：SELECT table_name, table_rows FROM information_schema.tables; 的输出…"
+                value={output}
+                onChange={(e) => setOutput(e.target.value)}
+                disabled={busy}
+              />
+              <FieldDescription>
+                支持每行「表名 + 行数」的表格输出或 COUNT(*) 结果；无法识别的行会被跳过。
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+          <div className="flex items-center justify-end gap-2">
+            <span className="mr-auto text-xs text-muted-foreground tabular-nums">{output.length} 字符</span>
+            <Button size="sm" disabled={busy || !output.trim()} onClick={() => void locate()}>
+              {busy ? <Spinner /> : <ScanSearchIcon />}
+              {busy ? "解析中…" : "解析输出"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {result ? (
+        <Card className="gap-0 py-0">
+          <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <CardTitle className="text-sm">解析结果</CardTitle>
+              <Badge variant="outline">证明级别 {result.proof_level || "D0"}</Badge>
+            </div>
+            <span className="text-xs text-muted-foreground tabular-nums">共 {tables.length} 张表</span>
+          </CardHeader>
+          <CardContent className="px-0">
+            {tables.length === 0 ? (
+              <div className="px-4 pb-4">
+                <Empty className="border border-dashed">
+                  <EmptyHeader>
+                    <EmptyTitle>没解析出表</EmptyTitle>
+                    <EmptyDescription>确认粘贴的是表列表 / COUNT 输出，并选择正确的数据库类型。</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>表</TableHead>
+                    <TableHead className="w-24 text-right">行数</TableHead>
+                    <TableHead>敏感列</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tables.map((t) => (
+                    <TableRow key={t.name}>
+                      <TableCell className="font-mono text-xs font-medium">{t.name}</TableCell>
+                      <TableCell className="text-right text-xs tabular-nums">{t.rows >= 0 ? t.rows : "未知"}</TableCell>
+                      <TableCell>
+                        {(t.sensitive_columns ?? []).length === 0 ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {(t.sensitive_columns ?? []).filter(Boolean).map((column) => (
+                              <Badge key={column} variant="secondary" className="font-mono text-[11px]">
+                                {column}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
-            {(result.notes?.length ?? 0) > 0 && (
-              <div className="text-xs text-muted-foreground">{(result.notes ?? []).join("；")}</div>
-            )}
+            {notes.length > 0 ? (
+              <div className="border-t px-4 py-3 text-xs text-muted-foreground">{notes.join("；")}</div>
+            ) : null}
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
-      {probe.length > 0 && (
+      {probe.length > 0 ? (
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">只读探测模板（复制到已获得的数据库连接执行）</CardTitle>
+          <CardHeader>
+            <CardTitle className="text-sm">只读探测模板</CardTitle>
+            <CardDescription>复制到已获得的数据库连接执行，用于补全行数与敏感列证据。</CardDescription>
           </CardHeader>
           <CardContent>
-            <pre className="whitespace-pre-wrap text-xs leading-relaxed">{probe.join("\n")}</pre>
+            <pre className="overflow-x-auto rounded-lg bg-muted/50 p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+              {probe.join("\n")}
+            </pre>
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }

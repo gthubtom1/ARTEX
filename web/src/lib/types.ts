@@ -1921,6 +1921,20 @@ export interface P2AuditEntry {
   err?: string;
   args_digest?: string;
 }
+export interface VerifierReview {
+  finding_id: number;
+  ts: string;
+  content_ref: string;
+  review: {
+    verdict?: string;
+    reason?: string;
+    missing?: string[];
+    source?: string;
+  };
+}
+export interface P2VerifierResponse {
+  reviews: VerifierReview[];
+}
 export interface EnvTool {
   name: string;
   path: string;
