@@ -14,7 +14,8 @@ func (f releaseTransport) RoundTrip(r *http.Request) (*http.Response, error) { r
 
 func TestFetchLatestUsesForkRelease(t *testing.T) {
 	client := &http.Client{Transport: releaseTransport(func(r *http.Request) (*http.Response, error) {
-		if got := r.URL.String(); got != "https://api.github.com/repos/RuoJi6/ARTEX/releases/latest" {
+		// 期望值从常量推导，避免常量改了测试还留着旧仓库名（原来这里写死 RuoJi6/ARTEX = 上游）
+		if got := r.URL.String(); got != "https://api.github.com/repos/"+Repo+"/releases/latest" {
 			t.Fatalf("unexpected update source: %s", got)
 		}
 		if r.Method != http.MethodGet || r.Header.Get("Accept") != "application/vnd.github+json" {
@@ -52,7 +53,18 @@ func TestFetchLatestMissingRelease(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusNotFound, Body: io.NopCloser(strings.NewReader("{}"))}, nil
 	})}
 	_, err := FetchLatest(context.Background(), client)
-	if err == nil || !strings.Contains(err.Error(), "RuoJi6/ARTEX") || !strings.Contains(err.Error(), "不可访问或尚未发布") {
+	if err == nil || !strings.Contains(err.Error(), Repo) || !strings.Contains(err.Error(), "不可访问或尚未发布") {
 		t.Fatalf("unexpected missing-release error: %v", err)
+	}
+}
+
+// 守门：升级源必须是本 fork。指回上游的后果是「点一键更新 → 二开版被换成上游版」，
+// 数据库已跑到 0004 迁移而上游没有这些表，等于把运行中的安装换成不兼容版本。
+func TestRepoIsThisForkNotUpstream(t *testing.T) {
+	if Repo == "RuoJi6/ARTEX" || Repo == "Autumn-27/ARTEX" {
+		t.Fatalf("升级源指回了上游（%s）：点一键更新会把二开版替换成上游版", Repo)
+	}
+	if Repo != "gthubtom1/ARTEX" {
+		t.Fatalf("升级源应为 gthubtom1/ARTEX，实际 %s", Repo)
 	}
 }
