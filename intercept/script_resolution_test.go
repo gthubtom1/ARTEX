@@ -97,8 +97,8 @@ func TestPythonModuleSourceResolutionWithoutExecution(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	python := filepath.Join(bin, "python3.12")
-	if err := os.WriteFile(python, []byte("\x7fELF not executable test metadata"), 0700); err != nil {
+	python := filepath.ToSlash(filepath.Join(bin, "python3.12"))
+	if err := os.WriteFile(filepath.FromSlash(python), []byte("\x7fELF not executable test metadata"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	write := func(path, content string) {
@@ -157,11 +157,12 @@ func TestPythonModuleSourceResolutionWithoutExecution(t *testing.T) {
 	}
 	extra := filepath.Join(root, "extra")
 	write(filepath.Join(extra, "one.py"), "EXTRA=1\n")
-	in = reviewCommandForTest(t, cwd, "PYTHONPATH="+extra+" "+python+" -m one")
+	extraCommand := filepath.ToSlash(extra)
+	in = reviewCommandForTest(t, cwd, "PYTHONPATH="+extraCommand+" "+python+" -m one")
 	if in.ScriptCaptureStatus != "complete" || in.Scripts[0].Content != "EXTRA=1\n" {
 		t.Fatalf("ignored explicit PYTHONPATH: %+v", in)
 	}
-	in = reviewCommandForTest(t, cwd, "PYTHONPATH="+extra+" "+python+" -E -m one")
+	in = reviewCommandForTest(t, cwd, "PYTHONPATH="+extraCommand+" "+python+" -E -m one")
 	if in.ScriptCaptureStatus != "incomplete" {
 		t.Fatal("ignored -E environment isolation")
 	}
@@ -169,8 +170,8 @@ func TestPythonModuleSourceResolutionWithoutExecution(t *testing.T) {
 		"env -i " + python + " -m json.tool",
 		"C='env -i " + python + "'; $C -m json.tool",
 		"env -u PYTHONPATH " + python + " -m json.tool",
-		"PYTHONPATH=" + extra + "; export PYTHONPATH; " + python + " -m json.tool",
-		"PYTHONPATH=" + extra + "; " + python + " -m json.tool",
+		"PYTHONPATH=" + extraCommand + "; export PYTHONPATH; " + python + " -m json.tool",
+		"PYTHONPATH=" + extraCommand + "; " + python + " -m json.tool",
 		"eval 'export PYTHONPATH=unknown'; " + python + " -m json.tool",
 	} {
 		if in := reviewCommandForTest(t, cwd, command); in.ScriptCaptureStatus != "incomplete" {

@@ -331,17 +331,38 @@ func TestCompanyScopeAttribution(t *testing.T) {
 		d.Close()
 	})
 
-	uniq := startMax + 1
+	uniq := time.Now().UnixNano()
 	root := fmt.Sprintf("scopetest%d.com", uniq)
 	sub := "api." + root
-	ipIn := "198.51.100.9"
-	ipOut := "203.0.113.9"
 	outDomain := fmt.Sprintf("other%d.net", uniq)
+
+	// Pick a CIDR not already owned by a company scope from an earlier test run.
+	// Reusing a fixed 198.51.100.0/24 makes attribution order-dependent on residual
+	// data; the generated /24 also keeps ipOut outside the chosen range.
+	var base int64
+	var ipIn, ipInCIDR, ipOut string
+	for attempt := int64(0); attempt < 100; attempt++ {
+		base = (uniq + attempt) & 0xffff
+		ipInCIDR = fmt.Sprintf("10.%d.%d.0/24", (base>>8)&0xff, base&0xff)
+		var used int
+		if err := d.QueryRow(`SELECT count(*) FROM company_scope WHERE kind='cidr' AND net=$1::inet`, ipInCIDR).Scan(&used); err != nil {
+			t.Fatal(err)
+		}
+		if used == 0 {
+			ipIn = fmt.Sprintf("10.%d.%d.9", (base>>8)&0xff, base&0xff)
+			ipOut = fmt.Sprintf("10.%d.%d.9", (base>>8)&0xff, (base+1)&0xff)
+			break
+		}
+	}
+	if ipIn == "" {
+		t.Fatal("could not find an unused test CIDR")
+	}
 
 	cid, _, err := cs.UpsertCompany(fmt.Sprintf("ScopeCo %d", uniq), "")
 	if err != nil {
 		t.Fatalf("UpsertCompany: %v", err)
 	}
+	t.Cleanup(func() { _ = cs.DeleteCompany(cid) })
 
 	// a pre-existing asset (inserted BEFORE any scope) — must be back-filled.
 	preID, err := as.UpsertSubdomain(UpsertSubdomainReq{Domain: sub})
@@ -354,7 +375,7 @@ func TestCompanyScopeAttribution(t *testing.T) {
 		t.Fatalf("pre-scope asset should be unattributed, got %v", *preCompanyID)
 	}
 
-	cs.AddScope(cid, []string{root, "198.51.100.0/24"}, "unit test")
+	cs.AddScope(cid, []string{root, ipInCIDR}, "unit test")
 
 	mustCid := func(id int64, want int64, label string) {
 		var cID *int64

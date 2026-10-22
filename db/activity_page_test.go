@@ -1,6 +1,9 @@
 package db
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestActivityPageSessions covers the reverse-paginated, per-session history added
 // for the SSE remediation: Main/Plan/Worker filtering, before-cursor paging without
@@ -32,7 +35,16 @@ func TestActivityPageSessions(t *testing.T) {
 	// 25 main, 25 planner (Goal+Planner share worker=planner), 30 workerA, 5 workerB.
 	appendN := func(n int, a Activity) {
 		for range n {
-			if _, err := es.AppendActivity(a); err != nil {
+			var err error
+			// A shared dev database can have another long-lived process touching
+			// the same tables; PostgreSQL may pick this insert as a deadlock
+			// victim. Retry the victim transaction, never any assertion.
+			for attempt := 0; attempt < 3; attempt++ {
+				if _, err = es.AppendActivity(a); err == nil || !strings.Contains(err.Error(), "SQLSTATE 40P01") {
+					break
+				}
+			}
+			if err != nil {
 				t.Fatal(err)
 			}
 		}

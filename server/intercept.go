@@ -13,9 +13,12 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Autumn-27/artex/agent"
 	"github.com/Autumn-27/artex/db"
 	"github.com/Autumn-27/artex/guard"
 	"github.com/Autumn-27/artex/intercept"
+	"github.com/Autumn-27/artex/internal/audit"
+	"github.com/Autumn-27/artex/internal/reviewer"
 	"github.com/Autumn-27/artex/llmrec"
 	"github.com/Autumn-27/norma/llm"
 )
@@ -35,7 +38,25 @@ func (s *Server) chatGuard() *guard.Guard {
 // resolves the configured judge profile (0 → active/default), builds a provider,
 // runs a one-shot JSON classification with an explanation for every verdict.
 func (s *Server) wireInterceptReviewer() {
+	// 规则命中 ask 的路径也要能被自动裁决覆盖（guard 在 HandleAsk 之前回调这里）。
+	guard.AutoDecide = func(ctx context.Context, tool string, input json.RawMessage) (string, string, bool) {
+		dec, decided := s.autoDecideReview(ctx, intercept.ReviewInput{Tool: tool, Arguments: input})
+		if !decided {
+			return "", "", false
+		}
+		action := dec.Action
+		if action == "" {
+			action = "ask"
+		}
+		return action, dec.Message, true
+	}
 	s.m.interceptor.SetReviewer(func(ctx context.Context, profileID int64, prompt string, input intercept.ReviewInput) (intercept.Decision, error) {
+		// Auto-decision runs closest to the ask/judge boundary without changing the
+		// intercept.Reviewer signature: allow/deny are terminal, ask preserves the
+		// existing human-approval path untouched.
+		if dec, decided := s.autoDecideReview(ctx, input); decided {
+			return dec, nil
+		}
 		if profileID == 0 {
 			if p, err := s.m.pg.ActiveProfile(); err == nil && p != nil {
 				profileID = p.ID
@@ -61,6 +82,122 @@ func (s *Server) wireInterceptReviewer() {
 		}
 		return intercept.Decision{Action: v.Action, Message: v.Reason, ProfileID: profileID}, nil
 	})
+}
+
+// autoDecideMode reads intercept_auto_decide. Anything other than the two
+// explicit opt-ins is treated as off, preserving the legacy behavior.
+func (s *Server) autoDecideMode() string {
+	if s.settings == nil {
+		return "off"
+	}
+	switch strings.ToLower(strings.TrimSpace(s.settings.String("intercept_auto_decide", "off"))) {
+	case "allow_all":
+		return "allow_all"
+	case "reviewer":
+		return "reviewer"
+	default:
+		return "off"
+	}
+}
+
+// autoDecideReview applies the zero-token reviewer to the current judge request.
+// The second return value is false when the existing approval path must run
+// unchanged (off, or the reviewer itself is uncertain).
+func (s *Server) autoDecideReview(ctx context.Context, in intercept.ReviewInput) (intercept.Decision, bool) {
+	mode := s.autoDecideMode()
+	if mode == "off" {
+		return intercept.Decision{}, false
+	}
+	req := reviewRequestForAutoDecide(in)
+	req.TaskConstraints = s.taskConstraintsForCtx(ctx)
+	if mode == "allow_all" {
+		return s.recordAutoDecision(ctx, req, mode, reviewer.Result{
+			Decision: reviewer.Allow, Reason: "allow_all 模式：直接放行", Confidence: "high",
+		}), true
+	}
+	res := reviewer.Review(req)
+	if res.Decision == reviewer.Ask {
+		return intercept.Decision{}, false
+	}
+	return s.recordAutoDecision(ctx, req, mode, res), true
+}
+
+// taskConstraintsForCtx 从当前工具调用上下文（RunInfo.TaskID）读取任务 allow/deny 约束。
+func (s *Server) taskConstraintsForCtx(ctx context.Context) []string {
+	if s.m == nil || s.m.pg == nil {
+		return nil
+	}
+	ri := agent.RunInfoFrom(ctx)
+	if ri.TaskID <= 0 {
+		return nil
+	}
+	task, err := s.m.pg.GetTask(ri.TaskID)
+	if err != nil || task == nil {
+		return nil
+	}
+	list, err := s.m.pg.Exploration(task.ExplorationID).ListConstraints()
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(list))
+	for _, c := range list {
+		out = append(out, c.Kind+": "+c.Text)
+	}
+	return out
+}
+
+func (s *Server) recordAutoDecision(ctx context.Context, req reviewer.Request, mode string, res reviewer.Result) intercept.Decision {
+	action, label := "allow", "auto_allowed"
+	if res.Decision == reviewer.Deny {
+		action, label = "deny", "auto_denied"
+	}
+	reason := strings.TrimSpace(res.Reason)
+	if reason == "" {
+		reason = "未提供理由"
+	}
+	confidence := strings.TrimSpace(res.Confidence)
+	if confidence == "" {
+		confidence = "medium"
+	}
+	if s.auditLog != nil {
+		s.auditLog.Log(ctx, audit.Entry{
+			Tool: req.Tool, Target: req.Target, Action: "intercept", Result: label,
+			Args: []byte(req.Args), Meta: map[string]any{
+				"auto_allowed": action == "allow", "auto_decided": true,
+				"mode": mode, "reason": reason, "confidence": confidence,
+			},
+		})
+	}
+	return intercept.Decision{
+		Action:        action,
+		Message:       fmt.Sprintf("[自动裁决][%s] %s（置信度 %s）", label, reason, confidence),
+		ModelFallback: true,
+		RuleName:      "auto:" + mode,
+	}
+}
+
+func reviewRequestForAutoDecide(in intercept.ReviewInput) reviewer.Request {
+	req := reviewer.Request{Tool: in.Tool, Args: string(in.Arguments)}
+	var payload map[string]any
+	if json.Unmarshal(in.Arguments, &payload) == nil {
+		req.Command = autoDecideString(payload, "command", "cmd", "script", "text", "code", "input")
+		req.Target = autoDecideString(payload, "target", "host", "url", "uri", "ip", "domain", "path", "file")
+	}
+	if req.Target == "" {
+		req.Target = strings.TrimSpace(in.WorkingDir)
+	}
+	return req
+}
+
+func autoDecideString(payload map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if v, ok := payload[key]; ok {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+				return strings.TrimSpace(s)
+			}
+		}
+	}
+	return ""
 }
 
 func reviewCompletion(ctx context.Context, prov llm.Provider, prompt string, input intercept.ReviewInput) (string, error) {

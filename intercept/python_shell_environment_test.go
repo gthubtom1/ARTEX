@@ -3,11 +3,15 @@ package intercept
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestPythonPrecedingShellEffectsWithoutExecution(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fixture uses POSIX PATH lookup and extensionless symlinked interpreter, which Windows LookPath cannot execute")
+	}
 	root := t.TempDir()
 	bin := filepath.Join(root, "bin")
 	lib := filepath.Join(root, "lib", "python3.12")

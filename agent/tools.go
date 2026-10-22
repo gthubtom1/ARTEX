@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Autumn-27/artex/internal/gatechain"
+
 	"github.com/Autumn-27/artex/db"
 	acperm "github.com/Autumn-27/norma/permission"
 	actool "github.com/Autumn-27/norma/tool"
@@ -70,6 +72,12 @@ type ToolSet struct {
 	GoalMet   bool
 	Reason    string
 	writes    WriteCounts
+	// p2 是 P2~P5 装配包（能力卡/凭据/立足点池/持有台账）；nil = 这些工具不注册。
+	p2 *P2
+	// goal 是本任务的最终目标（诊断包/顾问账本用）。
+	goal string
+	// workDir 是任务共享工作目录（adapter 原始输出落盘位置）。
+	workDir string
 	// killWork, if set, terminates a running work by intent id (engine callback,
 	// wired by the planner). nil = the kill_work tool reports unavailable.
 	killWork func(intentID int64) error
@@ -108,6 +116,12 @@ type ToolSet struct {
 	// agent + cross-task orchestration; nil elsewhere → falls back to the bare notify.
 	notifyHint func(texts []string)
 }
+
+// SetWorkDir sets the task-shared work dir used by adapter tools for raw output.
+func (t *ToolSet) SetWorkDir(dir string) { t.workDir = dir }
+
+// SetGoal records the task goal for the P2 diagnostics (adviser ledger).
+func (t *ToolSet) SetGoal(g string) { t.goal = g }
 
 // SetNotifyGoal wires the goal-add trigger callback (see ToolSet.notifyGoal). Set only
 // by the main-agent chat, so runtime-added goals are announced to the planner by name.
@@ -166,7 +180,7 @@ func (w WriteCounts) String() string {
 func (t *ToolSet) Writes() WriteCounts { return t.writes }
 
 func NewToolSet(ts *db.ExplorationStore, worker string) *ToolSet {
-	return &ToolSet{ts: ts, worker: worker}
+	return &ToolSet{ts: ts, worker: worker, p2: DefaultP2}
 }
 
 // SetTaskID sets the PG task id on this ToolSet so that report_finding can
@@ -542,6 +556,56 @@ func (t *ToolSet) graphOverviewData() map[string]any {
 						m["pct"] = cov.Pct
 					}
 				}
+			}
+			// Scope is authorization context, not a coverage metric: planner and
+			// worker still need it when coverage metrics are disabled. Company
+			// rows are expanded into their concrete rules so the agent does not
+			// have to translate company ids into domains/nets/keywords itself.
+			if scope, err := t.as.ListTaskScopeWithSources(t.taskID); err == nil && len(scope) > 0 {
+				rows := make([]map[string]any, 0, len(scope))
+				for _, item := range scope {
+					entry := map[string]any{"kind": item.Kind, "task_id": item.TaskID, "source": item.Source}
+					switch {
+					case item.Domain != "":
+						entry["value"] = item.Domain
+					case item.Net != "":
+						entry["value"] = item.Net
+					case item.Value != "":
+						entry["value"] = item.Value
+					}
+					if item.CompanyID != nil {
+						entry["company_id"] = *item.CompanyID
+						if item.CompanyName != "" {
+							entry["company_name"] = item.CompanyName
+						}
+						if t.cs != nil {
+							if rules, err := t.cs.GetScope(*item.CompanyID); err == nil {
+								companyScope := make([]map[string]any, 0, len(rules))
+								keywords := make([]string, 0)
+								for _, rule := range rules {
+									value := rule.Raw
+									if value == "" {
+										value = rule.Domain
+									}
+									if value == "" {
+										value = rule.Net
+									}
+									if value == "" {
+										value = rule.Value
+									}
+									companyScope = append(companyScope, map[string]any{"kind": rule.Kind, "value": value})
+									if rule.Kind == "keyword" && value != "" {
+										keywords = append(keywords, value)
+									}
+								}
+								entry["company_scope"] = companyScope
+								entry["company_keywords"] = keywords
+							}
+						}
+					}
+					rows = append(rows, entry)
+				}
+				m["scope"] = rows
 			}
 			if hosts, err := t.as.HostsByTaskWithSources(t.taskID); err == nil {
 				// 只给主机总数，不再把 host 列表平铺进 graph_overview（大范围任务里那是每轮
@@ -1068,6 +1132,10 @@ func (t *ToolSet) addOneIntent(it intentItem) (int64, error) {
 			}
 			return 0, fmt.Errorf("%s", b.String())
 		}
+	}
+	// 减法（代码层冻结）：同锚点同手法已试 4 次且 0 产出 → 直接拒绝再派。
+	if attempts, yields := t.directionStats(it.Summary, anchors); gatechain.ShouldFreeze(attempts, yields) {
+		return 0, fmt.Errorf("该方向已冻结：同锚点同手法已尝试 %d 次且没有新增事实。换一个锚点或换一层（端口/认证后/数据层）再派。", attempts)
 	}
 	payload := map[string]any{"summary": it.Summary}
 	if len(anchors) > 0 {
@@ -2052,7 +2120,7 @@ func (t *ToolSet) listWorkerTraces() actool.CoreTool {
 
 // PlannerTools is the read + intent-generation + goal-judgement tool set.
 func (t *ToolSet) PlannerTools() []actool.CoreTool {
-	return []actool.CoreTool{
+	out := []actool.CoreTool{
 		t.graphOverview(), t.listFindings(), t.listFacts(), t.nodeDetail(),
 		// cold-digest §6.1: restore folded cold nodes (digest body → members → detail).
 		t.expandDigest(),
@@ -2072,4 +2140,36 @@ func (t *ToolSet) PlannerTools() []actool.CoreTool {
 		// list_untested_assets：按需查本任务范围内未测资产(类型+分页)，自行决定补测。
 		t.listUntestedAssets(),
 	}
+	out = append(out, t.AdapterTools()...)
+	out = append(out, t.P2PlannerTools()...)
+	return out
+}
+
+// directionStats 统计同锚点同手法的历史尝试次数与累计产出（用于冻结判定）。
+func (t *ToolSet) directionStats(summary string, anchors []int64) (attempts, yields int) {
+	if t.ts == nil || len(anchors) == 0 {
+		return 0, 0
+	}
+	nodes, err := t.ts.ListByKind(db.KindIntent, 200)
+	if err != nil {
+		return 0, 0
+	}
+	for _, n := range nodes {
+		if n.State == "deleted" {
+			continue
+		}
+		var p map[string]any
+		if json.Unmarshal(n.Payload, &p) != nil {
+			continue
+		}
+		s, _ := p["summary"].(string)
+		if !gatechain.SameDirection(anchors, n.Anchors, summary, s, 0.72) {
+			continue
+		}
+		attempts++
+		if ys, err := t.ts.FactsYielded(n.ID); err == nil {
+			yields += len(ys)
+		}
+	}
+	return attempts, yields
 }

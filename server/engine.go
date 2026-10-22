@@ -14,6 +14,8 @@ import (
 	"github.com/Autumn-27/artex/agent"
 	"github.com/Autumn-27/artex/db"
 	"github.com/Autumn-27/artex/intercept"
+	"github.com/Autumn-27/artex/internal/audit"
+	"github.com/Autumn-27/artex/internal/errclass"
 	"github.com/Autumn-27/norma/harness"
 	"github.com/Autumn-27/norma/llm"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -94,7 +96,15 @@ type Engine struct {
 	m        *Manager
 	debounce time.Duration
 
-	bc *Broadcaster // live activity pub/sub (SSE)
+	bc    *Broadcaster  // live activity pub/sub (SSE)
+	audit *audit.Logger // optional; nil = 不写审计
+	// egressCheck 是任务启动前的出口校验（fail-closed）。nil = 不校验。
+	egressCheck func(context.Context) error
+	// progressHook 在每轮规划正常结束后跑一次（顾问诊断 + 能力卡派生）。
+	// best-effort：出错只打日志，不影响任务。nil = 不跑。
+	progressHook func(context.Context, *Task) error
+	// doneHook 在任务判定目标达成后跑一次（案例沉淀等收尾动作）。best-effort。
+	doneHook func(context.Context, *Task) error
 
 	started  sync.Map // taskID -> bool, so Run is idempotent per task
 	lastAct  sync.Map // taskID -> int64 unix, last planner/worker activity (heartbeat)
@@ -635,6 +645,18 @@ func (e *Engine) KillWork(intentID int64) error {
 // Broadcaster exposes the engine's live activity pub/sub (used by the SSE handler).
 func (e *Engine) Broadcaster() *Broadcaster { return e.bc }
 
+// SetAuditLogger installs the optional audit sink (silent, never blocking).
+func (e *Engine) SetAuditLogger(l *audit.Logger) { e.audit = l }
+
+// SetEgressCheck installs the pre-run egress verification (fail-closed).
+func (e *Engine) SetEgressCheck(fn func(context.Context) error) { e.egressCheck = fn }
+
+// SetProgressHook installs the post-round progress hook (adviser + capability sync).
+func (e *Engine) SetProgressHook(fn func(context.Context, *Task) error) { e.progressHook = fn }
+
+// SetDoneHook installs the post-completion hook (case sedimentation).
+func (e *Engine) SetDoneHook(fn func(context.Context, *Task) error) { e.doneHook = fn }
+
 // emitActivity persists one captured step AND fans it out to live subscribers,
 // from a single point so storage and the SSE stream never diverge.
 func (e *Engine) emitActivity(t *Task, r db.Activity) db.Activity {
@@ -746,6 +768,20 @@ func (e *Engine) ReadyFor(t *Task) bool {
 // but no-op until an LLM is configured (so a task created while idle picks up
 // automatically once LLM is set from the UI).
 func (e *Engine) Run(ctx context.Context, t *Task) {
+	// 出口守卫（fail-closed）：代理不可用就不启动任务，避免直连暴露本机 IP。
+	if e.egressCheck != nil {
+		cctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+		err := e.egressCheck(cctx)
+		cancel()
+		if err != nil {
+			e.emitActivity(t, db.Activity{Worker: "system", Kind: "text",
+				Summary: "出口未就绪，任务已暂停（fail-closed）：" + err.Error()})
+			if serr := e.m.SetTaskStatus(t.ID, "paused"); serr != nil {
+				log.Printf("[egress] task %s pause failed: %v", t.ID, serr)
+			}
+			return
+		}
+	}
 	workers := e.m.Workers()
 	e.deleteMu.RLock()
 	if e.IsDeleting(t.ID) {
@@ -876,6 +912,9 @@ func (e *Engine) plannerLoop(ctx context.Context, t *Task) {
 		// coalesces a burst; empty for time/heartbeat wakes).
 		triggers := t.drainTriggers()
 		taskIDInt, _ := strconv.ParseInt(t.ID, 10, 64)
+		if t.Guard != nil {
+			planner.SetHooks(t.Guard.Hooks()) // 注入层据此在拒答时重定向
+		}
 		e.BeginLLMCall(t.ID)
 		met, reason, err := planner.Plan(ectx, taskIDInt, e.m.assets, t.Store, t.Goal, triggers, emit)
 		e.EndLLMCall(t.ID)
@@ -888,12 +927,23 @@ func (e *Engine) plannerLoop(ctx context.Context, t *Task) {
 			if err := e.m.SetTaskStatus(t.ID, "done"); err != nil {
 				log.Printf("[planner] task %s 标记完成落库失败: %v", t.ID, err)
 			}
+			if e.doneHook != nil && ectx.Err() == nil {
+				if herr := e.doneHook(ectx, t); herr != nil {
+					log.Printf("[done] task %s 收尾钩子失败(忽略): %v", t.ID, herr)
+				}
+			}
 			// 任务已判完成 → 立刻取消在跑的 worker：它们手头的意图跑出来也没意义了。
 			// 下一轮 worker 循环撞终态门就不再领新意图;被取消的这批走下方"任务已完成"分支
 			// 归为 stopped(而非 blocked)。
 			e.cancelExec(t.ID, agent.AbortGoalMet)
 		default:
 			log.Printf("[planner] task %s 规划完成", t.ID)
+			// 反跑偏闭环：每轮规划后跑一次确定性检测 + 顾问纠偏 + 能力卡派生。
+			if e.progressHook != nil && ectx.Err() == nil {
+				if herr := e.progressHook(ectx, t); herr != nil {
+					log.Printf("[progress] task %s 顾问/能力卡失败(忽略): %v", t.ID, herr)
+				}
+			}
 		}
 		e.touch(t.ID)
 	}
@@ -1128,7 +1178,11 @@ func (e *Engine) runIntent(ctx context.Context, t *Task, name string, worker *ag
 		return true
 	}
 	if err != nil {
-		log.Printf("[worker %s] intent %d: %v", name, intent.ID, err)
+		cls := errclass.Classify(err, "")
+		log.Printf("[worker %s] intent %d: %v (class=%s; %s)", name, intent.ID, err, cls, errclass.Hint(cls))
+		if e.audit != nil {
+			e.audit.LogFail(context.Background(), wTaskID, "worker:"+name, "intent", "", "run", err.Error(), nil)
+		}
 	}
 	// terminal分流：撞步数上限 ≠ 完成。max_turns→exhausted（规划者据此知道这个方向
 	// 试过但没真正做完、需换角度，而非当成已覆盖永久跳过）；出错→blocked；正常→done。

@@ -1,0 +1,1202 @@
+[
+  {
+    "name": ".github",
+    "path": ".github",
+    "sha": "5be9612cedc1c0d390c625b0868aff3c599ed0a1",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/.github?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/.github",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/5be9612cedc1c0d390c625b0868aff3c599ed0a1",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/.github?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/5be9612cedc1c0d390c625b0868aff3c599ed0a1",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/.github"
+    }
+  },
+  {
+    "name": ".gitignore",
+    "path": ".gitignore",
+    "sha": "5d5f0c5e26da8339c7705ef6e8d71147c54d6939",
+    "size": 23,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/.gitignore?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/.gitignore",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/5d5f0c5e26da8339c7705ef6e8d71147c54d6939",
+    "download_url": "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/.gitignore",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/.gitignore?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/5d5f0c5e26da8339c7705ef6e8d71147c54d6939",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/.gitignore"
+    }
+  },
+  {
+    "name": ".pre-commit-config.yaml",
+    "path": ".pre-commit-config.yaml",
+    "sha": "8d84208055e1f1ac6bbe4bc8e772aa94746f98da",
+    "size": 374,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/.pre-commit-config.yaml?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/.pre-commit-config.yaml",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/8d84208055e1f1ac6bbe4bc8e772aa94746f98da",
+    "download_url": "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/.pre-commit-config.yaml",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/.pre-commit-config.yaml?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/8d84208055e1f1ac6bbe4bc8e772aa94746f98da",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/.pre-commit-config.yaml"
+    }
+  },
+  {
+    "name": "API Key Leaks",
+    "path": "API Key Leaks",
+    "sha": "d01ff4782fc636c04e7ecaeaf313828194bc5b5c",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/API%20Key%20Leaks?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/API%20Key%20Leaks",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/d01ff4782fc636c04e7ecaeaf313828194bc5b5c",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/API%20Key%20Leaks?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/d01ff4782fc636c04e7ecaeaf313828194bc5b5c",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/API%20Key%20Leaks"
+    }
+  },
+  {
+    "name": "Account Takeover",
+    "path": "Account Takeover",
+    "sha": "84687666e64e695696543eaab861e5d93be83c54",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Account%20Takeover?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Account%20Takeover",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/84687666e64e695696543eaab861e5d93be83c54",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Account%20Takeover?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/84687666e64e695696543eaab861e5d93be83c54",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Account%20Takeover"
+    }
+  },
+  {
+    "name": "Brute Force Rate Limit",
+    "path": "Brute Force Rate Limit",
+    "sha": "0b6eb5bbb87ae003ad18db8d4025f57028c863ab",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Brute%20Force%20Rate%20Limit?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Brute%20Force%20Rate%20Limit",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/0b6eb5bbb87ae003ad18db8d4025f57028c863ab",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Brute%20Force%20Rate%20Limit?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/0b6eb5bbb87ae003ad18db8d4025f57028c863ab",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Brute%20Force%20Rate%20Limit"
+    }
+  },
+  {
+    "name": "Business Logic Errors",
+    "path": "Business Logic Errors",
+    "sha": "db449f1965e4e016225299435b506917d63aa4f7",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Business%20Logic%20Errors?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Business%20Logic%20Errors",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/db449f1965e4e016225299435b506917d63aa4f7",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Business%20Logic%20Errors?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/db449f1965e4e016225299435b506917d63aa4f7",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Business%20Logic%20Errors"
+    }
+  },
+  {
+    "name": "CONTRIBUTING.md",
+    "path": "CONTRIBUTING.md",
+    "sha": "2065146cd742ffba3947496ed6d0940ba88c0c11",
+    "size": 3049,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CONTRIBUTING.md?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/CONTRIBUTING.md",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/2065146cd742ffba3947496ed6d0940ba88c0c11",
+    "download_url": "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/CONTRIBUTING.md",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CONTRIBUTING.md?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/2065146cd742ffba3947496ed6d0940ba88c0c11",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/CONTRIBUTING.md"
+    }
+  },
+  {
+    "name": "CORS Misconfiguration",
+    "path": "CORS Misconfiguration",
+    "sha": "18ae98d374cb96e81bf70cf338cd47417e8d6717",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CORS%20Misconfiguration?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CORS%20Misconfiguration",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/18ae98d374cb96e81bf70cf338cd47417e8d6717",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CORS%20Misconfiguration?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/18ae98d374cb96e81bf70cf338cd47417e8d6717",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CORS%20Misconfiguration"
+    }
+  },
+  {
+    "name": "CRLF Injection",
+    "path": "CRLF Injection",
+    "sha": "ce3915d45fb341b0c21a86747d13ba91f376a26b",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CRLF%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CRLF%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/ce3915d45fb341b0c21a86747d13ba91f376a26b",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CRLF%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/ce3915d45fb341b0c21a86747d13ba91f376a26b",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CRLF%20Injection"
+    }
+  },
+  {
+    "name": "CSS Injection",
+    "path": "CSS Injection",
+    "sha": "d529a29c263b8b46aca4477cbf35a3b6546d0922",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CSS%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CSS%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/d529a29c263b8b46aca4477cbf35a3b6546d0922",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CSS%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/d529a29c263b8b46aca4477cbf35a3b6546d0922",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CSS%20Injection"
+    }
+  },
+  {
+    "name": "CSV Injection",
+    "path": "CSV Injection",
+    "sha": "726f2773c6217cc93055f244e2cf2437eaa598f7",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CSV%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CSV%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/726f2773c6217cc93055f244e2cf2437eaa598f7",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CSV%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/726f2773c6217cc93055f244e2cf2437eaa598f7",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CSV%20Injection"
+    }
+  },
+  {
+    "name": "CVE Exploits",
+    "path": "CVE Exploits",
+    "sha": "a7bf00710239058e6041efc37ed9570e495a354e",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CVE%20Exploits?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CVE%20Exploits",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/a7bf00710239058e6041efc37ed9570e495a354e",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/CVE%20Exploits?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/a7bf00710239058e6041efc37ed9570e495a354e",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CVE%20Exploits"
+    }
+  },
+  {
+    "name": "Clickjacking",
+    "path": "Clickjacking",
+    "sha": "4d84214ceac699dae437f24475f71c746e0a20bf",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Clickjacking?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Clickjacking",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/4d84214ceac699dae437f24475f71c746e0a20bf",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Clickjacking?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/4d84214ceac699dae437f24475f71c746e0a20bf",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Clickjacking"
+    }
+  },
+  {
+    "name": "Client Side Path Traversal",
+    "path": "Client Side Path Traversal",
+    "sha": "3dad0deea0adba914e08ac7ef7886edf8b7c28b1",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Client%20Side%20Path%20Traversal?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Client%20Side%20Path%20Traversal",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/3dad0deea0adba914e08ac7ef7886edf8b7c28b1",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Client%20Side%20Path%20Traversal?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/3dad0deea0adba914e08ac7ef7886edf8b7c28b1",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Client%20Side%20Path%20Traversal"
+    }
+  },
+  {
+    "name": "Command Injection",
+    "path": "Command Injection",
+    "sha": "3b44d34beed9b1b3e74ea39722274041ad9e354b",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Command%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Command%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/3b44d34beed9b1b3e74ea39722274041ad9e354b",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Command%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/3b44d34beed9b1b3e74ea39722274041ad9e354b",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Command%20Injection"
+    }
+  },
+  {
+    "name": "Cross-Site Request Forgery",
+    "path": "Cross-Site Request Forgery",
+    "sha": "73331c4451d406a306b83c0263762ebd17a31217",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Cross-Site%20Request%20Forgery?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Cross-Site%20Request%20Forgery",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/73331c4451d406a306b83c0263762ebd17a31217",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Cross-Site%20Request%20Forgery?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/73331c4451d406a306b83c0263762ebd17a31217",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Cross-Site%20Request%20Forgery"
+    }
+  },
+  {
+    "name": "DISCLAIMER.md",
+    "path": "DISCLAIMER.md",
+    "sha": "c43c783bfb5dc488ce2bed0d77901b40fdd02f23",
+    "size": 1027,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/DISCLAIMER.md?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/DISCLAIMER.md",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/c43c783bfb5dc488ce2bed0d77901b40fdd02f23",
+    "download_url": "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/DISCLAIMER.md",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/DISCLAIMER.md?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/c43c783bfb5dc488ce2bed0d77901b40fdd02f23",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/DISCLAIMER.md"
+    }
+  },
+  {
+    "name": "DNS Rebinding",
+    "path": "DNS Rebinding",
+    "sha": "a16ef3254eb4a236979289b6e4bbc87da4f52aaa",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/DNS%20Rebinding?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/DNS%20Rebinding",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/a16ef3254eb4a236979289b6e4bbc87da4f52aaa",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/DNS%20Rebinding?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/a16ef3254eb4a236979289b6e4bbc87da4f52aaa",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/DNS%20Rebinding"
+    }
+  },
+  {
+    "name": "DOM Clobbering",
+    "path": "DOM Clobbering",
+    "sha": "18669d003d23c365549bdfbedee12185eeb9cfae",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/DOM%20Clobbering?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/DOM%20Clobbering",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/18669d003d23c365549bdfbedee12185eeb9cfae",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/DOM%20Clobbering?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/18669d003d23c365549bdfbedee12185eeb9cfae",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/DOM%20Clobbering"
+    }
+  },
+  {
+    "name": "Denial of Service",
+    "path": "Denial of Service",
+    "sha": "e2c022588191606f818d75b9775e21a62d7531c3",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Denial%20of%20Service?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Denial%20of%20Service",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/e2c022588191606f818d75b9775e21a62d7531c3",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Denial%20of%20Service?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/e2c022588191606f818d75b9775e21a62d7531c3",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Denial%20of%20Service"
+    }
+  },
+  {
+    "name": "Dependency Confusion",
+    "path": "Dependency Confusion",
+    "sha": "6c3189b591d288dfc2da64961a5ccdefeac8257f",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Dependency%20Confusion?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Dependency%20Confusion",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/6c3189b591d288dfc2da64961a5ccdefeac8257f",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Dependency%20Confusion?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/6c3189b591d288dfc2da64961a5ccdefeac8257f",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Dependency%20Confusion"
+    }
+  },
+  {
+    "name": "Directory Traversal",
+    "path": "Directory Traversal",
+    "sha": "075cb95f28d14d2b286f29461c1dea78167872d6",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Directory%20Traversal?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Directory%20Traversal",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/075cb95f28d14d2b286f29461c1dea78167872d6",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Directory%20Traversal?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/075cb95f28d14d2b286f29461c1dea78167872d6",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Directory%20Traversal"
+    }
+  },
+  {
+    "name": "Encoding Transformations",
+    "path": "Encoding Transformations",
+    "sha": "030d61b6c8598cf6cf34f777c719f9e21c187109",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Encoding%20Transformations?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Encoding%20Transformations",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/030d61b6c8598cf6cf34f777c719f9e21c187109",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Encoding%20Transformations?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/030d61b6c8598cf6cf34f777c719f9e21c187109",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Encoding%20Transformations"
+    }
+  },
+  {
+    "name": "External Variable Modification",
+    "path": "External Variable Modification",
+    "sha": "2bab4665ee5e5bf84cef6b658b6f5d5008d6945d",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/External%20Variable%20Modification?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/External%20Variable%20Modification",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/2bab4665ee5e5bf84cef6b658b6f5d5008d6945d",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/External%20Variable%20Modification?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/2bab4665ee5e5bf84cef6b658b6f5d5008d6945d",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/External%20Variable%20Modification"
+    }
+  },
+  {
+    "name": "File Inclusion",
+    "path": "File Inclusion",
+    "sha": "8a801d29510f9d764fca93fdbb9e33f13326324d",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/File%20Inclusion?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/File%20Inclusion",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/8a801d29510f9d764fca93fdbb9e33f13326324d",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/File%20Inclusion?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/8a801d29510f9d764fca93fdbb9e33f13326324d",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/File%20Inclusion"
+    }
+  },
+  {
+    "name": "Google Web Toolkit",
+    "path": "Google Web Toolkit",
+    "sha": "9436047aefdcc0095b52fefe301855ef8258d6b3",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Google%20Web%20Toolkit?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Google%20Web%20Toolkit",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/9436047aefdcc0095b52fefe301855ef8258d6b3",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Google%20Web%20Toolkit?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/9436047aefdcc0095b52fefe301855ef8258d6b3",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Google%20Web%20Toolkit"
+    }
+  },
+  {
+    "name": "GraphQL Injection",
+    "path": "GraphQL Injection",
+    "sha": "1876c62f93de713182035ea6475ce969532d6fd3",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/GraphQL%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/GraphQL%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/1876c62f93de713182035ea6475ce969532d6fd3",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/GraphQL%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/1876c62f93de713182035ea6475ce969532d6fd3",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/GraphQL%20Injection"
+    }
+  },
+  {
+    "name": "HTTP Parameter Pollution",
+    "path": "HTTP Parameter Pollution",
+    "sha": "f8c844b922ca0d525e961dd381f9f8614b0dceea",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/HTTP%20Parameter%20Pollution?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/HTTP%20Parameter%20Pollution",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/f8c844b922ca0d525e961dd381f9f8614b0dceea",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/HTTP%20Parameter%20Pollution?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/f8c844b922ca0d525e961dd381f9f8614b0dceea",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/HTTP%20Parameter%20Pollution"
+    }
+  },
+  {
+    "name": "Headless Browser",
+    "path": "Headless Browser",
+    "sha": "dbd17283bdd11ef9ea37adad997db2047b7ec4fb",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Headless%20Browser?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Headless%20Browser",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/dbd17283bdd11ef9ea37adad997db2047b7ec4fb",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Headless%20Browser?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/dbd17283bdd11ef9ea37adad997db2047b7ec4fb",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Headless%20Browser"
+    }
+  },
+  {
+    "name": "Hidden Parameters",
+    "path": "Hidden Parameters",
+    "sha": "314a825b0ffc30fcefcea8aa8b1b224a89e6355b",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Hidden%20Parameters?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Hidden%20Parameters",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/314a825b0ffc30fcefcea8aa8b1b224a89e6355b",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Hidden%20Parameters?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/314a825b0ffc30fcefcea8aa8b1b224a89e6355b",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Hidden%20Parameters"
+    }
+  },
+  {
+    "name": "Insecure Deserialization",
+    "path": "Insecure Deserialization",
+    "sha": "7e64ccb402d78957424bab6e9e852b620731a13f",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Insecure%20Deserialization?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Insecure%20Deserialization",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/7e64ccb402d78957424bab6e9e852b620731a13f",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Insecure%20Deserialization?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/7e64ccb402d78957424bab6e9e852b620731a13f",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Insecure%20Deserialization"
+    }
+  },
+  {
+    "name": "Insecure Direct Object References",
+    "path": "Insecure Direct Object References",
+    "sha": "3dfb8b727ffee4176b0771afe276f2571b7f5ebf",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Insecure%20Direct%20Object%20References?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Insecure%20Direct%20Object%20References",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/3dfb8b727ffee4176b0771afe276f2571b7f5ebf",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Insecure%20Direct%20Object%20References?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/3dfb8b727ffee4176b0771afe276f2571b7f5ebf",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Insecure%20Direct%20Object%20References"
+    }
+  },
+  {
+    "name": "Insecure Management Interface",
+    "path": "Insecure Management Interface",
+    "sha": "9b4aea94c19faa432b407415b69369839d097277",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Insecure%20Management%20Interface?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Insecure%20Management%20Interface",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/9b4aea94c19faa432b407415b69369839d097277",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Insecure%20Management%20Interface?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/9b4aea94c19faa432b407415b69369839d097277",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Insecure%20Management%20Interface"
+    }
+  },
+  {
+    "name": "Insecure Randomness",
+    "path": "Insecure Randomness",
+    "sha": "b8885e39b943ab413a925452bd712f011998042d",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Insecure%20Randomness?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Insecure%20Randomness",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/b8885e39b943ab413a925452bd712f011998042d",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Insecure%20Randomness?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/b8885e39b943ab413a925452bd712f011998042d",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Insecure%20Randomness"
+    }
+  },
+  {
+    "name": "Insecure Source Code Management",
+    "path": "Insecure Source Code Management",
+    "sha": "cfcdb6859d11b2eb7bc83bbb97717de3e8b31ecb",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Insecure%20Source%20Code%20Management?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Insecure%20Source%20Code%20Management",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/cfcdb6859d11b2eb7bc83bbb97717de3e8b31ecb",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Insecure%20Source%20Code%20Management?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/cfcdb6859d11b2eb7bc83bbb97717de3e8b31ecb",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Insecure%20Source%20Code%20Management"
+    }
+  },
+  {
+    "name": "JSON Web Token",
+    "path": "JSON Web Token",
+    "sha": "dc4e282e02d0675317643af11c815ba092eab7d6",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/JSON%20Web%20Token?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/JSON%20Web%20Token",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/dc4e282e02d0675317643af11c815ba092eab7d6",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/JSON%20Web%20Token?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/dc4e282e02d0675317643af11c815ba092eab7d6",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/JSON%20Web%20Token"
+    }
+  },
+  {
+    "name": "Java RMI",
+    "path": "Java RMI",
+    "sha": "583f04f16daa1bc51075162ed6f283c0c9dce69d",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Java%20RMI?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Java%20RMI",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/583f04f16daa1bc51075162ed6f283c0c9dce69d",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Java%20RMI?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/583f04f16daa1bc51075162ed6f283c0c9dce69d",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Java%20RMI"
+    }
+  },
+  {
+    "name": "LDAP Injection",
+    "path": "LDAP Injection",
+    "sha": "c67fad047b29e6dfab01683e36a9d30019256cd7",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/LDAP%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/LDAP%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/c67fad047b29e6dfab01683e36a9d30019256cd7",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/LDAP%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/c67fad047b29e6dfab01683e36a9d30019256cd7",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/LDAP%20Injection"
+    }
+  },
+  {
+    "name": "LICENSE",
+    "path": "LICENSE",
+    "sha": "a4a1a0d99c164925620ccd865d83e4c88fc5f460",
+    "size": 1064,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/LICENSE?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/LICENSE",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/a4a1a0d99c164925620ccd865d83e4c88fc5f460",
+    "download_url": "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/LICENSE",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/LICENSE?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/a4a1a0d99c164925620ccd865d83e4c88fc5f460",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/LICENSE"
+    }
+  },
+  {
+    "name": "LaTeX Injection",
+    "path": "LaTeX Injection",
+    "sha": "2e46d53e056891b924788f0fd7cce17707b08c31",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/LaTeX%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/LaTeX%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/2e46d53e056891b924788f0fd7cce17707b08c31",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/LaTeX%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/2e46d53e056891b924788f0fd7cce17707b08c31",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/LaTeX%20Injection"
+    }
+  },
+  {
+    "name": "Mass Assignment",
+    "path": "Mass Assignment",
+    "sha": "f1c3179fe2ad5e96f2cebd21ed32f9a6ae5e2548",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Mass%20Assignment?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Mass%20Assignment",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/f1c3179fe2ad5e96f2cebd21ed32f9a6ae5e2548",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Mass%20Assignment?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/f1c3179fe2ad5e96f2cebd21ed32f9a6ae5e2548",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Mass%20Assignment"
+    }
+  },
+  {
+    "name": "Methodology and Resources",
+    "path": "Methodology and Resources",
+    "sha": "ada06c0e47517d611c07383bf39b532434619889",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Methodology%20and%20Resources?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Methodology%20and%20Resources",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/ada06c0e47517d611c07383bf39b532434619889",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Methodology%20and%20Resources?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/ada06c0e47517d611c07383bf39b532434619889",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Methodology%20and%20Resources"
+    }
+  },
+  {
+    "name": "NoSQL Injection",
+    "path": "NoSQL Injection",
+    "sha": "c55ba3c500a0e9f6528fc128a984a1f7e18de499",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/NoSQL%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/NoSQL%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/c55ba3c500a0e9f6528fc128a984a1f7e18de499",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/NoSQL%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/c55ba3c500a0e9f6528fc128a984a1f7e18de499",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/NoSQL%20Injection"
+    }
+  },
+  {
+    "name": "OAuth Misconfiguration",
+    "path": "OAuth Misconfiguration",
+    "sha": "ba105fa8ab1f147ce9baa1ccab830bdfe1089d90",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/OAuth%20Misconfiguration?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/OAuth%20Misconfiguration",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/ba105fa8ab1f147ce9baa1ccab830bdfe1089d90",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/OAuth%20Misconfiguration?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/ba105fa8ab1f147ce9baa1ccab830bdfe1089d90",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/OAuth%20Misconfiguration"
+    }
+  },
+  {
+    "name": "ORM Leak",
+    "path": "ORM Leak",
+    "sha": "f51093cd101f8d0c146d37fde25b046804c22422",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/ORM%20Leak?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/ORM%20Leak",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/f51093cd101f8d0c146d37fde25b046804c22422",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/ORM%20Leak?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/f51093cd101f8d0c146d37fde25b046804c22422",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/ORM%20Leak"
+    }
+  },
+  {
+    "name": "Open Redirect",
+    "path": "Open Redirect",
+    "sha": "c14057efd9d622f6a56768022ff1bdb6d73882bc",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Open%20Redirect?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Open%20Redirect",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/c14057efd9d622f6a56768022ff1bdb6d73882bc",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Open%20Redirect?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/c14057efd9d622f6a56768022ff1bdb6d73882bc",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Open%20Redirect"
+    }
+  },
+  {
+    "name": "Prompt Injection",
+    "path": "Prompt Injection",
+    "sha": "d11ac9017ae482434d1606b2e615b3c5ab08a609",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Prompt%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Prompt%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/d11ac9017ae482434d1606b2e615b3c5ab08a609",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Prompt%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/d11ac9017ae482434d1606b2e615b3c5ab08a609",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Prompt%20Injection"
+    }
+  },
+  {
+    "name": "Prototype Pollution",
+    "path": "Prototype Pollution",
+    "sha": "9017563b28a9f3deea4b099103f5a0ecf5938250",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Prototype%20Pollution?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Prototype%20Pollution",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/9017563b28a9f3deea4b099103f5a0ecf5938250",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Prototype%20Pollution?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/9017563b28a9f3deea4b099103f5a0ecf5938250",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Prototype%20Pollution"
+    }
+  },
+  {
+    "name": "README.md",
+    "path": "README.md",
+    "sha": "41fa5e3f9ebba6d5e623c19139c39d4e11cb0ffb",
+    "size": 4198,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/README.md?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/README.md",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/41fa5e3f9ebba6d5e623c19139c39d4e11cb0ffb",
+    "download_url": "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/README.md",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/README.md?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/41fa5e3f9ebba6d5e623c19139c39d4e11cb0ffb",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/README.md"
+    }
+  },
+  {
+    "name": "Race Condition",
+    "path": "Race Condition",
+    "sha": "26ac7f83b75f632af6cd7380f9163f32d8a2d1e0",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Race%20Condition?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Race%20Condition",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/26ac7f83b75f632af6cd7380f9163f32d8a2d1e0",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Race%20Condition?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/26ac7f83b75f632af6cd7380f9163f32d8a2d1e0",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Race%20Condition"
+    }
+  },
+  {
+    "name": "Regular Expression",
+    "path": "Regular Expression",
+    "sha": "bafaadbcbba0ed6d4cd692a1eeaf960b8da32c3f",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Regular%20Expression?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Regular%20Expression",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/bafaadbcbba0ed6d4cd692a1eeaf960b8da32c3f",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Regular%20Expression?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/bafaadbcbba0ed6d4cd692a1eeaf960b8da32c3f",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Regular%20Expression"
+    }
+  },
+  {
+    "name": "Request Smuggling",
+    "path": "Request Smuggling",
+    "sha": "4402d764e44b097c8c9a3469dbfda0ed8d7e5ce7",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Request%20Smuggling?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Request%20Smuggling",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/4402d764e44b097c8c9a3469dbfda0ed8d7e5ce7",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Request%20Smuggling?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/4402d764e44b097c8c9a3469dbfda0ed8d7e5ce7",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Request%20Smuggling"
+    }
+  },
+  {
+    "name": "Reverse Proxy Misconfigurations",
+    "path": "Reverse Proxy Misconfigurations",
+    "sha": "1939fb044c30fbfaec556b1b76c73da9110b960f",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Reverse%20Proxy%20Misconfigurations?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Reverse%20Proxy%20Misconfigurations",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/1939fb044c30fbfaec556b1b76c73da9110b960f",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Reverse%20Proxy%20Misconfigurations?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/1939fb044c30fbfaec556b1b76c73da9110b960f",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Reverse%20Proxy%20Misconfigurations"
+    }
+  },
+  {
+    "name": "SAML Injection",
+    "path": "SAML Injection",
+    "sha": "f99e7330e50d65e24e056c090d6f3ab7dfdd53f8",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/SAML%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SAML%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/f99e7330e50d65e24e056c090d6f3ab7dfdd53f8",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/SAML%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/f99e7330e50d65e24e056c090d6f3ab7dfdd53f8",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SAML%20Injection"
+    }
+  },
+  {
+    "name": "SQL Injection",
+    "path": "SQL Injection",
+    "sha": "b2f70f5d5088dc3f2e4aaad951f4b73a359286f9",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/SQL%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/b2f70f5d5088dc3f2e4aaad951f4b73a359286f9",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/SQL%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/b2f70f5d5088dc3f2e4aaad951f4b73a359286f9",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection"
+    }
+  },
+  {
+    "name": "Server Side Include Injection",
+    "path": "Server Side Include Injection",
+    "sha": "e2de867618dece5abd4f637f8ec0c5571a3e9324",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Server%20Side%20Include%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Server%20Side%20Include%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/e2de867618dece5abd4f637f8ec0c5571a3e9324",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Server%20Side%20Include%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/e2de867618dece5abd4f637f8ec0c5571a3e9324",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Server%20Side%20Include%20Injection"
+    }
+  },
+  {
+    "name": "Server Side Request Forgery",
+    "path": "Server Side Request Forgery",
+    "sha": "3f16a5a84f2a1d0dd48b7f7da2418b6577e77de8",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Server%20Side%20Request%20Forgery?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Server%20Side%20Request%20Forgery",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/3f16a5a84f2a1d0dd48b7f7da2418b6577e77de8",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Server%20Side%20Request%20Forgery?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/3f16a5a84f2a1d0dd48b7f7da2418b6577e77de8",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Server%20Side%20Request%20Forgery"
+    }
+  },
+  {
+    "name": "Server Side Template Injection",
+    "path": "Server Side Template Injection",
+    "sha": "5df460c0323d8cb1ab1658d5507799368aa5bde4",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Server%20Side%20Template%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Server%20Side%20Template%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/5df460c0323d8cb1ab1658d5507799368aa5bde4",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Server%20Side%20Template%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/5df460c0323d8cb1ab1658d5507799368aa5bde4",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Server%20Side%20Template%20Injection"
+    }
+  },
+  {
+    "name": "Tabnabbing",
+    "path": "Tabnabbing",
+    "sha": "8c2b1eac85d46f78d96ed55e55154047c89e65c6",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Tabnabbing?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Tabnabbing",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/8c2b1eac85d46f78d96ed55e55154047c89e65c6",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Tabnabbing?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/8c2b1eac85d46f78d96ed55e55154047c89e65c6",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Tabnabbing"
+    }
+  },
+  {
+    "name": "Type Juggling",
+    "path": "Type Juggling",
+    "sha": "f09310d812aff08effb20a2f790e062e60e8831d",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Type%20Juggling?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Type%20Juggling",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/f09310d812aff08effb20a2f790e062e60e8831d",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Type%20Juggling?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/f09310d812aff08effb20a2f790e062e60e8831d",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Type%20Juggling"
+    }
+  },
+  {
+    "name": "Upload Insecure Files",
+    "path": "Upload Insecure Files",
+    "sha": "d41f1daa7a3ac24087a23a3e02c090985dcdac9c",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Upload%20Insecure%20Files?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Upload%20Insecure%20Files",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/d41f1daa7a3ac24087a23a3e02c090985dcdac9c",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Upload%20Insecure%20Files?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/d41f1daa7a3ac24087a23a3e02c090985dcdac9c",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Upload%20Insecure%20Files"
+    }
+  },
+  {
+    "name": "Virtual Hosts",
+    "path": "Virtual Hosts",
+    "sha": "e2e0778ac2586036304409e80fabbeacb91f5d80",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Virtual%20Hosts?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Virtual%20Hosts",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/e2e0778ac2586036304409e80fabbeacb91f5d80",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Virtual%20Hosts?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/e2e0778ac2586036304409e80fabbeacb91f5d80",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Virtual%20Hosts"
+    }
+  },
+  {
+    "name": "Web Cache Deception",
+    "path": "Web Cache Deception",
+    "sha": "0350ccf4463179290926e18ea89b2080d521b758",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Web%20Cache%20Deception?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Web%20Cache%20Deception",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/0350ccf4463179290926e18ea89b2080d521b758",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Web%20Cache%20Deception?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/0350ccf4463179290926e18ea89b2080d521b758",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Web%20Cache%20Deception"
+    }
+  },
+  {
+    "name": "Web Sockets",
+    "path": "Web Sockets",
+    "sha": "4f276ce886fa915fafee9e609b5fa29c70009817",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Web%20Sockets?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Web%20Sockets",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/4f276ce886fa915fafee9e609b5fa29c70009817",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Web%20Sockets?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/4f276ce886fa915fafee9e609b5fa29c70009817",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Web%20Sockets"
+    }
+  },
+  {
+    "name": "XPATH Injection",
+    "path": "XPATH Injection",
+    "sha": "fa7e922df27da18c352f0fca3ff905e964f9949d",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/XPATH%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XPATH%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/fa7e922df27da18c352f0fca3ff905e964f9949d",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/XPATH%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/fa7e922df27da18c352f0fca3ff905e964f9949d",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XPATH%20Injection"
+    }
+  },
+  {
+    "name": "XS-Leak",
+    "path": "XS-Leak",
+    "sha": "a0b1e564bac6a0e6a5d3eb1bc150843fff861cc6",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/XS-Leak?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XS-Leak",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/a0b1e564bac6a0e6a5d3eb1bc150843fff861cc6",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/XS-Leak?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/a0b1e564bac6a0e6a5d3eb1bc150843fff861cc6",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XS-Leak"
+    }
+  },
+  {
+    "name": "XSLT Injection",
+    "path": "XSLT Injection",
+    "sha": "987e5e5097ebfcd7ddd2a56c158d8b797a75ea69",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/XSLT%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XSLT%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/987e5e5097ebfcd7ddd2a56c158d8b797a75ea69",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/XSLT%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/987e5e5097ebfcd7ddd2a56c158d8b797a75ea69",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XSLT%20Injection"
+    }
+  },
+  {
+    "name": "XSS Injection",
+    "path": "XSS Injection",
+    "sha": "cf4603abc5d7ce3881ae344d5e4e6def2909bb53",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/XSS%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XSS%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/cf4603abc5d7ce3881ae344d5e4e6def2909bb53",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/XSS%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/cf4603abc5d7ce3881ae344d5e4e6def2909bb53",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XSS%20Injection"
+    }
+  },
+  {
+    "name": "XXE Injection",
+    "path": "XXE Injection",
+    "sha": "9075a8df92d5372781da2845bbd31ed99266e1a8",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/XXE%20Injection?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XXE%20Injection",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/9075a8df92d5372781da2845bbd31ed99266e1a8",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/XXE%20Injection?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/9075a8df92d5372781da2845bbd31ed99266e1a8",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XXE%20Injection"
+    }
+  },
+  {
+    "name": "Zip Slip",
+    "path": "Zip Slip",
+    "sha": "23f08796bdd3ccb93789545ccfe26ef7e48eb704",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Zip%20Slip?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Zip%20Slip",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/23f08796bdd3ccb93789545ccfe26ef7e48eb704",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/Zip%20Slip?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/23f08796bdd3ccb93789545ccfe26ef7e48eb704",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Zip%20Slip"
+    }
+  },
+  {
+    "name": "_LEARNING_AND_SOCIALS",
+    "path": "_LEARNING_AND_SOCIALS",
+    "sha": "a5aa87dc5f8fd2a1a802bc142f1656bfd11b2f72",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/_LEARNING_AND_SOCIALS?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/_LEARNING_AND_SOCIALS",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/a5aa87dc5f8fd2a1a802bc142f1656bfd11b2f72",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/_LEARNING_AND_SOCIALS?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/a5aa87dc5f8fd2a1a802bc142f1656bfd11b2f72",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/_LEARNING_AND_SOCIALS"
+    }
+  },
+  {
+    "name": "_template_vuln",
+    "path": "_template_vuln",
+    "sha": "72b5884c89ee6f8e5e867dda7d37432f8aef5659",
+    "size": 0,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/_template_vuln?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/_template_vuln",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/72b5884c89ee6f8e5e867dda7d37432f8aef5659",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/_template_vuln?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/trees/72b5884c89ee6f8e5e867dda7d37432f8aef5659",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/_template_vuln"
+    }
+  },
+  {
+    "name": "custom.css",
+    "path": "custom.css",
+    "sha": "3b41ff527a1bc24fd2338f55dc38694c4a2397f7",
+    "size": 476,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/custom.css?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/custom.css",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/3b41ff527a1bc24fd2338f55dc38694c4a2397f7",
+    "download_url": "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/custom.css",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/custom.css?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/3b41ff527a1bc24fd2338f55dc38694c4a2397f7",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/custom.css"
+    }
+  },
+  {
+    "name": "mkdocs.yml",
+    "path": "mkdocs.yml",
+    "sha": "68a08c663a6cccc796f5b87b6b1e328f646fbb35",
+    "size": 1755,
+    "url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/mkdocs.yml?ref=master",
+    "html_url": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/mkdocs.yml",
+    "git_url": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/68a08c663a6cccc796f5b87b6b1e328f646fbb35",
+    "download_url": "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/mkdocs.yml",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/contents/mkdocs.yml?ref=master",
+      "git": "https://api.github.com/repos/swisskyrepo/PayloadsAllTheThings/git/blobs/68a08c663a6cccc796f5b87b6b1e328f646fbb35",
+      "html": "https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/mkdocs.yml"
+    }
+  }
+]

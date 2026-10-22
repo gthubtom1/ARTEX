@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,9 +28,7 @@ func TestUpdateSettingsHTTPPersistence(t *testing.T) {
 	}()
 	m.pg.Exec("DELETE FROM settings WHERE key=$1", updateSettingsKey)
 	dir := t.TempDir()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	s := New(ctx, m, dir, dir, dir)
+	s := newTestServer(t, m, dir, dir, dir)
 	token, err := signJWT(s.jwtKey)
 	if err != nil {
 		t.Fatal(err)

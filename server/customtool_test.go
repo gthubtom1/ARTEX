@@ -80,14 +80,25 @@ func TestShellQuote(t *testing.T) {
 	}
 }
 
-// TestExecPython runs a real Python script end-to-end: it must read params from
-// stdin JSON and the mirrored env var, then print — verifying the whole script
-// param-passing path. Skips if no python3.
-func TestExecPython(t *testing.T) {
+// requireUsablePython3 skips when python3 is absent or is only a placeholder
+// (for example the Windows Store alias that exits with 9009).
+func requireUsablePython3(t *testing.T) string {
+	t.Helper()
 	interp, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("python3 unavailable")
 	}
+	if out, err := exec.Command(interp, "-c", "pass").CombinedOutput(); err != nil {
+		t.Skipf("python3 is not usable (%v): %s", err, strings.TrimSpace(string(out)))
+	}
+	return interp
+}
+
+// TestExecPython runs a real Python script end-to-end: it must read params from
+// stdin JSON and the mirrored env var, then print — verifying the whole script
+// param-passing path. Skips if no python3.
+func TestExecPython(t *testing.T) {
+	interp := requireUsablePython3(t)
 	code := `import json,sys,os
 a = json.load(sys.stdin)
 print("stdin_target=" + a["target"])
@@ -157,9 +168,7 @@ func TestRunHTTPTool(t *testing.T) {
 }
 
 func TestDetectPython(t *testing.T) {
-	if _, err := exec.LookPath("python3"); err != nil {
-		t.Skip("python3 unavailable")
-	}
+	requireUsablePython3(t)
 	if p := detectPython(); p == "" {
 		t.Fatal("detectPython returned empty despite python3 on PATH")
 	}

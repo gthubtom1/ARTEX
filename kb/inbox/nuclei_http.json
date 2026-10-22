@@ -1,0 +1,274 @@
+[
+  {
+    "name": "cnvd",
+    "path": "http/cnvd",
+    "sha": "0d6720b22e50b0bc25a504b83407554bf36276a4",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/cnvd?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/cnvd",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/0d6720b22e50b0bc25a504b83407554bf36276a4",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/cnvd?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/0d6720b22e50b0bc25a504b83407554bf36276a4",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/cnvd"
+    }
+  },
+  {
+    "name": "credential-stuffing",
+    "path": "http/credential-stuffing",
+    "sha": "73eb3f437c4be396d661ef96db73de730177a12e",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/credential-stuffing?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/credential-stuffing",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/73eb3f437c4be396d661ef96db73de730177a12e",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/credential-stuffing?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/73eb3f437c4be396d661ef96db73de730177a12e",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/credential-stuffing"
+    }
+  },
+  {
+    "name": "cves",
+    "path": "http/cves",
+    "sha": "ba1325be5ea6d170bcb52054bb63fea41f78bcce",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/cves?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/cves",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/ba1325be5ea6d170bcb52054bb63fea41f78bcce",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/cves?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/ba1325be5ea6d170bcb52054bb63fea41f78bcce",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/cves"
+    }
+  },
+  {
+    "name": "default-logins",
+    "path": "http/default-logins",
+    "sha": "4ff26f5a2983c3558439d59787e0fdd86b0892bf",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/default-logins?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/default-logins",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/4ff26f5a2983c3558439d59787e0fdd86b0892bf",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/default-logins?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/4ff26f5a2983c3558439d59787e0fdd86b0892bf",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/default-logins"
+    }
+  },
+  {
+    "name": "exposed-panels",
+    "path": "http/exposed-panels",
+    "sha": "c06123616c332020e76df489162468dc1402ea12",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/exposed-panels?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/exposed-panels",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/c06123616c332020e76df489162468dc1402ea12",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/exposed-panels?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/c06123616c332020e76df489162468dc1402ea12",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/exposed-panels"
+    }
+  },
+  {
+    "name": "exposures",
+    "path": "http/exposures",
+    "sha": "6104bec8206f2906733493a173a9dc3c4edbeb87",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/exposures?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/exposures",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/6104bec8206f2906733493a173a9dc3c4edbeb87",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/exposures?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/6104bec8206f2906733493a173a9dc3c4edbeb87",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/exposures"
+    }
+  },
+  {
+    "name": "fuzzing",
+    "path": "http/fuzzing",
+    "sha": "8c0b18e3247aa93fa62abc82134e5ec9b2394efb",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/fuzzing?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/fuzzing",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/8c0b18e3247aa93fa62abc82134e5ec9b2394efb",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/fuzzing?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/8c0b18e3247aa93fa62abc82134e5ec9b2394efb",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/fuzzing"
+    }
+  },
+  {
+    "name": "global-matchers",
+    "path": "http/global-matchers",
+    "sha": "a042f7767d40130f5fe870f6a826b9ce4d017c24",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/global-matchers?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/global-matchers",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/a042f7767d40130f5fe870f6a826b9ce4d017c24",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/global-matchers?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/a042f7767d40130f5fe870f6a826b9ce4d017c24",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/global-matchers"
+    }
+  },
+  {
+    "name": "honeypot",
+    "path": "http/honeypot",
+    "sha": "1e023a7d9ebf94f41e4426921f69df2da7671f76",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/honeypot?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/honeypot",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/1e023a7d9ebf94f41e4426921f69df2da7671f76",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/honeypot?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/1e023a7d9ebf94f41e4426921f69df2da7671f76",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/honeypot"
+    }
+  },
+  {
+    "name": "iot",
+    "path": "http/iot",
+    "sha": "8a98e657bdd67f61c612aeee3713771184e7364d",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/iot?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/iot",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/8a98e657bdd67f61c612aeee3713771184e7364d",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/iot?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/8a98e657bdd67f61c612aeee3713771184e7364d",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/iot"
+    }
+  },
+  {
+    "name": "miscellaneous",
+    "path": "http/miscellaneous",
+    "sha": "b4ba4d6132eac05ad39884f2b77ef46c06b69483",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/miscellaneous?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/miscellaneous",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/b4ba4d6132eac05ad39884f2b77ef46c06b69483",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/miscellaneous?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/b4ba4d6132eac05ad39884f2b77ef46c06b69483",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/miscellaneous"
+    }
+  },
+  {
+    "name": "misconfiguration",
+    "path": "http/misconfiguration",
+    "sha": "51eb8b6791abf193aea83ba8666b7eef84ac48f3",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/misconfiguration?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/misconfiguration",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/51eb8b6791abf193aea83ba8666b7eef84ac48f3",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/misconfiguration?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/51eb8b6791abf193aea83ba8666b7eef84ac48f3",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/misconfiguration"
+    }
+  },
+  {
+    "name": "osint",
+    "path": "http/osint",
+    "sha": "1c89cf8e8a718e539d668fe04325a90c772caca3",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/osint?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/osint",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/1c89cf8e8a718e539d668fe04325a90c772caca3",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/osint?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/1c89cf8e8a718e539d668fe04325a90c772caca3",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/osint"
+    }
+  },
+  {
+    "name": "takeovers",
+    "path": "http/takeovers",
+    "sha": "3d8431caf9e6883312b5eec17f40ccb318d55064",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/takeovers?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/takeovers",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/3d8431caf9e6883312b5eec17f40ccb318d55064",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/takeovers?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/3d8431caf9e6883312b5eec17f40ccb318d55064",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/takeovers"
+    }
+  },
+  {
+    "name": "technologies",
+    "path": "http/technologies",
+    "sha": "326bc35e61c223ac84fc1a92afade7838e082dd0",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/technologies?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/technologies",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/326bc35e61c223ac84fc1a92afade7838e082dd0",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/technologies?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/326bc35e61c223ac84fc1a92afade7838e082dd0",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/technologies"
+    }
+  },
+  {
+    "name": "token-spray",
+    "path": "http/token-spray",
+    "sha": "c60a722b4db0d03bf696f11387c9529e911ba9ee",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/token-spray?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/token-spray",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/c60a722b4db0d03bf696f11387c9529e911ba9ee",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/token-spray?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/c60a722b4db0d03bf696f11387c9529e911ba9ee",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/token-spray"
+    }
+  },
+  {
+    "name": "vulnerabilities",
+    "path": "http/vulnerabilities",
+    "sha": "4192b88d90b099cdc4eaf5792000084c23481a12",
+    "size": 0,
+    "url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/vulnerabilities?ref=main",
+    "html_url": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/vulnerabilities",
+    "git_url": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/4192b88d90b099cdc4eaf5792000084c23481a12",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/projectdiscovery/nuclei-templates/contents/http/vulnerabilities?ref=main",
+      "git": "https://api.github.com/repos/projectdiscovery/nuclei-templates/git/trees/4192b88d90b099cdc4eaf5792000084c23481a12",
+      "html": "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/vulnerabilities"
+    }
+  }
+]

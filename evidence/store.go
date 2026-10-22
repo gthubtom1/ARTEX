@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -112,7 +113,15 @@ func (s *Store) writeBody(r io.Reader, expectedLength int64, expectedHash string
 		return "", err
 	}
 	defer d.Close()
-	return hash, d.Sync()
+	if err = d.Sync(); err != nil {
+		// Windows does not support flushing a directory handle; the file itself
+		// was already fsynced above, so the missing directory flush is expected.
+		if runtime.GOOS == "windows" && errors.Is(err, fs.ErrPermission) {
+			return hash, nil
+		}
+		return "", err
+	}
+	return hash, nil
 }
 
 // StageFindingsExport freezes bindings/report versions and makes private body

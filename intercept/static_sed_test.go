@@ -4,11 +4,32 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
+// requireStaticSed skips tests whose expected output depends on the production
+// static-sed fast path. That path deliberately recognizes only a POSIX sed at
+// /bin/sed or /usr/bin/sed; other platforms (notably Windows) must use the
+// generic incomplete-capture path instead.
+func requireStaticSed(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("static sed requires a POSIX /bin/sed or /usr/bin/sed")
+	}
+	sed, err := exec.LookPath("sed")
+	if err != nil {
+		t.Skip("native sed not installed")
+	}
+	sed, err = filepath.EvalSymlinks(sed)
+	if err != nil || (sed != "/bin/sed" && sed != "/usr/bin/sed") {
+		t.Skipf("static sed requires /bin/sed or /usr/bin/sed, found %q", sed)
+	}
+}
+
 func TestStaticSedSnapshotsMatchNativeSed(t *testing.T) {
+	requireStaticSed(t)
 	dir := t.TempDir()
 	source := "probe2_results.txt probe2_results.txt\nbodies2/a\naXb a.b\n"
 	path := filepath.Join(dir, "old.sh")
@@ -81,6 +102,7 @@ func TestStaticSedRejectsOpaqueOrUnsafeLayouts(t *testing.T) {
 	}
 }
 func TestStaticSedGeneratedInputAndBounds(t *testing.T) {
+	requireStaticSed(t)
 	dir := t.TempDir()
 	in := reviewCommandForTest(t, dir, "cat > old.sh <<'SH'\necho old\nSH\nsed 's/old/new/' old.sh > new.sh; bash new.sh")
 	if in.ScriptCaptureStatus != "complete" || in.Scripts[0].Content != "echo new\n" {

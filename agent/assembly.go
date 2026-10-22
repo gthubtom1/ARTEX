@@ -36,6 +36,42 @@ type DeferredInfo struct {
 // until a user assigns a skill/MCP to the agent in the UI.
 var ToolAugment func(ctx context.Context, agentKey string) (extra []actool.CoreTool, def DeferredInfo, cleanup func())
 
+// 写操作的通用护栏（由 server 注入；nil = 关闭，行为与原来完全一致）。
+//
+// WriteGuard 做幂等去重：同一次 (task,intent,step,tool,input) 重复写回时返回
+// skip=true，用 message 代替真实执行——避免重跑把图污染成重复资产/重复事实。
+// SnapshotHook 在写文件类工具执行前留快照（可回滚），由 server 决定要不要做。
+var (
+	WriteGuard   func(ctx context.Context, tool string, input json.RawMessage) (skip bool, message string)
+	SnapshotHook func(ctx context.Context, tool string, input json.RawMessage)
+)
+
+// writeGuardedTools 是需要幂等/快照护栏的写入类工具名（含 SDK 的文件工具）。
+var writeGuardedTools = map[string]bool{
+	"insert_assets": true, "record_fact": true, "report_finding": true,
+	"add_intent": true, "add_hint": true, "set_goals": true,
+	"set_constraints": true, "record_intelligence": true,
+	"Write": true, "Edit": true, "MultiEdit": true,
+}
+
+// wrapWriteGuard 把幂等与快照包在写入类工具外面。两个钩子都为 nil 时是纯透传。
+type writeGuardedTool struct{ actool.CoreTool }
+
+func (w *writeGuardedTool) Call(ctx context.Context, in json.RawMessage, tc *actool.ToolContext) (actool.Result, error) {
+	if SnapshotHook != nil {
+		SnapshotHook(ctx, w.Name(), in)
+	}
+	if WriteGuard != nil {
+		if skip, msg := WriteGuard(ctx, w.Name(), in); skip {
+			if msg == "" {
+				msg = "该写回已存在（幂等去重），本次不重复提交。"
+			}
+			return actool.Text(msg), nil
+		}
+	}
+	return w.CoreTool.Call(ctx, in, tc)
+}
+
 // AugmentTools returns base plus the agent's visible skill/MCP tools, the
 // DeferredInfo, and a cleanup func the caller must defer (closes MCP clients).
 // Built-in base tools are kept as-is — never filtered (内置工具留代码层，不做可见性过滤).
@@ -74,6 +110,9 @@ func AugmentTools(ctx context.Context, agentKey string, base []actool.CoreTool) 
 		def.CaseGuidance += historicalFindingReviewGuidance
 	}
 	for i, t := range out {
+		if writeGuardedTools[t.Name()] {
+			t = &writeGuardedTool{CoreTool: t}
+		}
 		out[i] = guardPanic(t)
 	}
 	return out, def, cleanup

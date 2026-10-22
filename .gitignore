@@ -60,3 +60,6 @@ Thumbs.db
 /bench/
 /Dockerfile.bench
 /Dockerfile.bench.v2
+
+# 本地 agent 会话/目标状态，不入库
+.pi/

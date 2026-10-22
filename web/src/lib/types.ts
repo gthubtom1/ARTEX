@@ -983,6 +983,8 @@ export interface Settings {
   // worker/主 agent/对话)由 noa 接管上下文压缩,取代内置 compaction;每 run 读一次,对
   // 之后启动的 run 生效。
   noa_compaction?: boolean;
+  // 拦截自动裁决：off=全部人工/模型审批；reviewer=规则自动放行/拒绝（拿不准才挂起）；allow_all=全部放行。
+  intercept_auto_decide?: "off" | "reviewer" | "allow_all";
   // ---- 漏洞 IM 推送（渠道本身是独立资源，见 /api/notify/*，这里只有三项全局配置）----
   notify_enabled?: boolean; // 推送总开关，默认开；用于维护期一键止血
   notify_public_base_url?: string; // 漏洞详情回链的外部访问地址；空=消息不带回链
@@ -1809,4 +1811,167 @@ export interface IntelligencePage {
   total: number;
   counts: Record<IntelligenceKind, number>;
   enabled: boolean;
+}
+
+// ── P2~P5 面板（能力卡 / 台账 / 进度 / 审计 / 环境 / 网络 / 知识） ──
+export interface CapabilityCard {
+  id: number;
+  task_id?: number;
+  group: number;
+  item: string;
+  can: string;
+  plain?: string;
+  surface: string;
+  evidence: string;
+  proof_level: string;
+  confidence: "observed" | "inferred";
+  impact?: string;
+  risk?: string;
+  next_if_approved?: string;
+  status: string;
+  value?: string;
+}
+export interface CapabilityCoverageRow {
+  group: number;
+  name: string;
+  tested: boolean;
+  count: number;
+  verdict: string;
+}
+export interface CapabilitiesResponse {
+  cards: CapabilityCard[];
+  coverage: CapabilityCoverageRow[];
+  plain: string;
+}
+export interface DecisionVerdict {
+  cap_id: number;
+  action: "evidence" | "continue" | "switch";
+  status: string;
+  proof_cap?: string;
+  budget_minutes?: number;
+  budget_rounds?: number;
+  freeze_asset_ids?: number[];
+  hint: string;
+  reason?: string;
+}
+export interface BatchDecisionResult {
+  cap_id: number;
+  status: string;
+  hint: string;
+}
+export interface BatchDecisionResponse {
+  results: BatchDecisionResult[];
+  errors: string[];
+}
+export interface OwnedAsset {
+  id: number;
+  asset_key: string;
+  host?: string;
+  ip?: string;
+  port?: number;
+  access_type: string;
+  privilege: string;
+  depth: number;
+  via_asset?: number;
+  status: string;
+  first_task_id?: number;
+  first_owned_at?: string;
+  last_verified_at?: string;
+  next_check_at?: string;
+  evidence?: string;
+  notes?: string;
+}
+export interface OwnedResponse {
+  assets: OwnedAsset[];
+  stats: Record<string, number>;
+}
+export interface StallReport {
+  rounds: number;
+  no_progress_rounds: number;
+  fact_velocity: number;
+  repeat_ratio: number;
+  layer_gap: string[];
+  front_only_ratio: number;
+  untested_in_scope: number;
+  coverage_pct: number;
+  budget_burn_pct: number;
+  layer_footprint: Record<string, number>;
+  stuck: string[];
+}
+export interface AdviserDiagnosis {
+  diagnosis: string;
+  evidence?: string[];
+  pivot?: { from: string; to: string; why: string };
+  hints: string[];
+  confidence: string;
+}
+export interface ProgressResponse {
+  stall: StallReport;
+  diagnosis: AdviserDiagnosis;
+}
+export interface P2AuditEntry {
+  id: number;
+  ts: string;
+  task_id: number;
+  actor: string;
+  tool: string;
+  target: string;
+  action: string;
+  result: string;
+  err?: string;
+  args_digest?: string;
+}
+export interface EnvTool {
+  name: string;
+  path: string;
+  kind: string;
+  version?: string;
+  healthy: boolean;
+  caps?: string[];
+  source?: string;
+}
+export interface EnvironmentResponse {
+  tools: EnvTool[];
+  count: number;
+  missing: string[] | null;
+  settings: Record<string, string>;
+}
+export interface NetworkResponse {
+  settings: Record<string, string>;
+  direct_allowed: boolean;
+  egress: Array<{ ts: string; task_id: number; egress_ip: string; node: string; ok: boolean; detail: string }>;
+  events: Array<{ ts: string; task_id: number; kind: string; detail: string }>;
+}
+export interface KBHit {
+  path: string;
+  title?: string;
+  snippet: string;
+}
+export interface KnowledgeResponse {
+  query: string;
+  root: string;
+  count: number;
+  hits: KBHit[];
+}
+
+export interface ReplayMetrics {
+  task_id: string;
+  name: string;
+  status: string;
+  intents: number;
+  facts: number;
+  findings: number;
+  hints: number;
+  input_tokens: number;
+  output_tokens: number;
+  duration_seconds: number;
+  findings_per_intent: number;
+  tokens_per_finding: number;
+  facts_per_intent: number;
+}
+export interface ReplayCompareResponse {
+  a: ReplayMetrics;
+  b: ReplayMetrics;
+  delta: Record<string, number>;
+  summary: string;
 }

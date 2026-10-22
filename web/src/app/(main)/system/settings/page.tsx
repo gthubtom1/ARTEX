@@ -50,6 +50,7 @@ export default function SystemSettingsPage() {
   const [injectWorker, setInjectWorker] = React.useState(true);
   // 实验功能:noa 上下文压缩(默认关)。
   const [noaCompaction, setNoaCompaction] = React.useState(false);
+  const [autoDecide, setAutoDecide] = React.useState<"off" | "reviewer" | "allow_all">("off");
   // 纯前端偏好：不走 /api/settings，直接读写 localStorage。
   const sendMode = useChatSendMode();
 
@@ -70,6 +71,7 @@ export default function SystemSettingsPage() {
     setInjectPlanner(s.constraints_inject_planner !== false);
     setInjectWorker(s.constraints_inject_worker !== false);
     setNoaCompaction(!!s.noa_compaction);
+    setAutoDecide((s.intercept_auto_decide as "off" | "reviewer" | "allow_all") ?? "off");
   }, []);
 
   const saveWorkers = () => {
@@ -157,6 +159,21 @@ export default function SystemSettingsPage() {
       .setSettings({ constraints_inject_worker: v })
       .then(apply)
       .catch(() => setInjectWorker(!v)); // revert on failure
+  };
+
+  const saveAutoDecide = (v: "off" | "reviewer" | "allow_all") => {
+    const prev = autoDecide;
+    setAutoDecide(v); // optimistic
+    api
+      .setSettings({ intercept_auto_decide: v })
+      .then((s) => {
+        apply(s);
+        toast.success("已更新拦截自动裁决");
+      })
+      .catch((e) => {
+        setAutoDecide(prev);
+        toast.error(`保存失败：${(e as Error).message}`);
+      });
   };
 
   const toggleNoaCompaction = (v: boolean) => {
@@ -454,6 +471,32 @@ export default function SystemSettingsPage() {
               disabled={!loaded}
               onCheckedChange={toggleNoaCompaction}
             />
+          </CardContent>
+        </Card>
+
+        <Card className="mb-4 break-inside-avoid md:mb-6">
+          <CardHeader>
+            <CardTitle>拦截自动裁决</CardTitle>
+            <CardDescription>
+              off：全部走原人工/模型审批；reviewer：本地规则自动放行只读、拒绝破坏性动作，拿不准才挂起；
+              allow_all：全部放行（仅建议在完全受控的靶场使用）。放行/拒绝都会落审计。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-4">
+            <Label htmlFor="intercept-auto-decide" className="text-sm font-normal text-muted-foreground">
+              自动裁决模式
+            </Label>
+            <select
+              id="intercept-auto-decide"
+              className="h-8 rounded-md border bg-background px-2 text-sm"
+              value={autoDecide}
+              disabled={!loaded}
+              onChange={(e) => saveAutoDecide(e.target.value as "off" | "reviewer" | "allow_all")}
+            >
+              <option value="off">off（默认）</option>
+              <option value="reviewer">reviewer（规则裁决）</option>
+              <option value="allow_all">allow_all（全部放行）</option>
+            </select>
           </CardContent>
         </Card>
 

@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +35,44 @@ type Guard struct {
 	attrib      map[string]int // failure attribution counts (Observer / G5)
 	reg         *hook.Registry
 	interceptor *intercept.Interceptor // optional; nil disables user-configured rules
+	auditSink   func(AuditEntry)       // optional external sink (audit_log); nil = off
+}
+
+// AutoDecide 是可选的外部自动裁决钩子（server 注入）：对规则命中 ask 的调用先问一次。
+// ok=true 时 action=allow|deny 直接生效；ok=false 保持原有人工/模型审批路径。
+var AutoDecide func(ctx context.Context, tool string, input json.RawMessage) (action, reason string, ok bool)
+
+// ToolPresence 是"本机有没有这个命令"的查询钩子，由 server 注入（nil = 不检查）。
+// 返回 ok=false 时 hint 是一条**正向**建议（例如"可用 masscan+nc 继续，或去环境页安装"）。
+// 注意：它只影响"命令首词不存在"这一种情况，不做任何权限判断。
+var ToolPresence func(name string) (ok bool, hint string)
+
+// firstCommand 从一行 shell 里取出真正要执行的命令名：
+// 跳过 VAR=val 前缀、sudo/timeout/env 包装与路径前缀。
+func firstCommand(cmd string) string {
+	fields := strings.Fields(cmd)
+	for i := 0; i < len(fields); i++ {
+		f := fields[i]
+		if strings.Contains(f, "=") && !strings.HasPrefix(f, "/") && !strings.HasPrefix(f, "./") {
+			continue // 环境变量前缀 FOO=bar
+		}
+		switch f {
+		case "sudo", "env", "timeout", "nohup", "nice", "stdbuf", "proxychains4", "proxychains":
+			// 包装器：继续看下一个（timeout 还带一个时长参数）
+			if f == "timeout" && i+1 < len(fields) {
+				i++
+			}
+			continue
+		}
+		if strings.HasPrefix(f, "-") {
+			continue
+		}
+		if idx := strings.LastIndex(f, "/"); idx >= 0 {
+			f = f[idx+1:]
+		}
+		return f
+	}
+	return ""
 }
 
 // New creates a Guard without user-configured intercept rules (used for pentest
@@ -75,6 +114,18 @@ func (g *Guard) preToolUse(ctx context.Context, ev hook.Event) hook.Result {
 		cmd = in.Text
 	}
 	g.record(ev.ToolName, "allow", "", cmd)
+	// 工具存在性：命令首词不在本机时，给出**可执行的替代方案**，
+	// 而不是把 "command not found" 甩给模型（那会让它开始乱搓）。
+	if ToolPresence != nil && cmd != "" && (ev.ToolName == "Bash" || ev.ToolName == "shell_open" || ev.ToolName == "shell_send") {
+		if name := firstCommand(cmd); name != "" {
+			if ok, hint := ToolPresence(name); !ok {
+				if hint == "" {
+					hint = "本机未找到 " + name + "。可以改用等价工具继续，或到环境页安装后再试。"
+				}
+				return g.block(ev.ToolName, hint, cmd)
+			}
+		}
+	}
 	return g.applyIntercept(ctx, ev)
 }
 
@@ -108,6 +159,20 @@ func (g *Guard) applyIntercept(ctx context.Context, ev hook.Event) hook.Result {
 		g.interceptor.Log(ctx, intercept.ConvIDFromContext(ctx), dec, ev.ToolName, ev.Input, "allowed")
 		return hook.Result{}
 	case "ask":
+		// 自动裁决：规则命中 ask 时先给外部钩子一次机会（off 模式钩子返回 ok=false）。
+		if AutoDecide != nil {
+			if action, reason, decided := AutoDecide(ctx, ev.ToolName, ev.Input); decided {
+				if action == "allow" {
+					g.interceptor.Log(ctx, intercept.ConvIDFromContext(ctx), dec, ev.ToolName, ev.Input, "allowed")
+					return hook.Result{}
+				}
+				if reason == "" {
+					reason = "自动裁决拒绝"
+				}
+				g.interceptor.Log(ctx, intercept.ConvIDFromContext(ctx), dec, ev.ToolName, ev.Input, "denied")
+				return g.block(ev.ToolName, systemBlockMessage(reason), "")
+			}
+		}
 		// If the worker context is already cancelled (task stopped / killed), block
 		// immediately without creating a pending record — avoids orphaned DB entries
 		// and makes execOne complete fast, reducing the race against drainSynthetic.
@@ -178,12 +243,25 @@ func (g *Guard) block(tool, reason, cmd string) hook.Result {
 	return hook.Result{Decision: "block", Message: reason}
 }
 
-func (g *Guard) record(tool, action, reason, cmd string) {
+// SetAuditSink installs an external audit sink (e.g. db-backed audit_log).
+// 审计是后台记录：sink 失败不影响工具执行，也不阻断运行。
+func (g *Guard) SetAuditSink(fn func(AuditEntry)) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.audit = append(g.audit, AuditEntry{TS: time.Now().Unix(), Tool: tool, Action: action, Reason: reason, Command: cmd})
+	g.auditSink = fn
+	g.mu.Unlock()
+}
+
+func (g *Guard) record(tool, action, reason, cmd string) {
+	entry := AuditEntry{TS: time.Now().Unix(), Tool: tool, Action: action, Reason: reason, Command: cmd}
+	g.mu.Lock()
+	g.audit = append(g.audit, entry)
 	if len(g.audit) > 2000 {
 		g.audit = g.audit[len(g.audit)-2000:]
+	}
+	sink := g.auditSink
+	g.mu.Unlock()
+	if sink != nil {
+		sink(entry)
 	}
 }
 

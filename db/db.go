@@ -160,6 +160,10 @@ func Open(dsn string) (*DB, error) {
 		if err := applySchemaWithRetry(context.Background(), conn, time.Sleep); err != nil {
 			return fmt.Errorf("apply schema: %w", err)
 		}
+		// 增量 DDL：在基线之后、同一个锁会话内按版本执行（schema_migrations 记账）。
+		if err := applyMigrations(context.Background(), conn); err != nil {
+			return fmt.Errorf("apply migrations: %w", err)
+		}
 		if err := d.seedBuiltins(); err != nil {
 			return fmt.Errorf("seed builtins: %w", err)
 		}
@@ -209,6 +213,13 @@ var builtinAgents = []builtinAgent{
 	}, false, nil},
 	// Auto:内置「平台操作」agent。不参与渗透编排循环,经对话页驱动,用工具操作平台。
 	{"auto", "Auto", "assistant", "平台操作助手：用工具管理任务(建/看/暂停/给提示)与资产，并可创建/修改 skill、自定义工具、MCP。", nil, false, nil},
+	// 校验:独立模型专判已上报漏洞的证据是否成立(不与 planner/worker 共用视角)。
+	{"verifier", "校验", "assistant", "独立复核员：只看证据判断 finding 是否成立，输出 verified/inferred/rejected，证据不足即降级。", nil, false, nil},
+	// 顾问:不派意图、不跑命令,只把停顿诊断翻译成可执行纠偏(可单独绑强模型)。
+	{"adviser", "顾问", "assistant", "资深渗透负责人视角：诊断跑偏/绕圈/只打前端，出换层建议与纠偏，不派意图。", []promptVar{
+		{"Goal", "任务总目标", "拿下 example.com 的管理员权限", "exploration"},
+		{"StallReport", "停顿检测报告(JSON)", `{"no_progress_rounds":4,"layer_gap":["host"]}`, "runtime"},
+	}, false, nil},
 	// 渗透测试:内置「独立渗透」agent。经对话页驱动,一人从侦察到收尾走完整条渗透链,自己规划自己执行自己验证。默认开启交互式 shell。
 	{"pentest", "渗透测试", "assistant", "独立渗透 agent：一人从侦察→找攻击面→深入利用→验证→收尾走完整条链，自己规划、自己执行、自己对抗式验证。", nil, true, intp(0)},
 }
@@ -323,6 +334,16 @@ ON CONFLICT DO NOTHING`, r.kind, r.pattern, r.note); err != nil {
 // that MCP is enabled/configured.
 var builtinSkillVisibility = map[string][]string{
 	"api-recon": {"auto", "pentest", "worker"},
+	// 外部 Pentest-Skills-Merged 精选（MIT）：执行层只绑 worker/pentest，
+	// 避免 planner 每轮为 8 个技能描述付 token；知识层全文在 kb/external/merged-skills。
+	"hunt-api-misconfig":  {"worker", "pentest"},
+	"hunt-auth-bypass":    {"worker", "pentest"},
+	"401-403-bypass":      {"worker", "pentest"},
+	"hunt-idor":           {"worker", "pentest"},
+	"hunt-file-upload":    {"worker", "pentest"},
+	"hunt-race-condition": {"worker", "pentest"},
+	"docker-privesc":      {"worker", "pentest"},
+	"evidence-hygiene":    {"worker", "pentest"},
 }
 
 // seedBuiltinSkillVisibility binds the shipped built-in skills to their default

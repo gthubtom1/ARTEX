@@ -1,0 +1,97 @@
+# ============================================================================
+# ARTEX P0 本地验收靶场（DVWA + OWASP Juice Shop + VulHub Struts2）
+#
+# ⚠️  仅用于本地 / 已授权测试。
+# ⚠️  不要把端口暴露到公网，不要接入生产网络，不要用于未授权目标。
+#
+# 三个靶机默认都只绑定 127.0.0.1（回环地址），局域网/公网无法直接访问。
+# 如需给其他机器访问，请自行做网络隔离并承担风险；更推荐保持回环绑定。
+#
+# 启动：docker compose -f fixtures/docker-compose.yml up -d
+# 停止：docker compose -f fixtures/docker-compose.yml down
+# 清理（含数据卷）：docker compose -f fixtures/docker-compose.yml down -v
+#
+# 默认凭据（测试用，故意写死，禁止复用）：
+#   DVWA        admin / password
+#   Juice Shop  admin@juice-sh.op / admin123（预置管理员；不同版本可能变化）
+#   VulHub      无登录，直接打 S2-045 / S2-046
+# ============================================================================
+
+name: artex-p0-fixtures
+
+services:
+  # --------------------------------------------------------------------------
+  # DVWA：经典 Web 漏洞练习场（SQLi / XSS / 文件上传 / 命令注入 ...）
+  # 访问 http://127.0.0.1:8081
+  # --------------------------------------------------------------------------
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: artex-fixture-dvwa
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:80"
+    environment:
+      # 测试用：仅本地靶场，故意使用明显弱口令；禁止用于任何真实环境。
+      # 若该镜像版本忽略此变量，则使用镜像内置默认口令（见 README）。
+      MYSQL_PASS: "dvwa-test-only"
+    networks:
+      - fixtures
+    healthcheck:
+      test: ["CMD", "php", "-r", 'exit(@fsockopen("127.0.0.1", 80) ? 0 : 1);']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  # --------------------------------------------------------------------------
+  # OWASP Juice Shop：现代 Web / 业务逻辑 / 越权 / 认证类靶场
+  # 访问 http://127.0.0.1:3000
+  # --------------------------------------------------------------------------
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    container_name: artex-fixture-juice-shop
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - fixtures
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://127.0.0.1:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+
+  # --------------------------------------------------------------------------
+  # VulHub Struts2：已知 CVE 靶机（S2-045 / S2-046，CVE-2017-5638 multipart RCE）
+  # 访问 http://127.0.0.1:8082
+  #
+  # 镜像标签说明：vulhub/struts2:2.3.31 是 VulHub 常用标签；若拉取失败，
+  # 可改用 vulhub/tomcat:8.5.19（CVE-2017-12615，PUT 上传 RCE），
+  # 或直接使用 VulHub 仓库中 vulhub/struts2/s2-045/docker-compose.yml 构建。
+  # 具体替代方案见 fixtures/README.md。
+  # --------------------------------------------------------------------------
+  vulhub-struts2:
+    image: vulhub/struts2:2.3.31
+    container_name: artex-fixture-vulhub-struts2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8082:8080"
+    networks:
+      - fixtures
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "curl -sS --max-time 5 -o /dev/null http://127.0.0.1:8080/ || wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"
+      interval: 10s
+      timeout: 8s
+      retries: 12
+      start_period: 45s
+
+networks:
+  fixtures:
+    driver: bridge

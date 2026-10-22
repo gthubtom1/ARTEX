@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/Autumn-27/artex/db"
 	"github.com/Autumn-27/artex/intercept"
+	"github.com/Autumn-27/artex/internal/relay"
 	"github.com/Autumn-27/norma/agentcore"
 	"github.com/Autumn-27/norma/harness"
 	"github.com/Autumn-27/norma/llm"
@@ -290,7 +292,7 @@ func workerSystem(proxyAddr, caCert, dataDir, runDir string) string {
 	// caCert is present only when the recording MITM is on, which is exactly when
 	// the traffic_* tools are registered — so it gates the traffic-tool note.
 	// Optional finding guidance is added for every role after tool resolution.
-	return body + workerTrafficBlock(caCert != "") + workerArtifactSpec(runDir)
+	return body + workerTrafficBlock(caCert != "") + workerArtifactSpec(runDir) + injectPromptBlock("")
 }
 
 // renderIntentTask formats the claimed intent for the worker's launch USER message:
@@ -394,6 +396,11 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 	ctx = intercept.WithReviewContext(ctx, runDir, intercept.ReviewBackground{})
 	overview := renderWorkerGraphOverview(tsx.graphOverviewData())
 	sysBody := workerSystem(w.proxyAddr, w.proxyCACert, w.workDir, runDir)
+	// 跨 worker/跨会话接力：上一段留下的便条（已完成原语 / 已证死路 / 下一步）。
+	taskDir := filepath.Join(w.workDir, "tasks", strconv.FormatInt(taskID, 10))
+	if mem := relay.Read(taskDir, 6000); mem != "" {
+		sysBody += "\n\n【上一段留下的接力便条（先看「下一步」再决定动手；不要重复已完成的部分）】：\n" + mem
+	}
 	if w.wantConstraints() {
 		sysBody += constraintBlock(ts) // 操作约束(若有)注入系统提示,worker 执行时严格遵守
 	}
@@ -468,8 +475,8 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 		NonStreaming:  w.nonStreaming(),                       // 该 profile 选非流式时走 Provider.Complete
 		MaxTokens:     w.maxTokens(),                          // 0 = 不发上限,由服务端默认值决定
 	}
-	if hooks != nil { // typed-nil guard: only set when concrete (avoids harness panic)
-		opts.Hooks = hooks
+	if wrapped := WrapHooks(hooks, nil); wrapped != nil { // 注入层：拒答重定向（off 模式原样透传）
+		opts.Hooks = wrapped
 	}
 	if w.tx != nil { // persist raw LLM conversation; one file per worked intent
 		opts.Transcript = w.tx
@@ -531,5 +538,9 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 	// still settles (no external hard-timeout backstop needed). ctx itself carries only
 	// pause / planner kill / shutdown, which the engine distinguishes and re-queues/stops.
 	_, reason, err := captureRunSession(ctx, s, input, emitWrap)
+	// 写接力便条：下一个 worker / 下一次会话从这里接着干。
+	if aerr := relay.Append(taskDir, memoryBlock(intent, reason, err)); aerr != nil {
+		log.Printf("[relay] task %d intent %d: %v", taskID, intent.ID, aerr)
+	}
 	return reason, tsx.Writes(), err
 }

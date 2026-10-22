@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -20,6 +19,10 @@ func TestRemarksRoundTripPreservesExecutionState(t *testing.T) {
 		t.Skipf("postgres unavailable: %v", err)
 	}
 	defer m.Close()
+	// Start the server before creating the fixtures: startup restores existing
+	// tasks and reconciles schedules, which would otherwise mutate the lifecycle
+	// state this test is meant to preserve while remarks are edited.
+	s := newTestServer(t, m, t.TempDir(), t.TempDir(), t.TempDir())
 	task, err := m.CreateTask("remark test description", "original goal", nil, 0, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +35,10 @@ func TestRemarksRoundTripPreservesExecutionState(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = m.pg.DeleteTaskSchedule(schedule.ID) }()
-	if _, err := m.pg.Exec(`UPDATE task_schedules SET status='completed',last_window_key='preserve-window',last_error='preserve-error',last_transition_at=now() WHERE id=$1`, schedule.ID); err != nil {
+	// A disabled schedule is naturally paused. Keeping that status stable avoids
+	// racing the background scheduler's reconcile tick; the other non-default
+	// state fields remain populated to prove remark edits do not clear them.
+	if _, err := m.pg.Exec(`UPDATE task_schedules SET status='paused',last_window_key='preserve-window',last_error='preserve-error',last_transition_at=now() WHERE id=$1`, schedule.ID); err != nil {
 		t.Fatal(err)
 	}
 	original, err := m.pg.GetTaskSchedule(schedule.ID)
@@ -40,9 +46,6 @@ func TestRemarksRoundTripPreservesExecutionState(t *testing.T) {
 		t.Fatal(err)
 	}
 	originalLifecycle := task.lifecycleSnapshot()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	s := New(ctx, m, t.TempDir(), t.TempDir(), t.TempDir())
 	token, err := signJWT(s.jwtKey)
 	if err != nil {
 		t.Fatal(err)

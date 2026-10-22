@@ -24,7 +24,13 @@ func TestCoreTaskLifecyclePG(t *testing.T) {
 	}
 	defer m.Close()
 	td := t.TempDir()
-	s := New(context.Background(), m, td, td, td)
+	s := newTestServer(t, m, td, td, td)
+	// This test exercises the asynchronous goal seeding path, which is rooted at
+	// s.ctx. Startup used a cancelled context so residual tasks are not restored;
+	// give only this explicitly created task a live context.
+	liveCtx, cancelLive := context.WithCancel(context.Background())
+	s.ctx = liveCtx
+	t.Cleanup(cancelLive)
 	h := s.Handler()
 	tok, err := signJWT(s.jwtKey)
 	if err != nil {
@@ -136,15 +142,29 @@ func TestCoreTaskLifecyclePG(t *testing.T) {
 	if err := m.pg.InsertLLMRecord(&db.LLMRecord{TaskID: id, SessionID: "delete-test", Status: "ok", RequestBody: "secret"}); err != nil {
 		t.Fatal(err)
 	}
+	// Pause first so no planner/worker or egress probe is still in flight; the
+	// delete endpoint intentionally refuses while agents are running.
+	if code, out = doRetry("POST", "/api/tasks/"+id+"/control", map[string]string{"action": "pause"}); code != 200 {
+		t.Fatalf("pause task: %d (%v)", code, out)
+	}
 	// A non-canonical path still resolves to the one canonical task key for the
 	// barrier, workspace, in-memory registry and DB delete.
-	code, out = doRetry("DELETE", "/api/tasks/000"+id, map[string]bool{
-		"delete_files":       true,
-		"delete_findings":    true,
-		"delete_llm_records": true,
-	})
+	//
+	// The pause commits asynchronously; allow the barrier a moment to observe the
+	// quiescent state instead of racing a single request against it.
+	for attempt := 0; attempt < 20; attempt++ {
+		code, out = do("DELETE", "/api/tasks/000"+id, map[string]bool{
+			"delete_files":       true,
+			"delete_findings":    true,
+			"delete_llm_records": true,
+		})
+		if code != http.StatusConflict {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	if code != 200 {
-		t.Fatalf("delete task: %d", code)
+		t.Fatalf("delete task: %d (%v)", code, out)
 	}
 	if deleted, _ := out["files_deleted"].(bool); !deleted {
 		t.Fatalf("expected files_deleted response, got %v", out)

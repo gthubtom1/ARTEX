@@ -1,0 +1,287 @@
+{
+ "generated_at": "2026-10-21T21:10:23+00:00",
+ "schema": 1,
+ "count": 13,
+ "valid": 13,
+ "problems": [],
+ "entries": [
+  {
+   "id": "tactics/access-control",
+   "type": "tactic",
+   "path": "tactics/access-control.md",
+   "title": "access-control",
+   "tags": [
+    "auth",
+    "idor",
+    "越权",
+    "未授权",
+    "jwt",
+    "逻辑漏洞"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "363612e529dc27a0270a5fa6d86e37eeca03fc35fda9c5ddb042eef032bd5053",
+   "chars": 1783,
+   "summary": "**一句话结论**：越权的证据永远是**两份响应体的差异**（A 身份 vs B 身份 / 有 token vs 无 token），不是状态码。"
+  },
+  {
+   "id": "tactics/data-access-proof",
+   "type": "tactic",
+   "path": "tactics/data-access-proof.md",
+   "title": "data-access-proof",
+   "tags": [
+    "data",
+    "database",
+    "dump",
+    "数据库",
+    "用户信息",
+    "手机号",
+    "证据"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "d944cd1f804bd0d3afeba88682fb27cbde5b9f6de094c447083a9f06e53ca9bc",
+   "chars": 2179,
+   "summary": "**一句话结论**：证明数据库可达，只需要三样东西——**表名、行数量级、一列敏感字段的样本证明**。**永远不要 dump 全量**：那是越界，也是被溯源的第一证据。"
+  },
+  {
+   "id": "tactics/lateral-pivot",
+   "type": "tactic",
+   "path": "tactics/lateral-pivot.md",
+   "title": "lateral-pivot",
+   "tags": [
+    "lateral",
+    "pivot",
+    "横移",
+    "跳板",
+    "代理",
+    "凭据复用",
+    "内网"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "c50080433b78a010de3137d7a5d0b47a3b1280020396ad26dd653e7b42fe23a8",
+   "chars": 1734,
+   "summary": "**一句话结论**：横移不是\"再打一个 web\"，是**用已有立足点当路由器**，把不可达变成可达；先建通道，再扫，再复用凭据。"
+  },
+  {
+   "id": "tactics/post-exploit-foothold",
+   "type": "tactic",
+   "path": "tactics/post-exploit-foothold.md",
+   "title": "post-exploit-foothold",
+   "tags": [
+    "post-exploit",
+    "shell",
+    "privesc",
+    "foothold",
+    "立足点",
+    "提权"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "71811b4cafef538eef528179dfcec1a0f8b01116658bf20f7c85561f4cbcb58e",
+   "chars": 1775,
+   "summary": "**一句话结论**：拿到立足点后不要继续打 web，**立刻把\"这台机器能给我什么\"榨干**——这是从\"打点\"到\"拿全\"的分水岭。"
+  },
+  {
+   "id": "tactics/sqli",
+   "type": "tactic",
+   "path": "tactics/sqli.md",
+   "title": "sqli",
+   "tags": [
+    "inject",
+    "sqli",
+    "mysql",
+    "布尔盲注",
+    "时间盲注"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "b9b7f0ccc5ad876ce9d4697955fb61ac2a9ad1b12e7291f8260f1312f60a469a",
+   "chars": 1365,
+   "summary": "**一句话结论**：先用**两次可对照的请求**证明参数改变了 SQL 语义（布尔差异或时间差异），再谈利用；只有报错文案不算注入。"
+  },
+  {
+   "id": "tactics/upload-to-rce",
+   "type": "tactic",
+   "path": "tactics/upload-to-rce.md",
+   "title": "upload-to-rce",
+   "tags": [
+    "upload",
+    "rce",
+    "文件上传",
+    "解析",
+    "webshell"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "b0acee33889dc25c5bcc597dd1056826c6be35d48326939181bb0b6ebdae02ca",
+   "chars": 1575,
+   "summary": "**一句话结论**：上传成功不算漏洞，**服务端能解析并执行你上传的内容**才算；判定要靠\"访问后返回了只有执行才会产生的东西\"。"
+  },
+  {
+   "id": "payloads/minimal-web",
+   "type": "payload",
+   "path": "payloads/minimal-web.md",
+   "title": "minimal-web",
+   "tags": [
+    "payload",
+    "sqli",
+    "ssti",
+    "ssrf",
+    "xss",
+    "最小集"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "3264d3df1c03797d9fdb8772e6b89acb6c2552b11f0548044ae586f337f3bfc2",
+   "chars": 1439,
+   "summary": "```sql"
+  },
+  {
+   "id": "surfaces/api-shape-checklist",
+   "type": "surface",
+   "path": "surfaces/api-shape-checklist.md",
+   "title": "api-shape-checklist",
+   "tags": [
+    "surface",
+    "api",
+    "idor",
+    "形状",
+    "检查清单"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "2f872517b83477649ce9525e4b2deeb51d4129b87b2ab56c97d388697c738f49",
+   "chars": 1566,
+   "summary": "**用法**：worker 拿到一个 endpoint 时先按形状查这张表，**最多挑 3 条去验证**，不要全测。"
+  },
+  {
+   "id": "surfaces/attack-classes",
+   "type": "surface",
+   "path": "surfaces/attack-classes.md",
+   "title": "attack-classes",
+   "tags": [
+    "attack-class",
+    "taxonomy",
+    "payloadsallthethings",
+    "攻击类"
+   ],
+   "source": "pat",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "0c1d0096774625f844a4aa59de55838c5a494b325ba65a67b7c0ccddaeffcac5",
+   "chars": 1628,
+   "summary": "- Hidden Parameters"
+  },
+  {
+   "id": "fingerprints/cwe-map",
+   "type": "fingerprint",
+   "path": "fingerprints/cwe-map.md",
+   "title": "cwe-map",
+   "tags": [
+    "cwe",
+    "缺陷分类",
+    "根因",
+    "报告"
+   ],
+   "source": "cwe",
+   "license": "public",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "3e26022633fef9265fc04b1f2c36e354ad4619eedc934c8c72e512d783a05f5c",
+   "chars": 1676,
+   "summary": "- CWE 是**分类**，不是证据。写进报告时必须配复现步骤与请求/响应原文。"
+  },
+  {
+   "id": "fingerprints/tech-vuln-map",
+   "type": "fingerprint",
+   "path": "fingerprints/tech-fingerprints.md",
+   "title": "tech-fingerprints",
+   "tags": [
+    "fingerprint",
+    "tech",
+    "cve",
+    "default-login",
+    "默认口令"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "e76a98a3f902a393b782f7d368f7d8d21262c5b5d74cd37980c88da1d40a2e18",
+   "chars": 2901,
+   "summary": "**用法**：写下含 `tech/version` 的 fact 后立刻查本表；命中族名后**必须实际触发**才算漏洞，只匹配版本只算线索（`confidence=inferred"
+  },
+  {
+   "id": "capabilities/taxonomy",
+   "type": "capability",
+   "path": "capabilities/taxonomy.md",
+   "title": "taxonomy",
+   "tags": [
+    "capability",
+    "taxonomy",
+    "能力清单",
+    "后渗透",
+    "影响面",
+    "赏金"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 1,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "59b61de1df329a9eaac5889d28ea208efb5e90a5ab3d0ae27f81230e47208e81",
+   "chars": 7666,
+   "summary": "```yaml"
+  },
+  {
+   "id": "prompts/kb-update",
+   "type": "doc",
+   "path": "prompts/00-补充知识库.md",
+   "title": "00-补充知识库",
+   "tags": [
+    "meta",
+    "维护",
+    "提示词",
+    "知识库"
+   ],
+   "source": "self",
+   "license": "MIT",
+   "version": 3,
+   "updated": "2026-10-22",
+   "dedupe_key": "",
+   "sha256": "07dc103d7c0ae3065ad4cbd27b69af39379b09697b8754c6d2df49c48af0caff",
+   "chars": 3490,
+   "summary": "你是一个渗透知识库的**维护员**。目标不是\"多写点内容\"，而是让这个库**每补一次，判断命中率就高一点，且永远不出现重复与失效条目**。"
+  }
+ ]
+}

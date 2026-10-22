@@ -1,0 +1,290 @@
+[
+  {
+    "name": ".bin",
+    "path": ".bin",
+    "sha": "5e0f0bae6e16a4e38339ee169e06ca2fe970552e",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/.bin?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/.bin",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/5e0f0bae6e16a4e38339ee169e06ca2fe970552e",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/.bin?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/5e0f0bae6e16a4e38339ee169e06ca2fe970552e",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/.bin"
+    }
+  },
+  {
+    "name": ".gitattributes",
+    "path": ".gitattributes",
+    "sha": "c4db1a356a21625a884f0ab0f909448fd368ba1c",
+    "size": 47,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/.gitattributes?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/blob/master/.gitattributes",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/c4db1a356a21625a884f0ab0f909448fd368ba1c",
+    "download_url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/.gitattributes",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/.gitattributes?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/c4db1a356a21625a884f0ab0f909448fd368ba1c",
+      "html": "https://github.com/danielmiessler/SecLists/blob/master/.gitattributes"
+    }
+  },
+  {
+    "name": ".github",
+    "path": ".github",
+    "sha": "8cbfeaffcc9b5709edf0bde035755b11686f06bf",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/.github?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/.github",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/8cbfeaffcc9b5709edf0bde035755b11686f06bf",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/.github?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/8cbfeaffcc9b5709edf0bde035755b11686f06bf",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/.github"
+    }
+  },
+  {
+    "name": ".gitignore",
+    "path": ".gitignore",
+    "sha": "7b78b08a7614b3251c130512b4eac3edce6a57ca",
+    "size": 51,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/.gitignore?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/blob/master/.gitignore",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/7b78b08a7614b3251c130512b4eac3edce6a57ca",
+    "download_url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/.gitignore",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/.gitignore?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/7b78b08a7614b3251c130512b4eac3edce6a57ca",
+      "html": "https://github.com/danielmiessler/SecLists/blob/master/.gitignore"
+    }
+  },
+  {
+    "name": "Ai",
+    "path": "Ai",
+    "sha": "613350f7913893f4cf7cf8f30a2a5a3cc5f0397a",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/Ai?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/Ai",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/613350f7913893f4cf7cf8f30a2a5a3cc5f0397a",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/Ai?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/613350f7913893f4cf7cf8f30a2a5a3cc5f0397a",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/Ai"
+    }
+  },
+  {
+    "name": "CONTRIBUTING.md",
+    "path": "CONTRIBUTING.md",
+    "sha": "536459bd1f3b1e41d614154c3bb9a308c2ee31ce",
+    "size": 8951,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/CONTRIBUTING.md?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/blob/master/CONTRIBUTING.md",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/536459bd1f3b1e41d614154c3bb9a308c2ee31ce",
+    "download_url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/CONTRIBUTING.md",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/CONTRIBUTING.md?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/536459bd1f3b1e41d614154c3bb9a308c2ee31ce",
+      "html": "https://github.com/danielmiessler/SecLists/blob/master/CONTRIBUTING.md"
+    }
+  },
+  {
+    "name": "CONTRIBUTORS.md",
+    "path": "CONTRIBUTORS.md",
+    "sha": "5c35495c090d43c481204889ca8136bda95c7411",
+    "size": 46483,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/CONTRIBUTORS.md?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/blob/master/CONTRIBUTORS.md",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/5c35495c090d43c481204889ca8136bda95c7411",
+    "download_url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/CONTRIBUTORS.md",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/CONTRIBUTORS.md?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/5c35495c090d43c481204889ca8136bda95c7411",
+      "html": "https://github.com/danielmiessler/SecLists/blob/master/CONTRIBUTORS.md"
+    }
+  },
+  {
+    "name": "Discovery",
+    "path": "Discovery",
+    "sha": "f4a345fe1328703ecb2879ac08172be3f69ae1e4",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/Discovery?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/Discovery",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/f4a345fe1328703ecb2879ac08172be3f69ae1e4",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/Discovery?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/f4a345fe1328703ecb2879ac08172be3f69ae1e4",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/Discovery"
+    }
+  },
+  {
+    "name": "Fuzzing",
+    "path": "Fuzzing",
+    "sha": "97b8d9b111ca67e0e5dddad10042b0d295b4d9c2",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/Fuzzing?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/Fuzzing",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/97b8d9b111ca67e0e5dddad10042b0d295b4d9c2",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/Fuzzing?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/97b8d9b111ca67e0e5dddad10042b0d295b4d9c2",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/Fuzzing"
+    }
+  },
+  {
+    "name": "LICENSE",
+    "path": "LICENSE",
+    "sha": "fbd3be5da1b5c7363ab6d581e4cc6a22a8893683",
+    "size": 1072,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/LICENSE?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/blob/master/LICENSE",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/fbd3be5da1b5c7363ab6d581e4cc6a22a8893683",
+    "download_url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/LICENSE",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/LICENSE?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/fbd3be5da1b5c7363ab6d581e4cc6a22a8893683",
+      "html": "https://github.com/danielmiessler/SecLists/blob/master/LICENSE"
+    }
+  },
+  {
+    "name": "Miscellaneous",
+    "path": "Miscellaneous",
+    "sha": "7a45360202799be9d1604d8f5bab9f1ce44d3fec",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/Miscellaneous?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/Miscellaneous",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/7a45360202799be9d1604d8f5bab9f1ce44d3fec",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/Miscellaneous?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/7a45360202799be9d1604d8f5bab9f1ce44d3fec",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/Miscellaneous"
+    }
+  },
+  {
+    "name": "Passwords",
+    "path": "Passwords",
+    "sha": "2402f6c2f030dc6ef1b0f787aa1e858fda32bbbf",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/Passwords?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/Passwords",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/2402f6c2f030dc6ef1b0f787aa1e858fda32bbbf",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/Passwords?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/2402f6c2f030dc6ef1b0f787aa1e858fda32bbbf",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/Passwords"
+    }
+  },
+  {
+    "name": "Pattern-Matching",
+    "path": "Pattern-Matching",
+    "sha": "bfa0291ab29f39302418c5518d04bef0a2a91780",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/Pattern-Matching?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/Pattern-Matching",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/bfa0291ab29f39302418c5518d04bef0a2a91780",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/Pattern-Matching?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/bfa0291ab29f39302418c5518d04bef0a2a91780",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/Pattern-Matching"
+    }
+  },
+  {
+    "name": "Payloads",
+    "path": "Payloads",
+    "sha": "76be1afe6c9abb2b508beff7485fc7e0dfcc1d14",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/Payloads?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/Payloads",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/76be1afe6c9abb2b508beff7485fc7e0dfcc1d14",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/Payloads?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/76be1afe6c9abb2b508beff7485fc7e0dfcc1d14",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/Payloads"
+    }
+  },
+  {
+    "name": "README.md",
+    "path": "README.md",
+    "sha": "859d244887d9c0da4645757b2658e41680250246",
+    "size": 4742,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/README.md?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/blob/master/README.md",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/859d244887d9c0da4645757b2658e41680250246",
+    "download_url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/README.md",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/README.md?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/859d244887d9c0da4645757b2658e41680250246",
+      "html": "https://github.com/danielmiessler/SecLists/blob/master/README.md"
+    }
+  },
+  {
+    "name": "Usernames",
+    "path": "Usernames",
+    "sha": "1f457ecdec064ed97a340149326907f5161577cc",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/Usernames?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/Usernames",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/1f457ecdec064ed97a340149326907f5161577cc",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/Usernames?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/1f457ecdec064ed97a340149326907f5161577cc",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/Usernames"
+    }
+  },
+  {
+    "name": "Web-Shells",
+    "path": "Web-Shells",
+    "sha": "16ba67330cf6f914fcd6f42cb67aa98b35f27a03",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/Web-Shells?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/tree/master/Web-Shells",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/16ba67330cf6f914fcd6f42cb67aa98b35f27a03",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/Web-Shells?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/trees/16ba67330cf6f914fcd6f42cb67aa98b35f27a03",
+      "html": "https://github.com/danielmiessler/SecLists/tree/master/Web-Shells"
+    }
+  },
+  {
+    "name": "funding.json",
+    "path": "funding.json",
+    "sha": "0535dc64d1dc9292d87996db4db026c14c062862",
+    "size": 2172,
+    "url": "https://api.github.com/repos/danielmiessler/SecLists/contents/funding.json?ref=master",
+    "html_url": "https://github.com/danielmiessler/SecLists/blob/master/funding.json",
+    "git_url": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/0535dc64d1dc9292d87996db4db026c14c062862",
+    "download_url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/funding.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielmiessler/SecLists/contents/funding.json?ref=master",
+      "git": "https://api.github.com/repos/danielmiessler/SecLists/git/blobs/0535dc64d1dc9292d87996db4db026c14c062862",
+      "html": "https://github.com/danielmiessler/SecLists/blob/master/funding.json"
+    }
+  }
+]

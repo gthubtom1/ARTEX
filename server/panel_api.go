@@ -1,0 +1,143 @@
+package server
+
+import (
+	"fmt"
+	"net/http"
+	"os"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/Autumn-27/artex/internal/env"
+	artexkb "github.com/Autumn-27/artex/internal/kb"
+)
+
+// 本文件提供「环境 / 网络 / 知识」三个只读面板接口：
+//   GET /api/environment  工具发现结果 + 关键运行参数
+//   GET /api/network      出口参数 + 最近出口日志/事件（不主动发探测）
+//   GET /api/knowledge?q= 知识库文件名/正文搜索（只读、限条数）
+
+func (s *Server) registerPanelRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/environment", s.getEnvironment)
+	mux.HandleFunc("GET /api/network", s.getNetwork)
+	mux.HandleFunc("GET /api/knowledge", s.getKnowledge)
+}
+
+func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request) {
+	type toolView struct {
+		Name    string   `json:"name"`
+		Path    string   `json:"path"`
+		Kind    string   `json:"kind"`
+		Version string   `json:"version"`
+		Healthy bool     `json:"healthy"`
+		Caps    []string `json:"caps,omitempty"`
+		Source  string   `json:"source,omitempty"`
+	}
+	out := []toolView{}
+	var missing []string
+	if v := s.tools.Load(); v != nil {
+		if tools, ok := v.([]env.Tool); ok {
+			for _, t := range tools {
+				out = append(out, toolView{Name: t.Name, Path: t.Path, Kind: t.Kind, Version: t.Version,
+					Healthy: t.Healthy, Caps: t.Caps, Source: t.ScanSource})
+			}
+			if s.envDisc != nil {
+				missing = s.envDisc.Missing(tools)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	settings := map[string]string{}
+	if s.settings != nil {
+		for _, k := range []string{"tool.scan_mode", "tool.scan_timeout_s", "tool.auto_install", "tool.max_parallel",
+			"tool.cmd_timeout_s", "tool.output_cap_kb", "work.workers", "work.max_turns",
+			"budget.tokens_per_task", "budget.seconds_per_task", "asset.recheck_hours", "asset.stale_days", "asset.recheck_minutes"} {
+			settings[k] = s.settings.String(k, "")
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tools":    out,
+		"count":    len(out),
+		"missing":  missing,
+		"settings": settings,
+	})
+}
+
+func (s *Server) getNetwork(w http.ResponseWriter, r *http.Request) {
+	settings := map[string]string{}
+	if s.settings != nil {
+		for _, k := range []string{"net.proxy_http", "net.proxy_socks", "net.clash_controller", "net.verify_urls", "net.verify_every_s"} {
+			settings[k] = s.settings.String(k, "")
+		}
+	}
+	resp := map[string]any{
+		"settings":       settings,
+		"direct_allowed": os.Getenv("ARTEX_ALLOW_DIRECT") == "1",
+		"egress":         []any{},
+		"events":         []any{},
+	}
+	pg := s.m.PG()
+	if pg == nil {
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+	rows, err := pg.QueryContext(r.Context(),
+		`SELECT ts, COALESCE(task_id,0), egress_ip, node, ok, detail FROM egress_log ORDER BY id DESC LIMIT 50`)
+	if err == nil {
+		var out []map[string]any
+		for rows.Next() {
+			var ts any
+			var taskID int64
+			var ip, node, detail string
+			var ok bool
+			if rows.Scan(&ts, &taskID, &ip, &node, &ok, &detail) == nil {
+				out = append(out, map[string]any{"ts": tsString(ts), "task_id": taskID, "egress_ip": ip,
+					"node": node, "ok": ok, "detail": detail})
+			}
+		}
+		rows.Close()
+		resp["egress"] = out
+	}
+	rows2, err := pg.QueryContext(r.Context(),
+		`SELECT ts, COALESCE(task_id,0), kind, detail FROM net_events ORDER BY id DESC LIMIT 50`)
+	if err == nil {
+		var out []map[string]any
+		for rows2.Next() {
+			var ts any
+			var taskID int64
+			var kind, detail string
+			if rows2.Scan(&ts, &taskID, &kind, &detail) == nil {
+				out = append(out, map[string]any{"ts": tsString(ts), "task_id": taskID, "kind": kind, "detail": detail})
+			}
+		}
+		rows2.Close()
+		resp["events"] = out
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// tsString 把驱动返回的时间值转成字符串（pgx 可能给 time.Time / []byte / string）。
+func tsString(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case time.Time:
+		return x.Format("2006-01-02 15:04:05")
+	case []byte:
+		return string(x)
+	case string:
+		return x
+	default:
+		return fmt.Sprint(x)
+	}
+}
+
+func (s *Server) getKnowledge(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	hits, err := artexkb.Search(s.kbRoot(), q, artexkb.Options{Limit: 20})
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"query": q, "root": s.kbRoot(), "count": len(hits), "hits": hits})
+}

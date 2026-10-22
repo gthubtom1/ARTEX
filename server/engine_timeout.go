@@ -221,6 +221,12 @@ func (e *Engine) settleTask(ctx context.Context, t *Task) {
 		log.Printf("[deadline] task %s 落终态失败: %v", t.ID, err)
 	case won:
 		log.Printf("[deadline] task %s 收尾完成,终态=%s", t.ID, status)
+		// 失败/超时任务同样沉淀案例（负结论主要产生在这里）。
+		if e.doneHook != nil && status == "timeout" {
+			if herr := e.doneHook(ctx, t); herr != nil {
+				log.Printf("[done] task %s 收尾钩子失败(忽略): %v", t.ID, herr)
+			}
+		}
 	default:
 		log.Printf("[deadline] task %s 收尾时已是终态,保留原状态", t.ID)
 	}

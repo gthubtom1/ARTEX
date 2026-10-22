@@ -1,0 +1,183 @@
+{
+  "_note": "外部来源登记表。规则：只登记，不整包下载。status: live(已核验可访问) / planned(待补)。fetch: api(GitHub API) / raw / web / manual。每次补充只更新 last_checked 与 note，不删旧条目。",
+  "schema": 1,
+  "updated": "2026-10-22",
+  "sources": [
+    {
+      "id": "pat",
+      "name": "PayloadsAllTheThings",
+      "url": "https://github.com/swisskyrepo/PayloadsAllTheThings",
+      "license": "MIT",
+      "kind": "payload+taxonomy",
+      "fetch": "api",
+      "status": "live",
+      "last_checked": "2026-10-22",
+      "note": "顶层 67 个目录已抓取(inbox/pat_toplevel.json)，生成 surfaces/attack-classes.md。正文按需取，勿整包 clone。"
+    },
+    {
+      "id": "nuclei",
+      "name": "nuclei-templates",
+      "url": "https://github.com/projectdiscovery/nuclei-templates",
+      "license": "MIT",
+      "kind": "fingerprint+cve-template",
+      "fetch": "api",
+      "status": "live",
+      "last_checked": "2026-10-22",
+      "note": "http/ 下 17 个分类目录已抓取(inbox/nuclei_http.json)。默认口令见 http/default-logins，指纹见 http/technologies。"
+    },
+    {
+      "id": "seclists",
+      "name": "SecLists",
+      "url": "https://github.com/danielmiessler/SecLists",
+      "license": "MIT",
+      "kind": "wordlist",
+      "fetch": "api",
+      "status": "live",
+      "last_checked": "2026-10-22",
+      "note": "顶层目录已抓取(inbox/seclists_top.json)。体积 5GB+，只登记路径，用时按需下载单个文件。"
+    },
+    {
+      "id": "cwe",
+      "name": "CWE Top 25",
+      "url": "https://cwe.mitre.org/top25/",
+      "license": "public",
+      "kind": "weakness-taxonomy",
+      "fetch": "web",
+      "status": "live",
+      "last_checked": "2026-10-22",
+      "note": "2025 版页面已抓取(inbox/cwe_top25_2025.html)。编号→手法映射见 fingerprints/cwe-map.md。"
+    },
+    {
+      "id": "hacktricks",
+      "name": "HackTricks",
+      "url": "https://github.com/carlospolop/hacktricks",
+      "license": "CC-BY-NC 4.0",
+      "kind": "methodology",
+      "fetch": "api",
+      "status": "planned",
+      "last_checked": "",
+      "note": "NC 条款：仅内部参考，不得再分发。优先取 Linux 提权与 web 章节。"
+    },
+    {
+      "id": "portswigger",
+      "name": "PortSwigger Web Security Academy",
+      "url": "https://portswigger.net/web-security/all-labs",
+      "license": "proprietary(free)",
+      "kind": "lab+methodology",
+      "fetch": "web",
+      "status": "planned",
+      "last_checked": "",
+      "note": "靶场清单 + 每类漏洞判定标准，适合做 tactics/ 骨架参照。只登记链接，不抓正文。"
+    },
+    {
+      "id": "owasp-wstg",
+      "name": "OWASP WSTG",
+      "url": "https://owasp.org/www-project-web-security-testing-guide/",
+      "license": "CC-BY-SA 4.0",
+      "kind": "checklist",
+      "fetch": "web",
+      "status": "planned",
+      "last_checked": "",
+      "note": "检查项编号(WSTG-ATHN-01…)可做 tactics 覆盖清单，报告引用编号更专业。"
+    },
+    {
+      "id": "exploitdb",
+      "name": "Exploit-DB",
+      "url": "https://gitlab.com/exploit-database/exploitdb",
+      "license": "GPL-2.0",
+      "kind": "exploit",
+      "fetch": "manual",
+      "status": "planned",
+      "last_checked": "",
+      "note": "GPL 有再分发约束：只做本地检索，不随产品分发。"
+    },
+    {
+      "id": "gtfobins",
+      "name": "GTFOBins / LOLBAS",
+      "url": "https://gtfobins.github.io/",
+      "license": "MIT",
+      "kind": "privesc",
+      "fetch": "web",
+      "status": "planned",
+      "last_checked": "",
+      "note": "SUID/能力滥用查表，提权命中率极高，优先补。"
+    },
+    {
+      "id": "hxbai",
+      "name": "hxbai（百度 BSRC Agent+ 赛后复盘，Tsecbench 第一 92.57）",
+      "url": "https://github.com/inwpu/hxbai",
+      "license": "see repo",
+      "kind": "methodology+agent",
+      "fetch": "manual",
+      "status": "live",
+      "last_checked": "2026-10-22",
+      "note": "最有价值的同赛制复盘：三门校验/声明式提交/三段式接力/负知识/自适应采样。已吸收进 docs/终极形态-横评与建造顺序.md"
+    },
+    {
+      "id": "tchkiller",
+      "name": "wgpsec/tchkiller（TCH 黑客松智能渗透 Agent）",
+      "url": "https://github.com/wgpsec/tchkiller",
+      "license": "see repo",
+      "kind": "agent+ecosystem",
+      "fetch": "api",
+      "status": "live",
+      "last_checked": "2026-10-22",
+      "note": "知识层→MCP服务层→执行层→验证层四段式；同生态 AboutSecurity/context1337 可直接借鉴。"
+    },
+    {
+      "id": "aboutsecurity",
+      "name": "wgpsec/AboutSecurity（结构化渗透知识库）",
+      "url": "https://github.com/wgpsec/AboutSecurity",
+      "license": "see repo",
+      "kind": "knowledge-base",
+      "fetch": "api",
+      "status": "planned",
+      "last_checked": "",
+      "note": "Skills/Dic/Payload/Vuln 四类，字段设计可对照本库。"
+    },
+    {
+      "id": "cs-skills-818",
+      "name": "Anthropic-Cybersecurity-Skills（818 技能）",
+      "url": "https://github.com/mukul975/Anthropic-Cybersecurity-Skills",
+      "license": "see repo",
+      "kind": "skill-index",
+      "fetch": "api",
+      "status": "live",
+      "last_checked": "2026-10-22",
+      "note": "index.json 已拉取至 kb/external/cyberskills-index.json（818 条 name/description/path）。正文用 gh api 按需拉，不整包。"
+    },
+    {
+      "id": "ired-team",
+      "name": "ired.team / RedTeam-Tactics-and-Techniques",
+      "url": "https://github.com/mantvydasb/RedTeaming-Tactics-and-Techniques",
+      "license": "see repo",
+      "kind": "methodology+redteam",
+      "fetch": "api",
+      "status": "planned",
+      "last_checked": "",
+      "note": "AD/Kerberos/提权/横向的实战笔记，SUMMARY.md 可做索引。"
+    },
+    {
+      "id": "xianzhi",
+      "name": "先知社区 + tanweai/xianzhi-research",
+      "url": "https://xz.aliyun.com/",
+      "license": "see source",
+      "kind": "forum+methodology",
+      "fetch": "manual",
+      "status": "planned",
+      "last_checked": "",
+      "note": "5600+ 篇中文安全文档；社区已有人蒸馏成 vuln-research 技能，可作 tactics 的中文补充。"
+    },
+    {
+      "id": "rhacker",
+      "name": "WaimSec/Rhacker（Recon→Exploit→Escalate→Lateral→Loot）",
+      "url": "https://github.com/WaimSec/Rhacker",
+      "license": "see repo",
+      "kind": "agent",
+      "fetch": "api",
+      "status": "live",
+      "last_checked": "2026-10-22",
+      "note": "planning.md 是自我复盘，坑写得很直（版本不感知/凭据不复用/CVE 未接），与本项目缺口互相印证。"
+    }
+  ]
+}

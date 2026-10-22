@@ -17,11 +17,22 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Autumn-27/artex/agent"
 	"github.com/Autumn-27/artex/db"
+	"github.com/Autumn-27/artex/guard"
 	"github.com/Autumn-27/artex/intercept"
+	"github.com/Autumn-27/artex/internal/audit"
+	"github.com/Autumn-27/artex/internal/egress"
+	"github.com/Autumn-27/artex/internal/env"
+	"github.com/Autumn-27/artex/internal/idem"
+	"github.com/Autumn-27/artex/internal/inject"
+	"github.com/Autumn-27/artex/internal/ledger"
+	"github.com/Autumn-27/artex/internal/netguard"
+	"github.com/Autumn-27/artex/internal/settings"
+	"github.com/Autumn-27/artex/internal/snapshot"
 	"github.com/Autumn-27/artex/llmpool"
 	"github.com/Autumn-27/artex/llmrec"
 	"github.com/Autumn-27/artex/report"
@@ -43,6 +54,17 @@ type Server struct {
 	m          *Manager
 	engine     *Engine
 	ctx        context.Context
+
+	// P0.5 接线：统一参数 / 审计 / 幂等 / 快照（全部静默，不做运行期确认）
+	settings         *settings.Store
+	auditLog         *audit.Logger
+	snapshots        *snapshot.Store
+	netguard         *netguard.Guard
+	envDisc          *env.Discoverer
+	tools            atomic.Value // []env.Tool（后台扫描结果；未加载时为零值）
+	p2               *agent.P2    // P2~P5 装配包（顾问/能力卡/凭据/立足点池/台账）
+	adviserCooldown  adviserGate  // LLM 顾问调用冷却（每任务 10 分钟一次）
+	verifierCooldown verifierGate // verifier 专判冷却（每任务 5 分钟一次）
 
 	skillDir  string // root directory for skill subdirectories
 	jwtKey    []byte // HS256 signing key loaded from / generated into dataDir/jwt.key
@@ -159,6 +181,7 @@ func New(ctx context.Context, m *Manager, skillDir string, dataDir string, keyDi
 		provByProfile:  map[int64]*provEntry{}, llmHealth: newLLMHealthRegistry(m.pg),
 		taskAgents: map[string]*taskAgentBundle{}, archiveWake: make(chan struct{}, 1)}
 	s.initSideQuestions()
+	s.wireP0(ctx, m, dataDir)
 	if m.pg != nil {
 		if err := s.basicAuth.load(m.pg); err != nil {
 			log.Fatalf("[auth] load HTTP Basic Auth: %v", err)
@@ -702,6 +725,12 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/stats", s.stats)
+	s.registerP2Routes(mux)     // 能力卡 / 持有台账 / 进度诊断 / 审计（只读面板）
+	s.registerPanelRoutes(mux)  // 环境 / 网络 / 知识（只读面板）
+	s.registerMCPRoutes(mux)    // MCP：知识库（kb_search / kb_read）
+	s.registerReplayRoutes(mux) // 回放看板：两个任务的成本/产出对比
+	s.registerCaseRoutes(mux)   // 正负案例卡：任务图谱自动沉淀 + 列表
+	s.registerDataRoutes(mux)   // 数据定位：解析 DB 输出（不执行 SQL）
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)
 	mux.HandleFunc("GET /api/logs/stream", s.streamLogs)
@@ -3410,6 +3439,19 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, s.settingsPayload())
 }
 
+func autoDecideSetting(pg *db.DB) string {
+	v, ok, _ := pg.GetSetting("intercept_auto_decide")
+	if !ok {
+		return "off"
+	}
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "reviewer", "allow_all":
+		return strings.ToLower(strings.TrimSpace(v))
+	default:
+		return "off"
+	}
+}
+
 func (s *Server) settingsPayload() map[string]any {
 	on, backend, braveKey, tavilyKey, proxy := s.m.WebSearch()
 	pyStored, _, _ := s.m.pg.GetSetting(settingPythonInterp)
@@ -3443,7 +3485,8 @@ func (s *Server) settingsPayload() map[string]any {
 		"constraints_inject_worker":  s.constraintInjectWorker(),
 		// 实验功能:noa 模型驱动上下文压缩(默认关)。开启后平台接入的四类 agent 由 noa
 		// 接管上下文压缩,取代内置 compaction;每 run 读一次,对之后启动的 run 生效。
-		"noa_compaction": s.m.NoaCompactionEnabled(),
+		"noa_compaction":        s.m.NoaCompactionEnabled(),
+		"intercept_auto_decide": autoDecideSetting(s.m.pg),
 		// 漏洞 IM 推送的全局项。渠道本身是独立资源，走 /api/notify/* 管理；
 		// 这里只放「作用于全部渠道」的三项。
 		"notify_enabled":             s.m.pg.GetBool(settingNotifyEnabled, true),
@@ -3524,10 +3567,26 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		NotifyEnabled    *bool   `json:"notify_enabled"`
 		NotifyBaseURL    *string `json:"notify_public_base_url"`
 		NotifyDigestMins *int    `json:"notify_digest_interval_min"`
+		// 拦截自动裁决：off|reviewer|allow_all（用户可在系统设置页切换）。
+		InterceptAutoDecide *string `json:"intercept_auto_decide"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, 400, err.Error())
 		return
+	}
+	if req.InterceptAutoDecide != nil {
+		v := strings.ToLower(strings.TrimSpace(*req.InterceptAutoDecide))
+		if v != "off" && v != "reviewer" && v != "allow_all" {
+			writeErr(w, 400, "intercept_auto_decide 只接受 off|reviewer|allow_all")
+			return
+		}
+		if err := s.m.pg.SetSetting("intercept_auto_decide", v); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "intercept_auto_decide", v)
+		}
 	}
 	if req.ConstraintsInjectPlanner != nil {
 		if err := s.m.pg.SetBool(settingConstraintsInjectPlanner, *req.ConstraintsInjectPlanner); err != nil {
@@ -3996,6 +4055,20 @@ func (s *Server) getReport(w http.ResponseWriter, r *http.Request) {
 		Title: t.Description, Goal: t.Goal, GeneratedAt: time.Now(),
 		AssetCounts: counts, Findings: findings,
 	})
+	// 报告后附「能力菜单 + 覆盖度 + 持有台账」：零基础读者最关心的三段。
+	if s.p2 != nil {
+		taskID, _ := strconv.ParseInt(t.ID, 10, 64)
+		if cards, err := s.loadCapabilityCards(r.Context(), taskID); err == nil && len(cards) > 0 {
+			owned, _ := s.p2.Ledger.List(r.Context(), "", 200)
+			var scoped []ledger.Owned
+			for _, o := range owned {
+				if o.FirstTaskID == 0 || o.FirstTaskID == taskID {
+					scoped = append(scoped, o)
+				}
+			}
+			md += "\n\n" + report.CapabilitySection(cards, s.negativesFromTask(t), scoped)
+		}
+	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.WriteHeader(200)
 	_, _ = w.Write([]byte(md))
@@ -4059,4 +4132,193 @@ func atoiDefault(s string, d int) int {
 		return n
 	}
 	return d
+}
+
+// wireP0 把 P0 地基的四个库接进执行链：settings（参数）/ audit（审计）/
+// idem（幂等）/ snapshot（写前留档）。全部是"旁路"：出错只打日志，不阻断运行。
+func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
+	if m == nil || m.pg == nil {
+		return
+	}
+	s.settings = settings.New(m.pg)
+	if err := s.settings.Load(ctx); err != nil {
+		log.Printf("[settings] load failed (using defaults): %v", err)
+	}
+	s.auditLog = audit.New(m.pg)
+	s.engine.SetAuditLogger(s.auditLog)
+	// 注入层参数（每 run 读一次）：mode/max_chars/max_retries。
+	agent.InjectConfigFor = func() agent.InjectConfig {
+		return agent.InjectConfig{
+			Mode:       inject.ParseMode(s.settings.String("inject.mode", "hybrid")),
+			MaxChars:   s.settings.Int("inject.max_chars", 900),
+			MaxRetries: s.settings.Int("inject.max_retries", 2),
+		}
+	}
+	s.snapshots = snapshot.New(filepath.Join(dataDir, "snapshots"))
+	s.netguard = netguard.New(s.egressConfig, m.pg)
+
+	// 本地工具发现：后台异步扫描（不阻塞启动），结果供"命令首词不存在"时给替代建议。
+	s.envDisc = env.New(env.Options{
+		CacheDir:    filepath.Join(dataDir, "cache"),
+		ScanTimeout: 120 * time.Second,
+	})
+	go func() {
+		c, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		tools, err := s.envDisc.Load(c)
+		if err != nil {
+			log.Printf("[env] tool discovery failed (degraded): %v", err)
+			return
+		}
+		s.tools.Store(tools)
+		log.Printf("[env] tool discovery: %d tools, missing=%v", len(tools), s.envDisc.Missing(tools))
+	}()
+	guard.ToolPresence = func(name string) (bool, string) {
+		v := s.tools.Load()
+		if v == nil {
+			return true, "" // 还没扫完：不拦（先让任务跑起来）
+		}
+		tools := v.([]env.Tool)
+		if _, ok := s.envDisc.Find(tools, name); ok {
+			return true, ""
+		}
+		return false, "本机未找到 " + name + "。可以改用等价工具继续（例如 nmap↔masscan+nc、sqlmap↔内置注入脚本），或到环境页安装后再试。"
+	}
+	s.engine.SetEgressCheck(func(c context.Context) error {
+		_, err := s.netguard.Verify(c)
+		return err
+	})
+	// 执行面出口闸：所有会发包的执行器（execx/remote/recheck/replay）统一 fail-closed。
+	if os.Getenv("ARTEX_ALLOW_DIRECT") != "1" {
+		egress.Check = func(c context.Context) error {
+			_, err := s.netguard.Verify(c)
+			return err
+		}
+		egress.ProxyEnv = proxyEnvsFromSettings(s.settings)
+	} else {
+		egress.Check = nil
+		egress.ProxyEnv = nil // 明确允许直连时不再注入代理环境变量
+	}
+
+	guard := idem.New(m.pg)
+	agent.WriteGuard = func(c context.Context, tool string, in json.RawMessage) (bool, string) {
+		ri := agent.RunInfoFrom(c)
+		if ri.TaskID == 0 {
+			return false, "" // 非任务场景（对话页）不做幂等
+		}
+		key := idem.KeyFor(ri.TaskID, ri.IntentID, 0, tool, in)
+		first, err := guard.Once(c, ri.TaskID, key)
+		if err != nil || first {
+			return false, ""
+		}
+		return true, "该写回已存在（幂等去重），本次不重复提交。"
+	}
+
+	// ── P2~P5 装配：意图闸门 / 顾问 / 能力卡 / 凭据库 / 立足点池 / 持有台账 ──
+	// 全部 best-effort：任何一步失败只打日志，不影响任务起跑。
+	p2, perr := agent.NewP2(m.pg, os.Getenv("ARTEX_CRED_KEY"))
+	if perr != nil {
+		log.Printf("[p2] init failed (degraded): %v", perr)
+	}
+	if p2 != nil {
+		p2.Ledger = ledger.NewStore(m.pg,
+			s.settings.Int("asset.recheck_hours", 24),
+			s.settings.Int("asset.stale_days", 7))
+		agent.SetDefaultP2(p2)
+		if n, lerr := p2.LoadSessions(ctx); lerr != nil {
+			log.Printf("[p2] 恢复会话池失败(忽略): %v", lerr)
+		} else if n > 0 {
+			log.Printf("[p2] 恢复 %d 个立足点会话", n)
+		}
+		s.p2 = p2
+		s.engine.SetProgressHook(s.progressHook(m))
+		s.engine.SetDoneHook(func(ctx context.Context, t *Task) error {
+			id, _ := strconv.ParseInt(t.ID, 10, 64)
+			res, err := s.collectCases(ctx, id)
+			if err != nil {
+				return err
+			}
+			n, _ := res["collected"].(int)
+			if n > 0 {
+				s.engine.emitActivity(t, db.Activity{Worker: "system", Kind: "text",
+					Summary: fmt.Sprintf("案例沉淀：%d 条（正/负结论已写入 kb/cases）", n)})
+			}
+			return nil
+		})
+		go s.recheckLoop(ctx)
+		log.Printf("[p2] gatechain/adviser/capability/creds/access/ledger wired (cred_key_set=%v)",
+			os.Getenv("ARTEX_CRED_KEY") != "")
+	}
+
+	agent.SnapshotHook = func(c context.Context, tool string, in json.RawMessage) {
+		paths := snapshotPaths(tool, in)
+		if len(paths) == 0 {
+			return
+		}
+		ri := agent.RunInfoFrom(c)
+		if _, err := s.snapshots.Create(ri.TaskID, tool, paths); err != nil {
+			log.Printf("[snapshot] %s: %v", tool, err)
+		}
+	}
+}
+
+// snapshotPaths 从文件类工具的入参里取出要在写前留档的路径。
+func snapshotPaths(tool string, in json.RawMessage) []string {
+	switch tool {
+	case "Write", "Edit", "MultiEdit":
+	default:
+		return nil
+	}
+	var p struct {
+		FilePath string `json:"file_path"`
+		Path     string `json:"path"`
+	}
+	if err := json.Unmarshal(in, &p); err != nil {
+		return nil
+	}
+	if p.FilePath != "" {
+		return []string{p.FilePath}
+	}
+	if p.Path != "" {
+		return []string{p.Path}
+	}
+	return nil
+}
+
+// egressConfig 从 settings 读出口参数。ARTEX_ALLOW_DIRECT=1 可临时允许直连
+// （仅限内网/本地靶场；默认必须经代理，fail-closed）。
+func (s *Server) egressConfig() netguard.Config {
+	requireProxy := os.Getenv("ARTEX_ALLOW_DIRECT") != "1"
+	cfg := netguard.Config{
+		ProxyHTTP:    s.settings.String("net.proxy_http", ""),
+		ProxySOCKS:   s.settings.String("net.proxy_socks", ""),
+		Controller:   s.settings.String("net.clash_controller", ""),
+		Secret:       s.settings.String("net.clash_secret", ""),
+		VerifyURLs:   s.settings.List("net.verify_urls"),
+		RequireProxy: requireProxy,
+	}
+	return cfg
+}
+
+// proxyEnvsFromSettings 把出口参数转成子进程可用的代理环境变量。
+func proxyEnvsFromSettings(st *settings.Store) []string {
+	if st == nil {
+		return nil
+	}
+	httpProxy := strings.TrimSpace(st.String("net.proxy_http", ""))
+	socks := strings.TrimSpace(st.String("net.proxy_socks", ""))
+	all := httpProxy
+	if all == "" {
+		all = socks
+	}
+	var env []string
+	if httpProxy != "" {
+		env = append(env, "HTTP_PROXY="+httpProxy, "HTTPS_PROXY="+httpProxy)
+	}
+	if socks != "" {
+		env = append(env, "ALL_PROXY="+socks)
+	} else if all != "" {
+		env = append(env, "ALL_PROXY="+all)
+	}
+	return env
 }

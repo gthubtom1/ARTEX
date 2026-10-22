@@ -1436,3 +1436,54 @@ export const api = {
   applyUpdate: () => post<{ ok: boolean; target: string }>(`/update/apply`),
   rollbackUpdate: () => post<{ ok: boolean }>(`/update/rollback`),
 };
+
+// ── P2~P5 面板：能力卡 / 台账 / 进度 / 审计 / 环境 / 网络 / 知识 ──
+// 单独导出（不再往 api 上挂动态属性，避免 TS 丢类型）。
+export const p2api = {
+  capabilities: (taskId?: string) =>
+    get<import("@/lib/types").CapabilitiesResponse>(
+      `/capabilities${taskId ? `?task_id=${encodeURIComponent(taskId)}` : ""}`,
+    ),
+  decideCapability: (
+    capId: number,
+    action: "evidence" | "continue" | "switch",
+    taskId?: string,
+    note?: string,
+  ) =>
+    post<{ verdict: import("@/lib/types").DecisionVerdict }>(`/capabilities/${capId}/decide`, {
+      action,
+      note: note ?? "",
+      task_id: taskId ? Number(taskId) : 0,
+    }),
+  decideCapabilitiesBatch: (
+    ids: number[],
+    action: "evidence" | "continue" | "switch",
+    taskId?: string,
+    note?: string,
+  ) =>
+    post<import("@/lib/types").BatchDecisionResponse>(`/capabilities/decide-batch`, {
+      ids,
+      action,
+      note: note ?? "",
+      task_id: taskId ? Number(taskId) : 0,
+    }),
+  owned: (status?: string) =>
+    get<import("@/lib/types").OwnedResponse>(`/owned${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  recheckOwned: () => post<{ result: Record<string, number>; stats: Record<string, number> }>("/owned/recheck", {}),
+  progress: (taskId: string) =>
+    get<import("@/lib/types").ProgressResponse>(`/progress?task_id=${encodeURIComponent(taskId)}`),
+  p2Audit: (taskId?: string, limit = 100) => {
+    const qs = new URLSearchParams();
+    if (taskId) qs.set("task_id", taskId);
+    qs.set("limit", String(limit));
+    return get<{ entries: import("@/lib/types").P2AuditEntry[] }>(`/p2/audit?${qs.toString()}`);
+  },
+  environment: () => get<import("@/lib/types").EnvironmentResponse>("/environment"),
+  network: () => get<import("@/lib/types").NetworkResponse>("/network"),
+  knowledge: (q: string) =>
+    get<import("@/lib/types").KnowledgeResponse>(`/knowledge${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  replayCompare: (a: string, b: string) =>
+    get<import("@/lib/types").ReplayCompareResponse>(
+      `/replay/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`,
+    ),
+};

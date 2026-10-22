@@ -12,6 +12,38 @@ import (
 const maxInlineVariants = 64
 const maxInlineParses = 256
 
+// exactEnviron keeps shell variable names case-sensitive. expand.ListEnviron
+// uppercases names on Windows (where process environment names are
+// case-insensitive), which would make ordinary lowercase loop variables such as
+// $p appear unset during static inline-script expansion.
+type exactEnviron map[string]string
+
+func newExactEnviron(pairs []string) exactEnviron {
+	env := make(exactEnviron, len(pairs))
+	for _, pair := range pairs {
+		if name, value, ok := strings.Cut(pair, "="); ok {
+			env[name] = value
+		}
+	}
+	return env
+}
+
+func (e exactEnviron) Get(name string) expand.Variable {
+	value, ok := e[name]
+	if !ok {
+		return expand.Variable{}
+	}
+	return expand.Variable{Exported: true, Kind: expand.String, Str: value}
+}
+
+func (e exactEnviron) Each(fn func(string, expand.Variable) bool) {
+	for name, value := range e {
+		if !fn(name, expand.Variable{Exported: true, Kind: expand.String, Str: value}) {
+			return
+		}
+	}
+}
+
 // Inline code is a shell string, not a filename. Accept escaped source text
 // and simple quoted parameters proven by finite, unmodified enclosing loops.
 // Expansion has no host environment, subprocess or filesystem callbacks.
@@ -67,7 +99,7 @@ func inlineShellWords(w *syntax.Word, bindings map[string][]string) ([]string, b
 	}
 	var words []string
 	for _, env := range envs {
-		fields, err := expand.Fields(&expand.Config{Env: expand.ListEnviron(env...), NoUnset: true}, w)
+		fields, err := expand.Fields(&expand.Config{Env: newExactEnviron(env), NoUnset: true}, w)
 		if err != nil || len(fields) != 1 || len(fields[0]) > maxReviewScriptBytes {
 			return nil, false
 		}

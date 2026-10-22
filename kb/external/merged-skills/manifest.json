@@ -1,0 +1,1894 @@
+{
+  "included": [
+    {
+      "name": "401-403-bypass",
+      "description": "Use when protected HTTP routes return 401 or 403.",
+      "category": "",
+      "license": "MIT",
+      "version": "1.0.0",
+      "bytes": 12932
+    },
+    {
+      "name": "api-noauth-hunt",
+      "description": "Use when an API may expose data or privileged operations without authentication.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8199
+    },
+    {
+      "name": "apk-redteam-pipeline",
+      "description": "End-to-end Android APK red-team pipeline — automated APK acquisition (Play Store + apkpure + apkmirror fallback), jadx decompilation, secret/URL/JWT/Firebase grep, pinned-cert extraction, exported-component enumeration, Frida runtime instrumentation templates, intent-injection probes. Built from an authorized external red-team engagement where 7 APKs were pulled manually, 4 download attempts truncated, and a hardcoded JWT + 30 internal API endpoints were recovered from one of the apps. Use when target has a mobile app catalogue (Play Store developer page), when you find an APK URL hosted on a web server, or when post-recon mentions \"mobile app\" in scope.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 21116
+    },
+    {
+      "name": "asn-infrastructure-mapping",
+      "description": "Map organization IP infrastructure via ASN, CIDR, TLD expansion, and reverse DNS.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 6555
+    },
+    {
+      "name": "attack-patterns-reference",
+      "description": "Use when classifying a verified web or WordPress behavior and selecting a related validation skill.",
+      "category": "meta",
+      "license": "MIT",
+      "version": "1.2.0",
+      "bytes": 5737
+    },
+    {
+      "name": "bb-local-toolkit",
+      "description": "Complete bug bounty workflow — recon (subdomain enumeration, asset discovery, fingerprinting, HackerOne scope, source code audit), pre-hunt learning, vuln hunting (30+ classes), A-to-B chaining, AI/LLM testing, bypass tables, language-specific grep, reporting. Use for ANY bug bounty task.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 77832
+    },
+    {
+      "name": "bb-methodology",
+      "description": "Use at the START of any bug bounty hunting session, when switching targets, or when feeling lost about what to do next. Master orchestrator that combines the 5-phase non-linear hunting workflow with the critical thinking framework (developer psychology, anomaly detection, What-If experiments). Routes to all other skills based on current hunting phase. Also use when asking \"what should I do next\" or \"where am I in the process.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 33771
+    },
+    {
+      "name": "bug-bounty",
+      "description": "Master bug bounty orchestrator — full pipeline: recon, pre-hunt learning, vulnerability hunting (30+ classes), A-to-B chaining, AI/LLM testing (ASI01-ASI10), language-specific grep, bypass tables, and reporting (7-question gate, CVSS 3.1, human-tone templates). Use for ANY bug bounty task — starting a new target, recon, hunting specific vulns, source code audit, AI feature testing, or report writing. 中文触发词：漏洞赏金、安全测试、渗透测试、漏洞挖掘",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 80498
+    },
+    {
+      "name": "bugcrowd-reporting",
+      "description": "Bugcrowd-specific reporting tactics complementing report-writing: VRT category search-and-fallback strategy when no exact match exists, manual severity override when VRT defaults underrate impact, severity-request paragraph as first body section, OOS-clause rebuttal templates (rate limiting on auth-flow endpoints, debug-info framing, user-enumeration with sensitive PII, theoretical-issue counter), chained-finding cross-reference patterns, target selection for QA-vs-prod programs, researcher-side hygiene (Bugcrowdninja email alias, account state restoration, friendly-tester posture). Use when filing a Bugcrowd submission, when VRT default seems wrong, when triager closes as OOS or downgrades severity, when chaining linked submissions, or when scope distinguishes production from QA. Pairs with report-writing and triage-validation.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 27092
+    },
+    {
+      "name": "cache-attack",
+      "description": "Poison CDN cache or deceive when X-Cache header is detected.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 10081
+    },
+    {
+      "name": "cms-detection",
+      "description": "Identify CMS, frameworks, and server technology stacks on live hosts.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8040
+    },
+    {
+      "name": "cors-chain-automation",
+      "description": "Use when a bounded list of authorized API endpoints needs consistent CORS triage before browser validation.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 14398
+    },
+    {
+      "name": "cors-credential-wordpress",
+      "description": "Exploit WP CORS credential reflection for data theft.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 6707
+    },
+    {
+      "name": "cross-attack-chains",
+      "description": "Use when two or more verified findings may combine into a higher-impact authorized attack path.",
+      "category": "chains",
+      "license": "MIT",
+      "version": "2.0.0",
+      "bytes": 4793
+    },
+    {
+      "name": "cross-wave-delta-analysis",
+      "description": "Compare recon waves to find NEW, REGRESSED, PERSISTENT findings.",
+      "category": "meta",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 5116
+    },
+    {
+      "name": "deep-invade",
+      "description": "Deep pentest WP: SSRF, plugin CVE, JS mine, port scan chain.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 18018
+    },
+    {
+      "name": "docker-privesc",
+      "description": "Escape Docker containers to host root via 5 techniques.",
+      "category": "infra",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 7259
+    },
+    {
+      "name": "email-security",
+      "description": "DMARC/SPF/DKIM check, email spoofing, SMTP test, and security header analysis",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 3187
+    },
+    {
+      "name": "enterprise-vpn-attack",
+      "description": "External SSL VPN / remote-access appliance attack matrix — Cisco ASA/AnyConnect, Fortinet FortiGate/FortiOS, Citrix NetScaler/ADC, Palo Alto GlobalProtect, Pulse Secure / Ivanti Connect Secure, SonicWall, F5 Big-IP. Covers version fingerprinting, CVE matrix (2018-2026), AAA backend identification, default credentials, configuration-disclosure paths, pre-auth RCE/SSRF/path-traversal exploits where applicable. Built from authorized-engagement Cisco ASA testing plus 2024-2026 enterprise VPN CVE landscape. Use whenever the target's perimeter exposes any SSL VPN appliance or remote-access gateway — these are the most common initial-access points in 2024-2026 actor TTPs.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 21184
+    },
+    {
+      "name": "error-log-mining",
+      "description": "Mine error_log for creds, paths, SQL when leak hunt finds.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 13393
+    },
+    {
+      "name": "evidence-hygiene",
+      "description": "Evidence-capture and PoC-redaction discipline for bug-bounty submissions: cookie redaction protocol (which fields to mask, Preview annotation / Burp panel hiding / DevTools workflow), PII black-bar discipline (what to mask in other-user data — names, emails, phones, faces — vs what is safe to leave — usernames, trace IDs, request bodies), HAR file sanitization (jq filters for Cookie/Set-Cookie/Authorization headers), Burp Repeater/Intruder screenshot hygiene (hide request body, show only Results table for rate-limit attacks), Chrome DevTools Console PoC patterns (credentials include so cookies are not echoed, labeled console.log), screenshot capture order, filename conventions, post-submission rotation hygiene. Use BEFORE any PoC screenshot, BEFORE attaching a HAR, or whenever preparing evidence with session cookies or other-user PII. Pairs with bugcrowd-reporting and report-writing.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 23550
+    },
+    {
+      "name": "exchange-owa-attack",
+      "description": "Exchange/OWA NTLM AD leak, spray attack when mail subdomain.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 10446
+    },
+    {
+      "name": "firebase-supabase-attack",
+      "description": "Exploit Firebase/Supabase for data via JS config leak probe.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 14566
+    },
+    {
+      "name": "flask-werkzeug-attack",
+      "description": "Exploit Flask/Werkzeug debugger exposure for traceback and SECRET leaks.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 7100
+    },
+    {
+      "name": "github-secret-hunting",
+      "description": "Find leaked API keys, tokens, and credentials in public GitHub repositories.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 7387
+    },
+    {
+      "name": "gitlab-public-recon",
+      "description": "Mine GitLab for secrets, CI tokens when subdomain found.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 9660
+    },
+    {
+      "name": "google-dorks-catalog",
+      "description": "High-precision Google dorks for exposed configs, secrets, and credentials -- real-world validated",
+      "category": "meta",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 4224
+    },
+    {
+      "name": "hardcoded-credential-hunt",
+      "description": "Detect hardcoded passwords in HTML forms, JavaScript, and API responses.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 7187
+    },
+    {
+      "name": "http2-header-impersonation",
+      "description": "Spoof HTTP/2 SETTINGS frames and pseudo-header order per browser profile.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 9691
+    },
+    {
+      "name": "humanize-automation",
+      "description": "Human-like mouse, keyboard and scroll behavior for behavioral bot bypass.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 9041
+    },
+    {
+      "name": "hunt-api-misconfig",
+      "description": "Hunt API security misconfiguration — mass assignment, JWT attacks, prototype pollution, HTTP verb tampering. Mass assignment: send {is_admin:true, role:admin, verified:true} on profile/account/reset endpoints — server blindly applies. JWT: alg=none, weak HMAC bruteforce, kid path traversal, JWK injection, token confusion. Prototype pollution: __proto__ injection in JSON merge / Object.assign / lodash _.merge → polluted prototype reaches sink (RCE in Node, XSS in browser). HTTP verb: GET-bypass-CSRF, X-HTTP-Method-Override, TRACE enabled. Detection: API responses with extra fields, JWTs in headers (decode at jwt.io). CORS misconfiguration (reflect-any-origin, null origin, subdomain-regex bypass, postMessage) is owned by hunt-cors. Use when hunting API misconfigs, JWT flaws, mass-assignment, prototype pollution.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 25529
+    },
+    {
+      "name": "hunt-aspnet",
+      "description": "Hunt ASP.NET-specific surface — ViewState deserialization (signed-only vs encrypted), machineKey recovery, dual-parser MAC-bypass anti-pattern, request-validator bypass, trace.axd/elmah.axd disclosure, load-balanced ViewState cross-node failures, SafeControl enumeration via reflection, customErrors mode=Off stack-trace leaks, classic Webforms .aspx/.asmx/.svc surface. Built for ASP.NET Webforms + WCF + SharePoint farms.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 22879
+    },
+    {
+      "name": "hunt-ato",
+      "description": "Hunt account takeover taxonomy — 9 distinct paths to ATO, plus chains. Paths: (1) password reset flaws (host-header injection redirects token, predictable/numeric token, Referer leak, no-expiry/reuse), (2) email change without re-auth, (3) OAuth account-link CSRF, (4) MFA bypass (per hunt-mfa-bypass), (5) session fixation, (6) JWT manipulation (alg:none, RS256→HS256 key confusion, weak HMAC secret, kid injection), (7) password change without step-up (chain with login timing/length oracle), (8) social-recovery / security-question brute-force, (9) SSO subdomain takeover at OAuth redirect_uri. Chains: cookie theft + password oracle + no step-up = persistent ATO; lax redirect_uri = auth-code theft; dangling-CNAME takeover at redirect_uri = ATO. Validate: demonstrate real takeover of test account B from attacker A's session; OOB/Collaborator confirm blind token-leak steps. Use when hunting ATO chains, testing password reset / email change / MFA / OAuth / session / JWT, or chaining primitives toward Critical.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 24247
+    },
+    {
+      "name": "hunt-auth-bypass",
+      "description": "Hunting skill for auth bypass vulnerabilities. Built from 12 public bug bounty reports across SAML XSW / parser-differential (GitHub Enterprise CVE-2025-25291/25292), SAML signature stripping (Uber, Rocket.Chat, samlify CVE-2025-47949), SAML domain enforcement bypass via control characters (HackerOne 2024), partner-portal cross-IdP assertion reuse (Slack), WordPress XMLRPC bypassing SSO (Uber), JWT alg-confusion HS256/RS256 (Jitsi), JWT signature-validation skip (Linktree, Newspack), and token-audience confusion (Argo CD CVE-2023-22482). Use when hunting auth bypass — see the Legacy-Protocol Matrix for branded-UI vs legacy-endpoint patterns.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 36780
+    },
+    {
+      "name": "hunt-broken-function-level-auth",
+      "description": "Hunt broken function-level authorization via verb drift, route shadowing, and transport gaps.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 6184
+    },
+    {
+      "name": "hunt-brute-force",
+      "description": "Hunt Missing/Weak Rate Limiting — login brute force, OTP/2FA brute force (10^6 keyspace), password-reset-token brute, credential stuffing, username/email enumeration via error-string / status-code / timing differences, weak password policy, missing CAPTCHA, IP-based rate-limit bypass via X-Forwarded-For and friends, ReDoS. Distinguishes hard lockout vs soft IP-throttle vs CAPTCHA-injection vs silent shadow-throttling (avoids false-negative 'no rate limit' conclusions). Medium to Critical depending on what the brute reaches (OTP→ATO = Critical).",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 20155
+    },
+    {
+      "name": "hunt-business-logic",
+      "description": "Hunting skill for business logic vulnerabilities. Built from 12 public bug bounty reports. Covers coupon-race-stacking (Instacart, Stripe, Reverb), negative-quantity-in-cart price tampering (Upserve, Eternal/Zomato), decimal/fraction price-field overflow (Shipt), client-side checkout amount trust on PayPal redirect (WordPress.org), price-per-unit mass-assignment (Krisp), and archived-price swap / cart-TOCTOU (Stripe). Use when hunting business logic — heavy emphasis on financial-impact-demonstrated cases.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 21590
+    },
+    {
+      "name": "hunt-cicd",
+      "description": "Hunt CI/CD pipeline vulnerabilities — GitHub Actions workflow injection (pull_request_target Pwnrequest + ${{ }}-into-shell), self-hosted runner poisoning, OIDC trust-policy abuse, Jenkins script-console RCE and CVE-2024-23897 file read, GitLab CI runner-token registration, Terraform state file leakage, artifact/log secret leakage, pipeline env-var disclosure. Use when target has a public GitHub/GitLab org, exposed CI dashboards (Jenkins/TeamCity/Drone/Argo), or build artifacts/images are reachable.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 19584
+    },
+    {
+      "name": "hunt-cloud-misconfig",
+      "description": "Hunt cloud / infrastructure misconfigurations. AWS: public S3 buckets (s3:GetObject anonymous), permissive bucket policies (PutObjectAcl public-write), exposed CloudFront origin, public Lambda function URL, public RDS snapshot, IAM credentials in JS bundles, AWS metadata accessible via SSRF. GCP: public GCS buckets, exposed Cloud Run services, leaked service account JSON. Azure: public blob containers, exposed Function App. (Kubernetes/Docker exposure is owned by hunt-k8s; CI/CD pipeline attacks by hunt-cicd; post-credential IAM escalation by cloud-iam-deep.) Detection: targeted dorking, certificate transparency, JS bundle secret extraction, port scan for known service ports. Validate: actual data read / write / RCE. Use when hunting cloud-native storage and compute misconfig (S3/GCS/Blob, IMDS-via-SSRF, serverless, public managed services).",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 14218
+    },
+    {
+      "name": "hunt-cors",
+      "description": "Hunt CORS Misconfiguration — origin-reflection with credentials, null-origin trust, subdomain-regex bypass (unanchored vs unescaped-dot vs prefix-only), pre-flight (OPTIONS) gating bypass, postMessage origin checks. High only when an attacker-controlled origin can perform a CREDENTIALED cross-origin read of sensitive data and you have proven it in a browser. Use when testing API endpoints, SPAs, or any app emitting Access-Control-* headers.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 21376
+    },
+    {
+      "name": "hunt-deserialization",
+      "description": "Hunt Insecure Deserialization — Java gadget chains (ysoserial), PHP object injection (phpggc), Python pickle RCE, .NET BinaryFormatter, Ruby Marshal.load, JNDI/Log4Shell. RCE via deserialization is almost always Critical. Use when target runs Java, PHP serialization, Python pickle, .NET, or Ruby on Rails.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8997
+    },
+    {
+      "name": "hunt-django",
+      "description": "Hunt Django-specific vulnerabilities: DRF permission gaps, ORM injection, and admin exploitation.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 5882
+    },
+    {
+      "name": "hunt-dom",
+      "description": "Hunt client-side DOM vulnerabilities — DOM Clobbering (overwrite JS globals via HTML injection), PostMessage hijacking (missing origin check), Service Worker abuse (intercept requests from same-origin script), CSS Injection/Exfiltration (attribute selectors → token char-by-char via OOB), client-side template injection, dangerouslySetInnerHTML. Grounded in named public research: Gareth Heyes / PortSwigger DOM-clobbering + DOM-Invader, Michał Bentkowski DOMPurify clobbering bypasses, jQuery htmlPrefilter XSS (CVE-2020-11022 / CVE-2020-11023), d0nut CSS-exfil research. Use when hunting DOM-XSS, client-side auth bypass, or token exfiltration without server-side interaction.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 18245
+    },
+    {
+      "name": "hunt-fastapi",
+      "description": "Hunt FastAPI-specific vulnerabilities: dependency injection gaps, Pydantic coercion, and OpenAPI mining.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 6722
+    },
+    {
+      "name": "hunt-file-upload",
+      "description": "Hunt file upload bugs — RCE via webshell, XSS via SVG/HTML, SSRF via XXE in DOCX, path traversal via filename. Bypass tables (10 techniques): double extension (shell.php.jpg if server checks last ext only), magic bytes spoofing (PNG header on PHP), null byte (shell.php\\0.jpg), case (PHP, .Php, .pHP), .htaccess upload to enable execution, SVG with <script>, HTML/SVG XSS, DOCX with embedded XXE, ZIP slip (../../../etc/passwd in archive), polyglot files. Detection: any /upload, /avatar, /profile-picture, /attachment, /import endpoint. Test: upload PHP/JSP/ASPX shells, request via direct URL, check response. Validate: actual code execution (whoami output) for RCE; reflected XSS in profile-photo URL. Use when testing file upload features, avatar/attachment endpoints, import/export functions, XML/DOCX/ZIP processors. Real paid examples.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 10045
+    },
+    {
+      "name": "hunt-firebase",
+      "description": "Hunt Firebase / Firestore / GCP exploitation — Firebase API key discovery in JS bundles, anonymous auth via signUp endpoint, Firestore collection enumeration with anon key, Realtime Database read/write without auth, Firebase Storage bucket listing, Firebase Hosting detection, GCP service account JSON exploitation, IAM policy enumeration from leaked SA keys. Built from field experience where Firebase API keys in JS bundles unlocked full Firestore read-access on 12+ targets including healthcare platforms and delivery apps. Use when a JS bundle, APK, or .env file reveals a Firebase API key (AIzaSy...) or when target uses firebaseio.com / firestore.googleapis.com endpoints.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 17924
+    },
+    {
+      "name": "hunt-graphql",
+      "description": "Hunting skill for graphql vulnerabilities. Built from 12 public bug bounty reports across IDOR via node() / GID, mutation IDOR including AI/LLM features, cross-tenant IDOR, SSRF via argument, batching-DoS, query-cost-bypass, SQLi via argument, broken-object-level-authz, auth-bypass via unscoped mutations, and PII exposure from missing field-level authz. Use when hunting graphql on any target.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 21348
+    },
+    {
+      "name": "hunt-grpc",
+      "description": "Hunt gRPC vulnerabilities — server reflection enabled (enumerate all services/methods), missing authentication / metadata-stripping on internal endpoints, plaintext gRPC over HTTP/2, internal endpoint disclosure, proto file leakage, gRPC-Web/grpc-gateway transcoding injection, and HTTP/2 Rapid Reset DoS (CVE-2023-44487). Use when target exposes port 50051 / 443 / 8443 / 9090 with HTTP/2, when grpcurl/grpcui detects reflection, when an Envoy or grpc-gateway proxy is fronting a microservice, or when recon reveals a microservice architecture.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 21429
+    },
+    {
+      "name": "hunt-host-header",
+      "description": "Hunt Host Header Injection — password reset poisoning → ATO, web cache poisoning via unkeyed Host/X-Forwarded-Host, routing-based SSRF (Host picks upstream → cloud metadata/internal services), path-override SSRF/ACL-bypass (X-Original-URL/X-Rewrite-URL), OAuth redirect_uri/issuer poisoning, and absolute-URL link poisoning in emails. High to Critical when it reaches ATO or mass cache poisoning. Built on public Host-header research (PortSwigger 'Practical web cache poisoning' + James Kettle, and the classic password-reset-poisoning class). Use on any forgot-password flow, CDN/reverse-proxy-fronted app, OAuth/OIDC endpoint, or absolute-URL-in-email feature.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 16262
+    },
+    {
+      "name": "hunt-http-smuggling",
+      "description": "Hunt HTTP request smuggling (CL.TE, TE.CL, H2.CL, H2.TE). Cause: front-end proxy and back-end server disagree on where one request ends and the next begins (Content-Length vs Transfer-Encoding header parsing inconsistency). CL.TE: front-end uses CL, back uses TE → smuggle by sending TE: chunked but with body that fits CL count. TE.CL: opposite. H2.CL: HTTP/2 downgrade, smuggle CL into HTTP/1.1 back-end. Detectiontools: Burp HTTP Request Smuggler extension, smuggler.py, h2csmuggler. Confirm: time-delay technique (smuggled GET with 30s timeout) — if front-end returns slow on next victim request, smuggling works. Validate: cache poisoning chain (smuggle request that gets cached for victim), credential theft (smuggle X-Forwarded-For override that captures next user's cookies), bypass auth (smuggled internal-path request). Real paid examples from major CDN deployments. Use when hunting H1 paid programs running CDN+origin stacks, when targeting load balancer / WAF bypass.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 27618
+    },
+    {
+      "name": "hunt-idor",
+      "description": "Hunting skill for idor vulnerabilities. Built from 26 public bug bounty reports. Use when hunting idor on any target.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 24216
+    },
+    {
+      "name": "hunt-information-disclosure",
+      "description": "Hunt error leakage, DVCS exposure, source maps, config files, and differential oracles.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 7504
+    },
+    {
+      "name": "hunt-k8s",
+      "description": "Hunt Kubernetes & Docker — API anonymous access, kubelet 10250 exec (SPDY/WebSocket, NOT plain POST) and the simpler /run primitive, etcd 2379 unauth, dashboard skip-login, RBAC misconfig, secret/SA-token abuse, docker.sock host escape, runc/container-escape (Leaky Vessels CVE-2024-21626), API-server-mediated nodes/proxy RCE, EphemeralContainers node-shell, bound/projected SA-token audience+expiry abuse, admission-controller bypass, Helm/Tiller remnants. Use when target runs containerized infra, exposes K8s ports (6443/10250/10255/2379/8443), or cloud metadata reveals K8s service accounts.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 22389
+    },
+    {
+      "name": "hunt-laravel",
+      "description": "Hunt Laravel specific vulnerabilities — Debug mode leakage (APP_DEBUG=true exposes full stack trace + env vars), Laravel Telescope/Horizon dashboard unauthorized access, Ignition RCE (CVE-2021-3129), Signed URL manipulation, Queue Worker abuse, mass assignment via Eloquent, deserialization via cookies, .env file exposure. Use when target runs Laravel (PHP) — detected via X-Powered-By, Laravel session cookies, or /storage/ paths.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 9942
+    },
+    {
+      "name": "hunt-ldap",
+      "description": "Hunt LDAP Injection and XPath Injection — authentication bypass, blind char-by-char attribute exfiltration, AD user/group enumeration, XML-store XPath bypass. Covers the LDAP special-character set (* ( ) \\\\ NUL /), search-filter-context vs DN-injection, parenthesis-balancing, AND/OR filter logic, and {SSHA}/{CRYPT} userPassword exfil on non-AD directories. Use when target uses LDAP/AD authentication, corporate SSO with a directory backend, an address-book/people-search API, or XML-based data stores queried with XPath.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 17103
+    },
+    {
+      "name": "hunt-lfi",
+      "description": "Hunt Local File Inclusion (LFI), Remote File Inclusion (RFI), and Path Traversal — /etc/passwd read, log poisoning → RCE, PHP filter-chain RCE (no upload needed), php:// / data:// / zip:// / phar:// wrappers, RFI via allow_url_include, directory traversal read/write/delete. Covers OOB/blind LFI confirmation and false-positive discipline. Use when hunting file-include or path-traversal bugs on any target.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 18978
+    },
+    {
+      "name": "hunt-llm-ai",
+      "description": "Hunt LLM/AI feature bugs — prompt injection, indirect injection, exfiltration viatool-use/markdown, ASCII smuggling, agentic AI security (OWASP Agentic Apps 2026, ASI01-ASI10). Patterns: direct injection ('ignore previous instructions'), indirect injection via documents/web pages/email the model reads, ASCII smuggling (Unicode Tags block U+E0000-U+E007F, invisible to humans, decoded by the model),tool-use exfiltration (model has fetch/browse tool, attacker injects OOB URL, model exfils chat history/secrets), markdown-image zero-click exfil, system-prompt extraction, IDOR-via-AI (cross-tenant data). Targets: chatbots, RAG, summarizers, agentic copilots, MCPtools. Detection: any LLM-backed endpoint, doc upload triggering AI processing, autonomous agent withtools. Validate: OOB/Collaborator callback for exfil, verbatim-reproducible system-prompt leak (run twice), verifiable cross-tenant leak or RCE. Confabulation is NOT a finding. Use when hunting AI features, chatbots, RAG, agentic systems, MCP.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 28724
+    },
+    {
+      "name": "hunt-mass-assignment",
+      "description": "Hunt mass assignment via sensitive field injection and ORM framework exploitation.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 6800
+    },
+    {
+      "name": "hunt-mcp-security",
+      "description": "Hunt Model Context Protocol (MCP) vulnerabilities in AI-tool integration systems.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8951
+    },
+    {
+      "name": "hunt-metrics-exposure",
+      "description": "Hunt public /metrics, /health, and actuator endpoints leaking AI usage, DB pools, and operational intelligence.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 5470
+    },
+    {
+      "name": "hunt-mfa-bypass",
+      "description": "Hunt MFA / 2FA bypass — 7 distinct patterns. (1) MFA not enforced on sensitive endpoints (password change, email change accept without MFA challenge), (2) MFA-step skip via direct navigation to post-login URL, (3) MFA-token replay (same code accepted twice), (4) brute-force the 6-digit OTP without rate limit (10^6 attempts at server speed), (5) race condition on OTP validation, (6) recovery-code dump via /api/me, (7) backup factor downgrade (SMS factor with no rate limit). Plus the chain: cookie theft + password oracle + no step-up = ATO without MFA challenge. Detection: trace auth flow in Burp, find every state transition, check if MFA is middleware-gated vs per-endpoint, check OTP entropy and rate limit on OTP-validate. Validate: attacker session reaching post-MFA state. Use when hunting auth bypass, MFA flows, chaining primitives toward ATO.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 13650
+    },
+    {
+      "name": "hunt-misc",
+      "description": "Hunting skill for misc vulnerabilities. Built from 225 public bug bounty reports. Use when hunting misc on any target.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 25433
+    },
+    {
+      "name": "hunt-nestjs",
+      "description": "Hunt NestJS-specific vulnerabilities: guard bypass, decorator gaps, and microservice auth drift.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 7518
+    },
+    {
+      "name": "hunt-nextjs",
+      "description": "Hunt Next.js specific vulnerabilities — Server Actions arbitrary function execution, Middleware auth bypass via static asset paths, ISR cache poisoning, Image Optimization SSRF (/_next/image), RSC payload leakage, getServerSideProps injection, source map exposure, debug endpoint leakage. Use when target runs Next.js 13/14/15 or any React SSR framework.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 12479
+    },
+    {
+      "name": "hunt-nodejs",
+      "description": "Hunt Node.js specific vulnerabilities — Prototype Pollution → RCE chains (lodash/merge/assign), Express trust proxy misconfiguration, child_process/eval injection, template engine SSTI (EJS/Pug/Handlebars), path traversal in file servers, require() injection, environment variable exfil via /proc/self/environ. Use when target runs Node.js/Express/Fastify/NestJS/Koa.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 12534
+    },
+    {
+      "name": "hunt-nosqli",
+      "description": "Hunt NoSQL Injection — MongoDB operator injection ($where, $regex, $gt, $ne), CouchDB, Redis command injection, auth bypass via NoSQLi, data dump. Use when target uses MongoDB/Mongoose, CouchDB, Redis, or shows NoSQL error messages.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8188
+    },
+    {
+      "name": "hunt-ntlm-info",
+      "description": "Hunt NTLM/Negotiate information disclosure on internet-reachable IIS/SharePoint/Exchange. Anonymous NTLM Type-2 challenge capture leaks NetBIOS domain, internal DNS forest, computer name, AD timestamp via AV_PAIRS structure. Default Windows-installer hostnames (WIN-XXXXXXXXXXX pattern) signal lazy provisioning. Use when target advertises `WWW-Authenticate: NTLM` or `Negotiate` headers anonymously.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 18396
+    },
+    {
+      "name": "hunt-oauth",
+      "description": "Hunting skill for oauth vulnerabilities. Built from 19 public bug bounty reports. Use when hunting oauth on any target.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 28939
+    },
+    {
+      "name": "hunt-open-redirect",
+      "description": "Hunt Open Redirect — all types including low-impact, chained to OAuth token theft → ATO, phishing chains. URL parameter manipulation, JavaScript redirect, meta refresh, header injection. Use when hunting redirect bugs or building ATO chains.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 11203
+    },
+    {
+      "name": "hunt-prototype-pollution",
+      "description": "Hunt client-side and server-side prototype pollution for XSS, auth bypass, and RCE.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 6373
+    },
+    {
+      "name": "hunt-race-condition",
+      "description": "Hunting skill for race condition vulnerabilities. Built from 12 public bug bounty reports including modern HTTP/2 single-packet attack cases (James Kettle DEF CON 2023 \"Smashing the State Machine\"; RyotaK / Flatt Security 10,000-request first-sequence-sync expansion 2024). Covers coupon double-redemption, gift-card double-spend, MFA-OTP-validate race, account-create race, faucet/crypto token double-mint, email-activation race, vote/upvote inflation, password-reset token race, rate-limit bypass via concurrent requests. Use when hunting race conditions, TOCTOU bugs, MFA-bypass-via-timing.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 45251
+    },
+    {
+      "name": "hunt-rce",
+      "description": "Hunting skill for rce vulnerabilities. Built from 67 public bug bounty reports. Use when hunting rce on any target.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 31978
+    },
+    {
+      "name": "hunt-saml",
+      "description": "Hunt SAML / SSO attacks. Patterns: XML Signature Wrapping (XSW) — modify Assertion while keeping Signature valid by relocating signed element, comment injection in NameID (admin@target.com<!--evil-->@attacker.com → some parsers see admin@target.com), signature stripping (remove Signature element entirely, server should reject but doesn't), key confusion (signed by attacker's IdP, accepted by SP), audience-restriction not validated, replay attack (same Assertion accepted twice within validity window). Tools: SAML Raider Burp extension, samlmagic, manual XML manipulation. Detection: any /saml endpoint, /Shibboleth.sso, /sso/saml/, Microsoft ADFS endpoints. Validate: account takeover via altered NameID, admin role injection via altered AttributeStatement. Use when hunting SSO flows, when SAML AssertionConsumerService is reachable, when chaining IdP-trust to SP-impersonation.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 14281
+    },
+    {
+      "name": "hunt-schema-enumeration",
+      "description": "Enumerate hidden tables, fields, and endpoints via API error hints. Agnostic across PostgREST, Zod, FastAPI, GraphQL, and REST.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 5963
+    },
+    {
+      "name": "hunt-session",
+      "description": "Hunt Session Management vulnerabilities — session fixation (no regeneration on login), insufficient invalidation on logout / password-change / email-change, predictable or low-entropy session IDs, JWT-as-session with no exp/revocation, refresh-token rotation/reuse-detection gaps, OAuth/SSO session linkage, device-bound-session (DBSC) downgrade, and cookie attribute issues (Secure/HttpOnly/SameSite/__Host-). Validate with TWO real sessions (attacker A + victim B), body-diff every 200, and OOB confirmation for theft chains. Medium to Critical (fixation→admin hijack, no-invalidation→persistent ATO).",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 20400
+    },
+    {
+      "name": "hunt-sharepoint",
+      "description": "Hunt Microsoft SharePoint Server (2013/2016/2019/Subscription Edition) on-prem farms — anonymous endpoint enumeration, version disclosure, legacy SOAP login bypass (Authentication.asmx), ToolShell precondition chain (CVE-2025-53770), SafeControl reflection enumeration via Picker.aspx, NTLM Type-2 AD topology disclosure, custom-branding module discovery, EoL farm permanent-CVE-window exploitation, FormDigest anonymous issuance, file-extension blocklist NOT-an-oracle pattern, custom-zone Forms auth bridging on-prem AD. Use when target has SharePoint headers (SPRequestGuid, X-MS-InvokeApp, X-SharePointHealthScore, MicrosoftSharePointTeamServices) or paths (/_layouts/15/, /_vti_bin/, /_api/, /_catalogs/).",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 34473
+    },
+    {
+      "name": "hunt-source-leak",
+      "description": "Hunt source code and build artifact leakage — JavaScript source maps (.js.map) reconstructing TypeScript/ES6 source, Swagger/OpenAPI JSON endpoint discovery, .env/.git exposure, webpack chunks with hardcoded secrets, robots.txt/security.txt recon, build-info files, asset-manifest.json API route discovery, .DS_Store file listing. Use at the START of every recon session — these findings often unlock the entire attack surface.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 15122
+    },
+    {
+      "name": "hunt-springboot",
+      "description": "Hunt Spring Boot specific vulnerabilities — Actuator endpoints (heapdump, env, loggers, mappings, shutdown), Spring Expression Language (SpEL) injection → RCE, H2 console RCE, Jolokia JMX exposure, Spring4Shell (CVE-2022-22965), Spring Cloud Function SPEL (CVE-2022-22963), heap dump credential extraction. Use when target runs Spring Boot — detected via X-Application-Context header, /actuator, Whitelabel Error Page, or Java stack traces.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 11754
+    },
+    {
+      "name": "hunt-sqli",
+      "description": "Hunting skill for sqli vulnerabilities. Built from 12 public bug bounty reports including modern NoSQL injection (Rocket.Chat CVE-2021-22911 MongoDB $regex, Mongoose ORM CVE-2024-53900 $where bypass), modern ORM raw-fragment SQLi (Django CVE-2024-42005, Sequelize GHSA-wrh9-cjv3-2hpw), second-order SOQL injection (HackerOne Salesforce), time-based blind SQLi in GraphQL resolvers, and SQLi on OIDC-proxy backends. Use when hunting SQLi / NoSQLi on any target.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 23970
+    },
+    {
+      "name": "hunt-ssti",
+      "description": "Hunt server-side template injection (SSTI) across Jinja2 (Flask/Django), Twig (Symfony), Freemarker (Java), ERB (Rails), Spring, Velocity, Mako, Thymeleaf, Smarty. Detection probes use double-curly and dollar-curly math expressions evaluated server-side. Once an engine is fingerprinted, escalate to RCE via the engine-specific class-walker, callback-registrar, or Execute-utility patterns documented in disclosed reports. Detection patterns: error messages reveal engine, blank or numeric eval reveals expression mode. Targets: email templates, PDF/report generators, CMS preview features, error pages with user input. Use when hunting RCE via template rendering, when content shows engine fingerprints, when finding endpoints that compose strings with user input before render.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 16473
+    },
+    {
+      "name": "hunt-subdomain",
+      "description": "Hunting skill for subdomain takeover vulnerabilities. Includes modern provider fingerprints — Microsoft Azure DevOps `cloudapp.azure.com` regional-pool re-issue (1-click OAuth ATO via wildcard `reply_to`, Binary Security), Zendesk help-desk takeover → email interception → password reset chain (0xprial writeup), Vercel `cname.vercel-dns.com` deleted-project takeover, plus general Fastly CDN service re-attach and S3 dangling-bucket cookie-scope techniques. Use when hunting subdomain takeover — emphasis on ATO-chain primitives (OAuth `redirect_uri`, cookie-domain, email DNS).",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 26741
+    },
+    {
+      "name": "hunt-supabase",
+      "description": "Hunt Supabase exploitation — Supabase anon key discovery in JS bundles, REST API table enumeration with anon key, Row Level Security (RLS) bypass via missing organization_id check, RPC function abuse returning cross-organization data, Storage bucket listing, Auth signUp/signIn with anon key, multi-tenant enumeration via WHOIS, bucket file upload/download without auth. Built from field observation of Lovable.dev + Supabase stack on rapidly-built platforms where RLS policies are consistently misconfigured. Use when a JS bundle, .env, or APK reveals a Supabase URL (project.supabase.co) and anon key (eyJ...).",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 17701
+    },
+    {
+      "name": "hunt-tls-network",
+      "description": "Hunt TLS/SSL and DNS misconfigurations — missing HSTS (downgrade attack), weak cipher suites, expired/invalid certificates, mTLS bypass, missing SPF/DKIM/DMARC (email spoofing), DNS Zone Transfer (AXFR), dangling CNAME subdomain takeover, CAA records. Most of these are Info/Low on their own — this skill is opinionated about which findings actually pay (spoofable DMARC with delivered-to-inbox proof, AXFR returning internal hosts, dangling-CNAME takeover) versus which get rejected as best-practice noise (missing CAA, missing HSTS with no MitM position). Use during recon to find infrastructure weaknesses, and to TRIAGE them honestly before reporting.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 22538
+    },
+    {
+      "name": "hunt-websocket",
+      "description": "Hunt WebSocket vulnerabilities — Cross-Site WebSocket Hijacking (CSWSH), missing/weak Origin validation on the WS handshake, no per-message authentication, message tampering, socket.io namespace/room authorization bypass, and handshake-layer Upgrade smuggling. Use when target has WebSocket endpoints (ws:// or wss://), socket.io / SignalR / Phoenix Channels, real-time features, chat, live dashboards, notifications, or trading platforms.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 20579
+    },
+    {
+      "name": "hunt-wordpress",
+      "description": "Use when an authorized target exposes WordPress core, plugin, theme, REST, or XML-RPC behavior.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "3.0.0",
+      "bytes": 7977
+    },
+    {
+      "name": "hunt-write-gap",
+      "description": "Hunt read-protected write-gaping endpoints. PATCH/POST/DELETE without authorization while GET is protected. Agnostic: Supabase, Firebase, REST, GraphQL.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 5876
+    },
+    {
+      "name": "hunt-xss",
+      "description": "Hunting skill for xss vulnerabilities. Built from 174 public bug bounty reports. Use when hunting xss on any target.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 31295
+    },
+    {
+      "name": "hunt-xxe",
+      "description": "Hunting skill for xxe vulnerabilities. Built from 10 public bug bounty reports including SVG-upload XXE, Office-doc (PPTX/DOCX) XXE, SOAP XXE, SAML AssertionConsumer XXE, blind OOB XXE via DTD callback, parameter-entity XXE, XXE-to-LFI, XXE-to-SSRF, and XXE-to-RCE chains (Adobe Commerce CosmicSting CVE-2024-34102). Use when hunting XXE on any target — emphasis on OOB-Or-It-Didn't-Happen Gate for blind cases.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 24682
+    },
+    {
+      "name": "iot-camera-recon",
+      "description": "Attack cameras via RTSP, ONVIF, Axis config when 554 open.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 9393
+    },
+    {
+      "name": "js-secrets-extraction",
+      "description": "Analyze JS bundles and source maps for hardcoded secrets, API keys, JWTs, and internal endpoints",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 10515
+    },
+    {
+      "name": "jwt-attack",
+      "description": "Decode, forge, brute JWTs when Bearer auth header is seen.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 10118
+    },
+    {
+      "name": "llm-prompt-injection",
+      "description": "Use when testing an authorized LLM application for prompt injection, system-prompt exposure, unsafe tool use, or RAG data-boundary failures.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "2.0.0",
+      "bytes": 29110
+    },
+    {
+      "name": "m365-entra-attack",
+      "description": "Microsoft 365 / Entra ID red-team attack chain — current 2026 reality. AADSTS code reference, user enumeration vectors (with hardening status), Smart Lockout math, Conditional Access bypass options, ROPC + SAML SSO browser flow, Burp/Playwright templates. Built from authorized red-team work where ROPC spray surfaced pre-existing lockouts and CA-blocked credentials, plus real-time external attacker activity correlation. Use for any M365/Entra credential attack, password spray, user enumeration, CA-bypass exploration, or active-attacker-detection scenario.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 23336
+    },
+    {
+      "name": "meme-coin-audit",
+      "description": "Meme coin and token security audit — rug pull detection (honeypot, hidden mint, fee manipulation, LP lock bypass), Solana SPL token analysis (freeze authority, mint authority, metadata mutability), Token-2022 extension risks (transfer hooks, permanent delegate), DEX liquidity pool attacks (sandwich amplification, LP drain, bonding curve exploits), pump.fun/Raydium/Jupiter integration risks, and real exploit examples from 2024-2025. Use for any token audit, rug pull assessment, meme coin security review, or pre-investment due diligence.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 16429
+    },
+    {
+      "name": "mid-engagement-ir-detection",
+      "description": "Methodology for detecting client SOC patches, attacker activity, and security-state changes that occur DURING a red-team engagement — and converting those observations into deliverable findings. Built from authorized red-team work where the client patched a confirmed SQLi within 30 minutes of detection AND an external attacker locked multiple new accounts during a single test session. Use when (a) running ANY active engagement against a monitored target, (b) a previously-confirmed finding stops reproducing, (c) baseline timing shifts unexpectedly, or (d) you notice response patterns changing during testing.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 19051
+    },
+    {
+      "name": "okta-attack",
+      "description": "Okta-as-IdP red-team attack chain — tenant discovery, user enumeration (multiple vectors), authentication flow analysis (factors enumeration, push-notification fatigue, SMS bypass), password spray with lockout discipline, Okta-specific phishing primitives (kits, FastPass abuse, OIDC redirect_uri tampering), MFA enumeration, post-compromise admin API surface. Many enterprise orgs use Okta instead of (or alongside) Entra ID. Distinct endpoints, distinct rate-limiting, distinct factor flows. Use when recon shows `<tenant>.okta.com`, `<tenant>.okta-emea.com`, `<tenant>.oktapreview.com`, or autodiscover-style records pointing at Okta IdP.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 26152
+    },
+    {
+      "name": "ops-proxyns",
+      "description": "Kernel-level proxy protection via proxy-ns — forces ALL traffic (TCP/UDP/DNS) through Tor using Linux network namespaces. Unlike proxychains, this works with Go/Rust/static binaries, prevents DNS leaks, and is impossible for applications to bypass. Includes Tor circuit rotation, IPv6 leak prevention, stealth headers, and jitter configuration. Use AT THE START of any pentest or recon engagement — before any probes that could leak your source IP. Setup once at the beginning of a session and run the entire toolchain inside the proxy-ns shell.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 9798
+    },
+    {
+      "name": "origin-ip-discovery",
+      "description": "Discover origin IPs behind CDN/WAF via favicon hash, DNS history, and SSL certs.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 6770
+    },
+    {
+      "name": "osint-methodology",
+      "description": "Comprehensive OSINT methodology for external red-team operations and authorized attack-surface assessments. Covers the 5-stage recon pipeline (seed discovery, asset expansion, enrichment, exposure analysis, reporting), asset-graph discipline with 29 asset types, severity rubric (CRITICAL/HIGH/MEDIUM/LOW/INFO), confidence upgrade workflows, time budgeting, asset-level triage rules, scale-based tactics, identity-fabric mapping (Entra/Okta/ADFS/Google/SAML/M365 Teams+SharePoint+OAuth), API and auth-map methodology, JavaScript deep analysis, mobile attack surface, cloud attack surface, breach×identity correlation, detectability tagging, detection-aware probing (back-off, persona rotation), read-only validator discipline, WAF/CDN bypass + origin discovery, vulnerability prioritization (CVE/EPSS/KEV), phishing infrastructure planning + pretext development, bug bounty submission templates, client deliverable templates with risk translation, threat-actor investigation (incl. RU/CN pivots), cryptocurrency tracing, image/video forensics, chronolocation. Use when planning or executing reconnaissance against authorized targets, mapping an organization's external attack surface, investigating a person/entity, tracing crypto flows, geolocating media, or performing attribution work.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "2.1",
+      "bytes": 96526
+    },
+    {
+      "name": "password-spray-methodology",
+      "description": "End-to-end password spray playbook. User enumeration, lockout detection, password pattern generation, spray execution across all protocols, error code differentials, and engagement discipline. Unifies M365/Entra, Okta, Exchange, Kerberos, SharePoint, XMLRPC, OIDC, and AD SMB/WinRM spraying into one methodology.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 21454
+    },
+    {
+      "name": "pentest-playbook",
+      "description": "7-phase pentest pipeline from passive recon to exploitation.",
+      "category": "meta",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8807
+    },
+    {
+      "name": "phpinfo-to-rce",
+      "description": "Chain phpinfo to RCE via exec check when info.php exposed.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8194
+    },
+    {
+      "name": "port-mass-scan",
+      "description": "Port scan /8-/24 with Masscan+RustScan and nmap banners.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 7421
+    },
+    {
+      "name": "port-service-discovery",
+      "description": "Nmap scan for MySQL, Redis, FTP, SSH, internal API services.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8967
+    },
+    {
+      "name": "recon-playbook",
+      "description": "Use when starting or restructuring an authorized external web and API assessment.",
+      "category": "meta",
+      "license": "MIT",
+      "version": "2.0.0",
+      "bytes": 7503
+    },
+    {
+      "name": "recon-sector",
+      "description": "Parameterized sector recon using sector database.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "2.0.0",
+      "bytes": 7062
+    },
+    {
+      "name": "recon-sector-expansion",
+      "description": "Multi-sector batch domain expansion — identify untested/under-tested sectors, generate candidate company domains (national chains, franchises, regionals), filter against existing test coverage, probe alive domains, and run the full testing pipeline across 20+ new targets in a single session. Complements per-sector recon-* skills by telling you WHICH sectors to expand into next.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 18290
+    },
+    {
+      "name": "redteam-mindset",
+      "description": "Red-team operator discipline — the mindset corrections that separate offensive testing from defensive WAPT. Built from authorized red-team work where conservative defaults caused multiple findings to be missed and one to be incorrectly retracted. Use at the START of any red-team engagement and again whenever feeling stuck or considering \"stopping\" on a defended target. The single most important skill to load when scope is \"external red team\" not \"bug bounty / WAPT\".",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 26881
+    },
+    {
+      "name": "redteam-report-template",
+      "description": "Client-facing red-team deliverable format — codifies the Subject / Observations / Description / Impact / Recommendation / PoC structure used for external red-team engagements (not bug-bounty platform reports). Different audience, different tone, different cadence. Built from an authorized engagement deliverable where 14 findings were packaged into a 52KB MD + 2.2MB DOCX with 16 embedded screenshots. Use when the engagement is \"external red team for an enterprise client\" (not H1/Bugcrowd/Intigriti), when generating the final report, when the client has specified a custom report format, or when packaging findings into DOCX/PDF.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 16884
+    },
+    {
+      "name": "report-writing",
+      "description": "Bug bounty report writing for H1/Bugcrowd/Intigriti/Immunefi — report templates, human tone guidelines, impact-first writing, CVSS 3.1 scoring, title formula, impact statement formula, severity decision guide, downgrade counters, pre-submit checklist. Use after validating a finding and before submitting. Never use \"could potentially\" — prove it or don't report.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 23517
+    },
+    {
+      "name": "s3-minio-content-type-xss",
+      "description": "Exploit public bucket Content-Type override for stored XSS on target origin.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 7542
+    },
+    {
+      "name": "saml-sso-attack",
+      "description": "Attack SAML SSO via XSW, signature strip, metadata extract.",
+      "category": "auth",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 10306
+    },
+    {
+      "name": "scada-hikvision-isapi",
+      "description": "Enumerate Hikvision ISAPI endpoints on SCADA and IoT web interfaces.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 9121
+    },
+    {
+      "name": "sector-recon-methodology",
+      "description": "Pick sectors, compile targets, batch recon for campaigns.",
+      "category": "meta",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 14891
+    },
+    {
+      "name": "security-arsenal",
+      "description": "Security payloads, bypass tables, wordlists, gf pattern names, always-rejected bug list, and conditionally-valid-with-chain table. Use when you need specific payloads for XSS/SSRF/SQLi/XXE/NoSQLi/command injection/SSTI/IDOR/path-traversal/HTTP smuggling/WebSocket/MFA bypass, bypass techniques, or to check if a finding is submittable. Also use when asked about what NOT to submit.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 30290
+    },
+    {
+      "name": "source-leak-hunt",
+      "description": "Mass scan for exposed env files, backups, and git configs.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8893
+    },
+    {
+      "name": "staging-subdomain-hunt",
+      "description": "Hunt staging via crt.sh when production is WAF-hardened.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 10861
+    },
+    {
+      "name": "stealth-browser-launch",
+      "description": "Launch stealth Chromium with C++ fingerprint patches for anti-bot bypass.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8662
+    },
+    {
+      "name": "subdomain-enumeration",
+      "description": "Map subdomains via crt.sh and subfinder at recon kickoff.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 13247
+    },
+    {
+      "name": "subdomain-takeover-hunt",
+      "description": "Detect and verify subdomain takeover via dangling CNAME to unclaimed services.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 5900
+    },
+    {
+      "name": "tls-fingerprint-impersonation",
+      "description": "Spoof TLS ClientHello and JA4 fingerprints for browser impersonation.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8511
+    },
+    {
+      "name": "unauth-api-flow-hijack",
+      "description": "Exploit unauthenticated multi-step API flows without credentials.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 7234
+    },
+    {
+      "name": "vhost-enumeration",
+      "description": "Discover hidden virtual hosts via Host header fuzzing and SSL certificate parsing.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 5694
+    },
+    {
+      "name": "visual-recon",
+      "description": "Screenshot all live hosts for rapid visual triage and technology fingerprinting.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 6213
+    },
+    {
+      "name": "vmware-vcenter-attack",
+      "description": "VMware vSphere / vCenter Server external attack matrix — version fingerprinting, the high-impact CVE chain (CVE-2021-21972 vRealize unauth file upload, CVE-2021-21985 vSAN plugin RCE, CVE-2022-22954 Workspace ONE SSTI, CVE-2023-20887 Aria RCE, CVE-2024-37085 ESXi AD bypass, CVE-2023-34048 vCenter DCERPC OOB write APT-exploited), default credentials, SSO configuration disclosure, vmdir LDAP enumeration, ESXi Open SLP RCE history. ONLY for vCenter / Workspace ONE / Aria instances exposed to the internet — internal-network vCenter is out of scope per the external-only boundary. Use when recon shows port 443 with vCenter banner, `/ui` redirect, `/websso/SAML2/Metadata`, or VMware product fingerprints.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 33371
+    },
+    {
+      "name": "web-enumeration",
+      "description": "Sensitive file scanning, path traversal bypass, vHost enum, .env extract, log mining, Varnish detect",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 11391
+    },
+    {
+      "name": "web2-recon",
+      "description": "Web2 recon pipeline — subdomain enumeration (subfinder, Chaos API, assetfinder), live host discovery (dnsx, httpx), URL crawling (katana, waybackurls, gau), directory fuzzing (ffuf), JS analysis (LinkFinder, SecretFinder), continuous monitoring (new subdomain alerts, JS change detection, GitHub commit watch). Use when starting recon on any web2 target or when asked about asset discovery, subdomain enum, or attack surface mapping.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 25099
+    },
+    {
+      "name": "web3-audit",
+      "description": "Smart contract security audit — 10 DeFi bug classes (accounting desync, access control, incomplete path, off-by-one, oracle, ERC4626, reentrancy, flash loan, signature replay, proxy), pre-dive kill signals (TVL < $500K etc), Foundry PoC template, grep patterns for each class, and real Immunefi paid examples. Use for any Solidity/Rust contract audit or when deciding whether a DeFi target is worth hunting.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 25495
+    },
+    {
+      "name": "wordpress-cors-xmlrpc-rce-chain",
+      "description": "Use when verified WordPress CORS, XML-RPC, role, upload, and execution behaviors may form one authorized attack path.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "2.0.0",
+      "bytes": 5447
+    },
+    {
+      "name": "wordpress-full-compromise",
+      "description": "Use when verified WordPress findings may combine into an authorized path to administrative or server control.",
+      "category": "chains",
+      "license": "MIT",
+      "version": "2.0.0",
+      "bytes": 4815
+    },
+    {
+      "name": "wordpress-plugin-hunt",
+      "description": "Hunt WP plugins via REST, exploit CVEs when version known.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 13905
+    },
+    {
+      "name": "wp-mass-recon",
+      "description": "Batch WP recon: users, CORS, XMLRPC, leaks across domains.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 12772
+    },
+    {
+      "name": "wp-plugin-automation",
+      "description": "Scripts and workflows to batch-test popular WordPress plugin CVEs across hundreds of domains. Covers automated plugin detection, version extraction from readme.txt, CVE matching against a curated matrix of high-impact plugin vulnerabilities (ElementsKit, Revslider, WPDM, Gravity Forms, Contact Form 7, Jetpack, WP File Manager, GSpeech), and exploitation PoC generation. Use after initial WordPress detection recon — when you have a target list of WP domains and need to find which specific plugin CVEs are exploitable at scale.",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 9238
+    },
+    {
+      "name": "wp-plugin-cve-hunt",
+      "description": "Systematic approach to finding and testing CVEs for identified WordPress plugins. Covers plugin discovery, version extraction from multiple sources (readme.txt, assets, inline JS), CVE database cross-referencing with WPScan/Patchstack/NVD/NVD API, version-based vulnerability matching, exploitation PoC generation, and false-positive elimination. Built from field experience finding exploitable plugin CVEs across 58-company mass recon including ElementsKit (CVE-2023-6851/CVE-2023-6853), Revslider (CVE-2024-2534), WPDM (CVE-2023-49753), Gravity Forms (CVE-2024-6115), and Jetpack (CVE-2024-1782).",
+      "category": "redteam",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 13814
+    },
+    {
+      "name": "wp-plugin-rest-auth-bypass",
+      "description": "Scan WordPress REST API plugin endpoints for unauthenticated state-changing operations — discover write endpoints (POST/PUT/PATCH/DELETE) exposed without auth, enumerate all plugin routes, and test for unauthorized content publishing, settings modification, and data leakage.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 7983
+    },
+    {
+      "name": "wstg-web-pentest",
+      "description": "Full WSTG-aligned web application pentest — 12-phase methodology from information gathering through reporting, with concrete commands, expected outputs, pitfalls, and verification per phase.",
+      "category": "",
+      "license": "MIT",
+      "version": "1.0.0",
+      "bytes": 45386
+    },
+    {
+      "name": "xmlrpc-exploitation",
+      "description": "Exploit XMLRPC multicall, pingback for brute force and SSRF.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 16272
+    },
+    {
+      "name": "zimbra-attack",
+      "description": "Zimbra SOAP user enum, CVE-2022-37042, SSRF when webmail.",
+      "category": "recon",
+      "license": "MIT",
+      "version": "1.1.0",
+      "bytes": 8950
+    }
+  ],
+  "excluded": [
+    {
+      "name": "cloud-iam-deep",
+      "description": "Cloud IAM red-team attack chain across AWS, Azure, GCP — focused on EXTERNAL exploitation paths and post-credential-discovery privilege analysis. Covers IAM enumeration (aws iam, az role, gcloud iam), STS/AssumeRole chaining, Azure Managed Identity abuse (via SSRF/leak), GCP service account JSON abuse, IMDSv1/v2 attacks via SSRF, K8s ServiceAccount token privilege analysis once held (token discovery / cluster exposure is owned by hunt-k8s), role-trust-policy confused-deputy, cross-account assume-role enumeration, IAM privilege escalation patterns (24+ AWS, 8+ Azure, 6+ GCP), and AWS Cognito Identity Pool unauthenticated-role attack chain (GetId → GetCredentialsForIdentity → IAM role abuse). Built for the case where recon yields a credential (key, JSON, token) and you need to know what it grants and how to escalate. Use when an AWS key / Azure secret / GCP service account JSON / K8s SA token surfaces from a code repo, JS bundle, APK, breach corpus, or SSRF chain.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 25564
+    },
+    {
+      "name": "hunt-cache-poison",
+      "description": "Hunting skill for cache poison vulnerabilities. Built from 10 public bug bounty reports including X-Forwarded-Host poisoning, X-HTTP-Method-Override / GCS cache, reflected→stored XSS via cache, classic Omer-Gil Web Cache Deception, Cloudflare Cache Deception Armor bypass, session-token cache deception, Akamai hop-by-hop smuggling → server-side edge poisoning, and Kettle's 2024 path-normalization WCD against Cloudflare/Fastly/GCP. Host/X-Forwarded-Host injection that reaches app logic (reset-link poisoning, routing SSRF, OAuth issuer) is owned by hunt-host-header; this skill owns the case where the poisoned response is CACHED and served to other users. Use when hunting cache poisoning, Web Cache Deception, CDN-fronted apps.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 23120
+    },
+    {
+      "name": "hunt-captcha-bypass",
+      "description": "Hunt CAPTCHA Bypass — 6 distinct patterns: (1) CAPTCHA field simply omitted from the request (server-side validation absent), (2) CAPTCHA token replayed from a solved challenge (no single-use enforcement), (3) CAPTCHA response accepted on a different endpoint than it was solved on (no binding to action/session), (4) static or predictable CAPTCHA values accepted (e.g. '0', 'null', empty string), (5) audio/accessibility CAPTCHA trivially solvable programmatically, (6) CAPTCHA only enforced after N failures (first N requests bypass it). Detection: intercept a successful form submission, remove the CAPTCHA field entirely, replay — if it still succeeds, server-side validation is absent. Medium severity standalone; High when it removes the only rate-limit gate protecting a login, registration, or payment endpoint.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 6168
+    },
+    {
+      "name": "hunt-clickjacking",
+      "description": "Hunt Clickjacking — missing X-Frame-Options / CSP frame-ancestors lets an attacker embed the target page in an invisible iframe and trick victims into clicking buttons they cannot see (UI redressing). Targets: login flows, money transfers, account settings, OAuth confirmation pages. Confirm by fetching the page, then PROVE it frames in a real browser and a sensitive state-changing action survives the cross-site context (SameSite cookies / framebusting JS can defeat it) — header-absence alone is not a finding.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 4225
+    },
+    {
+      "name": "hunt-csrf",
+      "description": "Hunting skill for csrf vulnerabilities. Built from 15 public bug bounty reports including modern variants — SameSite=Lax sibling-subdomain bypass (Argo CD CVE-2024-22424), GraphQL mutations-via-GET (GitLab $3,370), framework-wide CSRF middleware disabled (Stripe Dashboard $5,000), path-traversal CSRF-token bypass (GitHub Enterprise CVE-2022-23732 $10k), Origin-omission bypass (TikTok $2,500), OAuth-state null-byte (Streamlabs), WebSocket CSRF / CSWSH (Coda), default-SameSite email-change → ATO (YoYo Games $400), social-account-link CSRF (HackerOne), JSON-CSRF via text/plain on email-change (TikTok $500). Use when hunting modern CSRF — heavy emphasis on chain-to-ATO patterns.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 26748
+    },
+    {
+      "name": "hunt-dispatch",
+      "description": "Skill-set loader for /hunt orchestrator. Fingerprints the target, picks the right platform attack skills, and loads the Red Team or WAPT skill set. Use when /hunt has just received a mode answer (redteam or wapt + blackbox|greybox) and needs to load the appropriate skills and print the taxonomy. Not for direct user invocation.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 17682
+    },
+    {
+      "name": "hunt-exceptional-conditions",
+      "description": "Hunt mishandling of exceptional conditions — feed an endpoint malformed/unexpected input (wrong type, broken JSON, oversized field, null byte) and make it fail OPEN or leak internals: a verbose stack-trace / framework error page that discloses ORM internals, server file paths, library versions, or a language traceback. Use on any input-accepting endpoint (JSON APIs, forms, query params). Medium-High when the leak exposes internal structure that arms a deeper attack.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 3160
+    },
+    {
+      "name": "hunt-fintech-graphql",
+      "description": "Hunt fintech-specific GraphQL vulnerabilities: money-movement mutations (transfers, redemptions, withdrawals, card top-ups), ledger/balance/portfolio query IDOR, decimal-precision and rounding abuse, idempotency-key bypass enabling double-spend, KYC/PII field-level authorization gaps, and admin-override mutations reachable via mass assignment. Distinct from hunt-graphql, which owns generic GraphQL discovery and IDOR/mutation methodology — this skill owns the delta introduced when a GraphQL layer sits in front of a ledger, wallet, payments, banking, brokerage, or lending backend, where a resolver bug moves real money instead of just leaking data. Use when hunting a fintech, banking, payments, wallet, neobank, brokerage, or lending target that exposes a GraphQL API, or when a schema/response includes balance, transfer, ledger, redeem, quote, KYC, or account-linking fields.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 14071
+    },
+    {
+      "name": "hunt-forgot-password",
+      "description": "Hunt Forgot Password / Account Recovery Authentication Flaws — 5 distinct patterns: (1) username enumeration via different responses for valid vs invalid email, (2) reset token exposed directly in the API response body, (3) reset token not invalidated after use (replay), (4) password reset link works from a different IP/browser (no binding), (5) no rate limit on the reset request endpoint. These are the standalone recovery-flow broken-auth primitives — distinct from reset-email host-header poisoning (hunt-host-header) and the full ATO chain (hunt-ato owns password-reset as an ATO path; prove the primitive here, chain it there). Detection: trace the full forgot-password flow from request to token to use; check response diffs between valid/invalid emails; test token replay after consumption. Medium to High (enumeration=Medium, token-reuse=High, account-takeover=Critical when chained to known-email).",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 5805
+    },
+    {
+      "name": "hunt-html-injection",
+      "description": "Hunt HTML Injection — user-supplied input is rendered as raw HTML in the response without sanitisation, allowing an attacker to inject arbitrary HTML tags (but not necessarily JavaScript). Lower severity than XSS but enables phishing, UI manipulation, and credential harvesting via injected forms. Use when testing text-display surfaces (search results, profile fields, comments, error messages, feedback forms). For markup that executes JavaScript, escalate to hunt-xss.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 4421
+    },
+    {
+      "name": "hunt-jwt-crypto",
+      "description": "Hunt JWT cryptographic failures — alg:none signature-stripping and RS256→HS256 key-confusion that let an attacker forge a token for any identity (e.g. an admin) without knowing a secret. Use when the app authenticates with a JSON Web Token (an `eyJ...` Bearer token in the Authorization header, a cookie, or a login response). This skill OWNS JWT signature/crypto forgery (alg:none, key confusion, kid/jku header injection); hunt-ato covers JWT as one ATO path, hunt-auth-bypass covers SSO/SAML token trust, hunt-api-misconfig covers non-crypto JWT handling. Critical when a forged token grants access to another user's data or an admin-only endpoint.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 9173
+    },
+    {
+      "name": "hunt-rag-vector",
+      "description": "Hunt vector-store / embedding-layer weaknesses in RAG pipelines (OWASP LLM08 Vector and Embedding Weaknesses) — persistent corpus poisoning that survives across sessions and users (distinct from one-shot indirect prompt injection, which is owned by hunt-llm-ai), cross-tenant vector-database IDOR (unauthenticated or unscoped queries against Pinecone/Weaviate/Chroma/Milvus/Qdrant/pgvector), source-text/metadata leakage in similarity-search results, and retrieval-hijack via adversarial embedding proximity ('SEO poisoning' for RAG). Targets: any app with a shared knowledge base, document upload feeding a chatbot, or a directly reachable vector-DB port. Validate: a second, clean session/account must inherit a poisoned result, or a cross-tenant artifact must be independently verifiable — confabulation is not a finding, same bar as hunt-llm-ai. Use when target is RAG-backed, exposes a vector-DB port, or lets users upload documents that other users' queries later retrieve.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 10282
+    },
+    {
+      "name": "hunt-shadow-api",
+      "description": "Hunt shadow / zombie / undocumented API surface (OWASP API9 Improper Inventory Management) — enumerate the full API version history (v1/v2/beta/legacy paths, header- and subdomain-based versioning), pull and diff every reachable OpenAPI/Swagger spec (including ones only findable via the Wayback Machine), and behaviorally diff old vs. current versions for auth/rate-limit/validation regressions rather than just response-shape differences. Distinct from hunt-api-misconfig, which owns exploitation once you have a spec or endpoint (mass assignment, JWT, OData, Swagger-chain attacks); distinct from hunt-subdomain, which owns host-level discovery. This skill owns the version-inventory and behavioral-diff workflow itself. Use when the target has versioned API paths, multiple specs, a changelog referencing deprecated endpoints, or a mobile app whose hardcoded backend calls look older than the current web app's.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 8387
+    },
+    {
+      "name": "hunt-spa-api",
+      "description": "Discover a single-page-app's hidden backend API from its public JS bundle, then test that API for broken access control / missing authentication. One of the highest-yield web plays in modern recon — SPAs ship their entire backend route map to the browser, and the API behind them is frequently missing the auth middleware the login page implies. Built from an authorized engagement where this play found an unauthenticated financial API that an ASM scan reporting hundreds of \"Criticals\" completely missed. Use whenever a target serves a JS-heavy SPA (React/Vue/Angular/Next), an \"app\"/\"console\"/\"dashboard\"/\"portal\" subdomain, or any `*api*` host shows up in recon. Leaked build artifacts (source maps / .env / .git / asset-manifest) are owned by hunt-source-leak; API version-inventory and behavioral diffing by hunt-shadow-api; this skill owns mapping a live SPA's backend routes from its JS bundle and testing them for broken access control / missing auth.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 9006
+    },
+    {
+      "name": "hunt-ssrf",
+      "description": "Hunting skill for ssrf vulnerabilities. Built from 15 public bug bounty reports including AWS metadata SSRF (HackerOne $25k Analytics PDF, Shopify Exchange $25k, Capital One 106M-record breach, Dropbox/HelloSign $4,913), GCP metadata SSRF (Snapchat $4k), Azure IMDS SSRF (Azure DevOps $15k chain, ChatGPT Custom Actions MSRC), DNS rebinding SSRF (Concrete CMS, GitLab UrlBlocker), gopher-protocol-to-Redis-RCE (Yahoo Mail $15k), link-preview SSRF (Reddit Matrix $6k), and headless-browser PDF-generator SSRF chains. Use when hunting SSRF on any target — OOB Collaborator confirmation mandatory for blind cases.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 27455
+    },
+    {
+      "name": "ios-redteam-pipeline",
+      "description": "End-to-end iOS red-team pipeline — IPA acquisition (App Store extraction, TestFlight, enterprise/ad-hoc sideload), class-dump/Hopper/Ghidra static analysis, Info.plist + entitlements + Keychain secret extraction, App Transport Security (ATS) misconfig + certificate-pinning bypass (frida-ios-dump, objection, SSL Kill Switch 2), URL-scheme / Universal Link hijack, exported-service enumeration, Frida runtime instrumentation. Companion to apk-redteam-pipeline for the iOS side of a mobile app catalogue. Use when target has an iOS app (App Store listing, TestFlight link, enterprise MDM distribution), when an IPA URL is found hosted on a web server, or when post-recon mentions \"iOS app\" / \"mobile app\" in scope alongside an Apple developer account.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 14687
+    },
+    {
+      "name": "offensive-active-directory",
+      "description": "Active Directory attack methodology for internal network red team engagements. Covers reconnaissance (BloodHound, PowerView, ADExplorer), credential abuse (Kerberoasting, ASREProasting, NTLM relay, LLMNR/NBT-NS poisoning), privilege escalation (ACL abuse, GPO abuse, unconstrained/constrained delegation), lateral movement (Pass-the-Hash, Pass-the-Ticket, Overpass-the-Hash, WMI/WinRM/PsExec), persistence (Golden/Silver/Diamond Tickets, DCSync, DCShadow, AdminSDHolder, Skeleton Key), forest trust attacks, ADCS abuse (ESC1-ESC15), and modern MDI/Defender for Identity evasion. Use when assessing on-prem AD, hybrid AD/Entra ID environments, or ADCS deployments.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 13847
+    },
+    {
+      "name": "offensive-advanced-redteam",
+      "description": "Comprehensive red team operations methodology covering full engagement lifecycle from planning through reporting. Addresses engagement scoping and rules of engagement negotiation, multi-tier C2 infrastructure design with redirectors and domain fronting, malleable traffic profiles and beacon tradecraft, OPSEC discipline including attribution avoidance and indicator management, EDR and AMSI evasion techniques using direct syscalls and unhooking, data collection with chain-of-custody controls, and structured reporting with purple team debrief workflows. Covers assumed-breach, external-to-internal, insider threat, and hybrid physical-cyber engagement scenarios with MITRE ATT&CK mapping throughout. Targets operators planning or executing adversary simulation engagements against mature defenders.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 27594
+    },
+    {
+      "name": "offensive-ai-security",
+      "description": "AI/LLM security offensive checklist: prompt injection, jailbreaking, model extraction, training data poisoning, adversarial inputs, LLM-assisted attack automation, and AI system reconnaissance. Use when assessing AI/ML systems, red-teaming LLMs, or researching AI attack vectors.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 40138
+    },
+    {
+      "name": "offensive-anti-forensics",
+      "description": "Anti-forensics and evidence destruction techniques for red team operators conducting authorized engagements. Covers log clearing on Windows (wevtutil, Clear-EventLog, ETW provider patching) and Linux (journal truncation, utmp/wtmp binary editing, syslog manipulation), timestamp manipulation via Timestomp and SetMACE to defeat timeline analysis, filesystem-level anti-forensics including NTFS Alternate Data Streams for payload hiding and secure deletion with sdelete/shred, memory artifact removal to counter live forensics, disk artifact manipulation targeting MFT entries and USN journal records, network forensics evasion through encrypted C2 channels and DNS-over-HTTPS tunneling, and anti-VM/sandbox detection to avoid dynamic analysis environments. Tools: Timestomp, wevtutil, sdelete, shred, MimiPenguin, Invoke-Phant0m. Aligns to MITRE ATT&CK T1070 (Indicator Removal), T1027 (Obfuscated Files or Information), T1497 (Virtualization/Sandbox Evasion). Each technique includes the forensic artifact it targets, the destruction or manipulation method, and the defender perspective so operators understand detection gaps they must account for.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 19476
+    },
+    {
+      "name": "offensive-api-abuse",
+      "description": "Advanced API exploitation methodology focused on business logic abuse and sophisticated attack patterns that bypass traditional security controls. Covers business logic bypass through API call chaining and workflow manipulation. Addresses GraphQL-specific attacks including batching for credential brute-force, query depth exploitation, and introspection abuse. Includes pagination exploitation for data exfiltration, webhook hijacking for SSRF and data interception, and resource exhaustion through algorithmic complexity attacks. Covers race conditions in API transactions using parallel request techniques. Provides comprehensive JWT manipulation including algorithm confusion, kid injection, jku/x5u abuse, and claim tampering. Details API key leakage detection across source repositories, client-side code, and error messages. Covers undocumented endpoint discovery through predictable naming, debug routes, and source map analysis. Tooling includes Arjun, ParamSpider, jwt_tool, and GraphQL Voyager. Designed for authorized penetration testers targeting business logic layers that automated scanners miss.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 22383
+    },
+    {
+      "name": "offensive-api-security",
+      "description": "Comprehensive API security testing methodology covering REST, gRPC, and WebSocket attack surfaces. Addresses the full OWASP API Security Top 10 2023 including BOLA/IDOR, broken authentication, excessive data exposure, rate limiting bypass, BFLA, mass assignment, SSRF, and security misconfiguration. Includes REST-specific attacks such as HTTP verb tampering, content-type switching, and parameter pollution. Covers gRPC exploitation through protobuf interception, reflection API enumeration, and metadata injection. Addresses WebSocket vulnerabilities including origin bypass, message injection, and cross-site WebSocket hijacking. Provides tooling guidance for Burp Suite, Postman, grpcurl, websocat, and mitmproxy. Each technique includes detection signatures and defensive indicators so you understand what artifacts your testing leaves behind. Designed for authorized penetration testing engagements against API-driven architectures.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 19822
+    },
+    {
+      "name": "offensive-basic-exploitation",
+      "description": "Week 5 exploit development curriculum. Foundational exploitation techniques: controlling EIP/RIP, ROP chain construction, ret2libc, shellcode injection, heap spraying, bypass techniques for ASLR/NX/stack canaries. Use when building initial PoCs or understanding classic exploitation primitives.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 354626
+    },
+    {
+      "name": "offensive-bluetooth-ble",
+      "description": "Bluetooth Low Energy (BLE) attack methodology — GATT enumeration, characteristic read/write without auth, pairing downgrade (Just Works forced), LE Secure Connections bypass, MITM via active relay, sniffing with Sniffle (TI CC1352) / Ubertooth / Frontline, encryption key extraction (LE Legacy Pairing crackable, LE Secure Connections strong), proximity authentication abuse (cars, locks), and companion-app trust analysis. Use for IoT BLE devices, smart locks, fitness trackers, medical devices, BLE beacons, or any device pairing over BLE.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 6694
+    },
+    {
+      "name": "offensive-bluetooth-classic",
+      "description": "Bluetooth Classic (BR/EDR) attack methodology — device discovery, service enumeration via SDP, LMP/L2CAP layer attacks, legacy PIN cracking (BlueBorne / KNOB), Bluetooth file-transfer abuse (BlueSnarfing legacy), unauthenticated profile abuse (HSP, HFP, OPP), and modern relevance against older industrial / automotive / accessory targets. Use when in-scope devices use Bluetooth Classic (Bluetooth ≤ 4.0 BR/EDR) — common in legacy car kits, industrial sensors, older medical devices, and audio accessories.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 5463
+    },
+    {
+      "name": "offensive-bug-identification",
+      "description": "Systematic bug identification methodology: source code review patterns, black-box testing strategies, taint analysis, dangerous function hunting, data flow tracing, and automated scanning setup. Use for code audits, bug bounty triage, or building vulnerability identification pipelines.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 56246
+    },
+    {
+      "name": "offensive-business-logic",
+      "description": "Business logic vulnerability testing for web/mobile/API engagements. Covers workflow bypass, state machine violations, multi-step process abuse, price/quantity/discount manipulation, currency confusion, coupon stacking, refund/chargeback abuse, race conditions on logic boundaries, parameter tampering for hidden flows, role/tenant boundary violations, time-of-check vs use, anti-automation defeat, fraud-detection evasion, and subscription/quota abuse. Use when scoping an application after surface-level OWASP Top 10 has been covered, or when the asset is a transactional/marketplace/fintech/e-commerce/SaaS app where logic flaws produce direct financial impact.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 13312
+    },
+    {
+      "name": "offensive-c2-frameworks",
+      "description": "Command and Control framework deployment, configuration, and operational tradecraft for red team engagements. Covers Cobalt Strike (malleable C2 profiles, Beacon types HTTP/HTTPS/DNS/SMB, Beacon Object Files for in-memory execution, sleep and jitter tuning, named pipe pivoting), Sliver (implant generation across mTLS/WireGuard/DNS transport, operator multiplayer mode, armory extensions), Mythic (agent ecosystem with Apollo/Poseidon/Medusa, C2 profile configuration, translation containers), Havoc (Demon agent with sleep obfuscation via Ekko/Zilean, indirect syscalls, dotnet inline execution), Metasploit (msfvenom payload generation, multi/handler staging, Meterpreter post-exploitation modules), redirector architecture using Apache mod_rewrite and Nginx, domain fronting through CDN providers, DNS-based C2 for restrictive network egress, and TLS certificate management for infrastructure OPSEC. Tools: Cobalt Strike, Sliver, Mythic, Havoc, Metasploit Framework. Aligns to MITRE ATT&CK T1071 (Application Layer Protocol), T1573 (Encrypted Channel), T1090 (Proxy/Connection Proxy).",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 22356
+    },
+    {
+      "name": "offensive-cicd-pipeline",
+      "description": "Comprehensive CI/CD pipeline exploitation methodology covering GitHub Actions injection vectors (expression injection via PR titles and issue bodies, workflow_run event abuse, GITHUB_TOKEN over-scoping, composite action supply chain compromise), Jenkins attack paths (Groovy sandbox escapes, script console remote code execution, Java remoting deserialization, credential store dumping, shared library injection), GitLab CI exploitation (YAML anchor injection, runner registration token abuse, CI variable extraction, protected branch bypass via merge request pipelines), and Azure DevOps pipeline agent compromise with service connection theft. Includes artifact poisoning techniques across all platforms, tooling guidance for gato and jenkins-attack-framework, and maps to MITRE ATT&CK T1195.002 (Supply Chain Compromise: Compromise Software Supply Chain). Covers enumeration of pipeline configurations, privilege escalation from contributor to code execution, lateral movement through pipeline trust boundaries, and persistence via modified workflow definitions. Each technique section provides working exploitation code, detection indicators, and defensive countermeasures.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 20193
+    },
+    {
+      "name": "offensive-cicd-secrets",
+      "description": "Comprehensive secrets extraction methodology targeting CI/CD environments across all major platforms. Covers environment variable extraction from build contexts, exploitation of vault and secrets-manager misconfigurations (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, GCP Secret Manager), runner and agent token abuse for lateral movement, OIDC federation attacks exploiting trust relationships between CI/CD providers and cloud platforms, build log leakage analysis for inadvertently exposed credentials, cache poisoning techniques for credential exfiltration, platform-specific credential store exploitation (GitHub Actions secrets, GitLab CI variables, Jenkins credential providers), service connection and service account abuse in Azure DevOps and GCP, and Docker registry credential theft from build environments. Maps to MITRE ATT&CK T1552 (Unsecured Credentials) and its sub-techniques. Each section provides enumeration procedures, extraction techniques, and post-exploitation pivoting guidance for using recovered secrets to expand access.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 25081
+    },
+    {
+      "name": "offensive-cloud",
+      "description": "Cloud security attack methodology covering AWS, Azure, and GCP. Includes credential harvesting (IMDS, ~/.aws, env vars, leaked CI secrets, instance roles), enumeration with cloud-specific tools (pacu, ScoutSuite, Prowler, ROADtools, gcp_enum), privilege escalation paths (IAM PassRole, AssumeRole chains, Lambda/Functions privilege flips, Azure Owner-on-self, GCP serviceAccountTokenCreator), persistence techniques (IAM user/key creation, AAD app registration, GCP svc account key creation, EventBridge/Logic Apps backdoors), data exfiltration (S3/Blob/GCS, snapshot share, RDS/CosmosDB/Cloud SQL exfil), cloud-native lateral movement (cross-account assume, Azure AD multi-tenant, GCP project hierarchy), serverless attacks (Lambda env vars, layer hijack, Step Functions), Kubernetes-on-cloud (EKS/AKS/GKE-specific paths to node and AWS metadata), and CSPM evasion (CloudTrail blind spots, GuardDuty mute, Sentinel rule shaping). Use when the engagement scope is cloud accounts, when you've stolen cloud credentials, or when assessing cloud posture.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 12641
+    },
+    {
+      "name": "offensive-container-escape",
+      "description": "Container escape and breakout techniques targeting Docker, containerd, and Podman runtimes. Covers privileged container breakout via host filesystem mount and nsenter, Docker socket abuse through /var/run/docker.sock, Linux capability exploitation including CAP_SYS_ADMIN, CAP_SYS_PTRACE, and CAP_NET_ADMIN, cgroup v1 notify_on_release escape, runc CVEs such as CVE-2019-5736 and CVE-2024-21626 Leaky Vessels, kernel exploits from within containers, and Dockerfile misconfigurations like --privileged and host namespace sharing. Includes enumeration with capsh, amicontained, deepce, CDK, and nsenter. Maps to MITRE ATT&CK T1611 Escape to Host. Use this skill when the engagement scope includes container breakout, Docker escape, container privilege escalation, host access from container, or when you land inside a containerized environment and need to reach the underlying host.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 21739
+    },
+    {
+      "name": "offensive-crash-analysis",
+      "description": "Week 4 exploit development curriculum. Crash triage and analysis methodology: WinDbg/GDB analysis, ASAN/MSAN output interpretation, exploitability assessment, register/stack trace reading, root cause identification. Use when analyzing crash dumps, assessing exploitability, or understanding fuzzer-generated crashes.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 409585
+    },
+    {
+      "name": "offensive-crypto-attacks",
+      "description": "Systematic methodology for identifying and exploiting cryptographic implementation weaknesses in real-world applications. Covers padding oracle attacks against CBC-mode ciphers with PKCS7 padding (Vaudenay's original attack through modern padbuster automation), ECB mode exploitation including block cut-and-paste and byte-at-a-time decryption, hash length extension attacks against SHA1/SHA256/MD5-based MACs using HashPump, RSA vulnerabilities including small public exponent, common modulus, Bleichenbacher PKCS1v1.5 padding oracle, and Coppersmith's method for partial key recovery. Addresses weak PRNG exploitation targeting time-seeded generators and Mersenne Twister MT19937 state recovery from observed outputs, timing side-channel attacks against comparison operations, nonce reuse in AES-GCM leading to authentication key recovery, and key derivation weaknesses including insufficient iteration counts and missing salts. Primary tooling includes padbuster, RsaCtfTool, hashpump, and PyCryptodome for building custom exploit payloads. Maps to CWE-327 (Use of a Broken or Risky Cryptographic Algorithm), CWE-328 (Use of Weak Hash), and CWE-330 (Use of Insufficiently Random Values). Emphasizes black-box identification of vulnerable implementations before transitioning to targeted exploitation.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 20427
+    },
+    {
+      "name": "offensive-data-exfiltration",
+      "description": "Dense methodology covering DNS exfiltration (dnscat2, iodine, dns2tcp), HTTPS tunneling (domain fronting, CDN abuse, legitimate service channels), ICMP tunneling (icmpsh, ptunnel-ng), cloud storage dead drops (S3 presigned URLs, Azure Blob SAS tokens, GCS signed URLs), email-based exfil (SMTP, EWS, draft method), steganography (image, audio, document metadata), encoding/encryption (base64 chunking, XOR, AES), covert channels (custom protocol tunneling, HTTP header encoding, timing channels), and data staging (compression, splitting, encryption). Tools: dnscat2, iodine, dns2tcp, PacketWhisper, chisel, stunnel, icmpsh, ptunnel-ng, steghide, zsteg, OpenStego. MITRE ATT&CK: T1048 (Exfiltration Over Alternative Protocol), T1041 (Exfiltration Over C2 Channel), T1567 (Exfiltration Over Web Service), T1029 (Scheduled Transfer), T1030 (Data Transfer Size Limits), T1132 (Data Encoding), T1001 (Data Obfuscation). Use when planning or executing data exfiltration during authorized red team engagements or post-exploitation.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 19708
+    },
+    {
+      "name": "offensive-deauth-disassoc",
+      "description": "Deauthentication and disassociation attacks against 802.11 networks — targeted single-client deauth for handshake capture, broadcast deauth for DoS (with authorization), action-frame attacks bypassing 802.11w (PMF), beacon flooding, mdk4 / aireplay-ng tooling, and rate-limit / PMF-aware operation. Use to coerce client reconnection (handshake capture, evil-twin roaming), as targeted DoS, or to test PMF posture.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 4621
+    },
+    {
+      "name": "offensive-dependency-confusion",
+      "description": "Deep-dive offensive methodology for dependency confusion and namespace attacks across all major package ecosystems. Covers npm scope confusion exploiting the gap between public and private scoped packages and .npmrc misconfigurations where registry mappings fail to pin internal scopes exclusively. Addresses PyPI namespace attacks through --extra-index-url resolution ordering, NuGet feed priority exploitation when multiple package sources are configured without clear directives, Maven and Gradle repository ordering where artifact resolution traverses repositories sequentially, Go module proxy abuse through GOPROXY misconfiguration, Ruby gems namespace squatting, and Docker image tag confusion with unqualified image references. Provides complete proof-of-concept methodology using safe callbacks including DNS canary via interactsh or Burp Collaborator and HTTP beacon with no destructive payload. Covers reconnaissance techniques for discovering internal package names through GitHub repository analysis, error message harvesting, JavaScript source map extraction, lock file parsing, job postings mentioning internal tools, and package manifest inspection. Directly references and builds upon Alex Birsan's seminal 2021 dependency confusion research. Each ecosystem section includes registry-specific exploitation mechanics, configuration vulnerabilities, and defensive countermeasures for engagement reporting.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 23800
+    },
+    {
+      "name": "offensive-deserialization",
+      "description": "Insecure deserialization exploitation across Java, PHP, .NET, Python, Node.js, and Ruby. Covers gadget chain construction with ysoserial/phpggc/ysoserial.net, ObjectInputStream and BinaryFormatter sink identification, pickle __reduce__ RCE, phar:// wrapper abuse, Jackson polymorphic typing, Json.NET TypeNameHandling, ViewState tampering, node-serialize IIFE injection, Ruby Marshal.load and YAML.load gadgets, framework-specific chains for Spring/Hibernate/Laravel/Symfony, modern attack surfaces including Kubernetes admission webhooks and message queue consumers, WAF bypass through encoding layers and content-type manipulation, and serialVersionUID/JMX/RMI vectors. Activate when the engagement involves deserialization sinks, serialized data in cookies or request bodies, gadget chain development, magic method abuse, ysoserial payload generation, or any review of marshalling and unmarshalling logic in target applications.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 22517
+    },
+    {
+      "name": "offensive-edr-evasion",
+      "description": "EDR evasion offensive checklist: hook unhooking (user/kernel), direct syscalls, PPID spoofing, process injection variants, AMSI bypass, ETW patching, memory encryption, and behavior-based evasion. Use when planning EDR bypass during red team engagements or researching AV/EDR evasion techniques.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 84705
+    },
+    {
+      "name": "offensive-evil-twin",
+      "description": "Evil Twin / KARMA / Mana access point methodology — rogue AP construction with hostapd-mana / wifiphisher / airgeddon, KARMA universal probe response, Mana selective probe response, captive portal phishing, deauth-driven client coercion to attacker AP, MAC randomization defeat via PNL leak analysis, post-association MITM (DNS, ARP, transparent proxy), credential capture for portal/web/SMB, and detection-evasion tactics. Use to coerce client devices onto an attacker-controlled AP, intercept their traffic, harvest credentials, or deliver payloads via captive portal.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 8093
+    },
+    {
+      "name": "offensive-exploit-dev-course",
+      "description": "Full exploit development course roadmap and syllabus: weekly topics, recommended reading, lab setup, and learning path from vulnerability classes through advanced exploitation. Use to structure exploit dev training or onboard new researchers.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 20419
+    },
+    {
+      "name": "offensive-exploit-development",
+      "description": "Exploit development operational guide: environment setup, debugging workflow, PoC development lifecycle, writing reliable exploits, using pwntools/pwndbg, heap exploitation techniques, and weaponization considerations. Use when actively developing exploits or setting up an exploit dev environment.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 34173
+    },
+    {
+      "name": "offensive-fast-checking",
+      "description": "Speed-optimized offensive checklist for rapid assessment: quick-win vulnerability patterns, fast recon shortcuts, automated scanner configurations, and triage shortcuts. Use for time-boxed assessments, CTF-speed engagements, or initial rapid surface mapping.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 24173
+    },
+    {
+      "name": "offensive-file-upload",
+      "description": "File upload vulnerability checklist: MIME type bypass, extension bypass, magic byte manipulation, path traversal in filenames, stored XSS via SVG/HTML upload, server-side processing attacks, and race conditions. Use for assessing file upload endpoints in web app pentests or bug bounty.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 31029
+    },
+    {
+      "name": "offensive-fuzzing",
+      "description": "Practical offensive fuzzing methodology covering target identification, fuzzer selection (AFL++, libFuzzer, Honggfuzz, Boofuzz, syzkaller), harness writing, corpus curation, mutation strategies, coverage measurement, and crash triage. Use when setting up or running fuzz campaigns against any target: file parsers, network protocols, kernel drivers, EDR engines, embedded firmware, or language runtimes.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 11875
+    },
+    {
+      "name": "offensive-fuzzing-course",
+      "description": "Week 2 of the exploit development curriculum. Covers fuzzing methodology: target selection, corpus generation, coverage-guided fuzzing with AFL++/libFuzzer, structured fuzzing, and triage/deduplication. Use when setting up fuzz campaigns, selecting harness strategies, or triaging fuzzer output.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 80751
+    },
+    {
+      "name": "offensive-graphql",
+      "description": "Offensive methodology for attacking GraphQL APIs during penetration tests and bug bounty engagements. Covers the full attack lifecycle: endpoint discovery, introspection abuse and blind schema reconstruction when introspection is disabled, authentication and authorization bypass through Relay node IDs and nested object traversal, injection via variables and directives, query batching for brute force and OTP bypass, denial of service through depth bombs and alias amplification, WebSocket subscription hijacking, information disclosure through verbose errors and field suggestion oracles, and file upload abuse via the multipart GraphQL specification. Includes tool-specific guidance for InQL, graphql-cop, CrackQL, BatchQL, Altair, GraphQL Voyager, and clairvoyance. Trigger on: GraphQL, graphql, introspection query, batching attack, query depth, GraphQL injection, GraphQL IDOR, field suggestion, GraphQL auth bypass, GraphQL DoS, GraphQL security, graphql-cop, InQL, CrackQL, BatchQL, Relay node, alias amplification, subscription abuse, multipart upload GraphQL, schema enumeration, __schema, __type.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 21864
+    },
+    {
+      "name": "offensive-idor",
+      "description": "IDOR (Insecure Direct Object Reference) testing checklist: object ID enumeration, horizontal/vertical privilege escalation, GUID predictability, indirect references via hashes, chained IDOR, and API endpoint IDOR. Use for web app pentests and bug bounty IDOR discovery.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 25921
+    },
+    {
+      "name": "offensive-initial-access",
+      "description": "Initial access techniques checklist: phishing (spear/smishing), credential stuffing, exposed service exploitation, supply chain attacks, watering hole, VPN/RDP brute force, public-facing application exploitation. Maps to MITRE ATT&CK TA0001. Use when planning initial access phases of red team engagements.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 65896
+    },
+    {
+      "name": "offensive-iot",
+      "description": "IoT and embedded device security testing methodology. Covers hardware reconnaissance (UART, JTAG, SWD, SPI flash, I2C EEPROM, eMMC chip-off), firmware acquisition (vendor portals, OTA capture, flash dump, binwalk extraction), firmware analysis (filesystem mounting, binary triage, hardcoded secrets, default credential discovery), bootloader attacks (U-Boot console, secure-boot bypass, fault injection), runtime attacks on embedded Linux/RTOS (busybox CVEs, MTD writes, /dev/mem), wireless protocol attacks (Zigbee, BLE, Z-Wave, LoRaWAN, Thread/Matter, sub-GHz), MQTT/CoAP/Modbus/BACnet/OPC-UA exploitation, mobile companion app analysis, cloud-IoT API abuse, and side-channel/glitching basics. Use for IoT pentest, smart-home assessment, ICS/OT testing, or embedded vulnerability research.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 13791
+    },
+    {
+      "name": "offensive-jwt",
+      "description": "JWT attack methodology for penetration testers. Covers algorithm confusion (alg:none, RS256→HS256), weak HMAC secret brute force, kid parameter injection (SQLi, path traversal), jku/x5u/jwk header injection, JWKS cache poisoning, JWS/JWE confusion, timing attacks, and mobile JWT storage extraction. Use when testing JWT-based authentication, hunting auth bypass via token manipulation, or evaluating JWT implementation security in web or mobile apps.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 10861
+    },
+    {
+      "name": "offensive-k8s-attacks",
+      "description": "Kubernetes cluster attack techniques covering the full attack lifecycle from initial foothold in a pod to cluster-wide compromise. Covers service account token theft and impersonation, RBAC misconfiguration exploitation including wildcard permissions and privilege escalation via role binding, direct etcd access for secret extraction, kubelet API abuse on port 10250 and read-only port 10255, pod escape via hostPID hostNetwork and hostPath volume mounts, Kubernetes secrets enumeration and decoding, admission controller bypass techniques, network policy bypass and lateral movement, cloud metadata service access from pods for credential theft on AWS EKS GCP GKE and Azure AKS, CRD and operator abuse for persistence, and node compromise via DaemonSet deployment. Tools include kubectl, kube-hunter, peirates, kubeaudit, kdigger, kubeletctl. Maps to MITRE ATT&CK T1609 Container Administration Command, T1610 Deploy Container, T1613 Container and Resource Discovery. Use this skill when assessing Kubernetes clusters, attacking from within a compromised pod, exploiting RBAC or kubelet misconfigurations, or performing cloud-native lateral movement.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 27489
+    },
+    {
+      "name": "offensive-keylogger-arch",
+      "description": "Low-level keylogger architecture design: kernel driver hooks (WH_KEYBOARD_LL, SetWindowsHookEx), ETW-based input capture, user-mode vs kernel-mode approaches, stealth techniques, and data exfiltration. Use for understanding input capture mechanisms, EDR evasion research, or malware architecture analysis.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 11877
+    },
+    {
+      "name": "offensive-krack-fragattacks",
+      "description": "KRACK (CVE-2017-13077..082) and FragAttacks (CVE-2020-24586..588 + 26139-26147) — key reinstallation, fragmentation, and aggregation attacks against WPA2 supplicants. Covers Vanhoef's test scripts, viability against modern patched stacks (mostly mitigated post-2021), residual unpatched embedded devices and IoT vendors, and the practical limitations of these attacks in modern engagements. Use when assessing legacy supplicants, embedded clients, or vendors with poor patch cadence.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 4542
+    },
+    {
+      "name": "offensive-lateral-movement",
+      "description": "Comprehensive lateral movement tradecraft for authorized red team engagements covering credential-based movement (pass-the-hash, pass-the-ticket, overpass-the-hash), NTLM relay attacks (ntlmrelayx with PetitPotam, DFSCoerce, PrinterBug coercion), remote execution protocols (WMI, WinRM, DCOM, PsExec and alternatives), RDP session hijacking, and network pivoting through tunneling tools (chisel, ligolo-ng, SSH tunnels, SOCKS proxies). Provides operator-ready command sequences for mimikatz, crackmapexec/netexec, impacket suite, and evil-winrm with emphasis on OPSEC considerations, SMB signing bypass, and detection evasion. Maps to MITRE ATT&CK T1021 (Remote Services), T1550 (Use Alternate Authentication Material), and sub-techniques. Includes defender-perspective detection guidance for blue team awareness and a rapid engagement cheatsheet for common lateral movement scenarios encountered during internal penetration tests and assumed-breach exercises.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 16265
+    },
+    {
+      "name": "offensive-linux-privesc",
+      "description": "Comprehensive Linux privilege escalation methodology for offensive security engagements. Covers the full attack surface from a low-privilege shell to root: SUID/SGID binary abuse via GTFOBins, Linux capabilities exploitation (cap_setuid, cap_dac_override, cap_dac_read_search), sudo misconfigurations including NOPASSWD rules and Baron Samedit (CVE-2021-3156), cron job abuse through writable scripts, PATH hijacking, and wildcard injection with tar/rsync/chown. Includes writable /etc/passwd attacks, NFS no_root_squash exploitation, kernel exploits (DirtyPipe CVE-2022-0847, DirtyCow CVE-2016-5195, PwnKit CVE-2021-4034), Docker group container escapes, LD_PRELOAD and LD_LIBRARY_PATH hijacking for shared library injection, systemd service misconfigurations, and sensitive file enumeration for credential harvesting. Integrates automated enumeration with LinPEAS, linux-exploit-suggester, pspy for process monitoring, and GTFOBins for binary exploitation. Each technique includes detection signatures and defender-side visibility to support purple team operations. Maps to MITRE ATT&CK T1548 (Abuse Elevation Control Mechanism) and related sub-techniques. Designed for authorized penetration testing, red team engagements, and CTF competitions where you hold a low-privilege shell and need to escalate to root.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 19032
+    },
+    {
+      "name": "offensive-lorawan-sub-ghz",
+      "description": "LoRaWAN and sub-GHz (433 / 868 / 915 MHz) attack methodology — LoRaWAN ABP/OTAA join attack, network/session key reuse, frame counter replay, downlink injection on TTN/Helium-style networks, sub-GHz protocol replay (KeeLoq garage doors, fixed-code remotes, TPMS spoofing, smart plug telemetry), HackRF / RTL-SDR / Flipper Zero workflows, signal analysis with Inspectrum / Universal Radio Hacker, and reconstruction of proprietary packet formats. Use for LoRaWAN deployments (smart cities, asset tracking, industrial telemetry), or any wireless device using the unlicensed 433/868/915 MHz bands (garage openers, doorbells, IoT sensors, RC equipment).",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 6929
+    },
+    {
+      "name": "offensive-mitigations",
+      "description": "Security mitigation reference and bypass catalog: ASLR, DEP/NX, RELRO, stack canaries, CFI, sandboxing, seccomp. Covers both detection of enabled mitigations and known bypass techniques. Use when assessing target hardening or planning exploit mitigation bypasses.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 59073
+    },
+    {
+      "name": "offensive-mobile",
+      "description": "Mobile (Android + iOS) application penetration testing methodology. Covers static analysis (apktool/jadx for Android, class-dump/Hopper/IDA for iOS), dynamic instrumentation with Frida and Objection, SSL pinning bypass strategies, root/jailbreak detection bypass, deep-link / URL-scheme abuse, exported component attacks (Android activities, services, providers, receivers; iOS XPC, URL schemes, universal links), insecure data storage (SharedPrefs, KeyStore misuse, NSUserDefaults, Keychain ACL bypass), IPC / Intent redirection, WebView vulnerabilities (JavaScriptInterface, file:// access), Firebase/AWS/Azure misconfiguration leakage, mobile API testing, biometric/Face ID/Touch ID bypass, app-cloning and runtime patching, and mobile malware/RAT analysis primitives. Use for mobile pentest, bug bounty mobile triage, or app-store reconnaissance.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 14036
+    },
+    {
+      "name": "offensive-netexec",
+      "description": ">",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 24641
+    },
+    {
+      "name": "offensive-network-attacks",
+      "description": "Dense description covering ARP spoofing, LLMNR/NBT-NS/mDNS poisoning, DNS poisoning, MITM attacks, VLAN hopping, DHCP attacks, 802.1X/NAC bypass, IPv6 attacks. Tools: Bettercap, Responder, mitm6, Ettercap, Wireshark. MITRE T1557, T1040. Use when conducting internal network assessments or testing Layer 2/3 attack surface.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 20169
+    },
+    {
+      "name": "offensive-oauth",
+      "description": "OAuth 2.0 attack checklist: authorization code interception, redirect_uri bypass, CSRF on OAuth flow, state parameter abuse, open redirector chaining, token leakage via Referer, PKCE bypass, and scope escalation. Use when testing OAuth implementations in web apps or bug bounty.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 15358
+    },
+    {
+      "name": "offensive-open-redirect",
+      "description": "Open redirect vulnerability checklist: parameter identification, bypass techniques (URL encoding, double slashes, CRLF injection, protocol handlers), chaining with OAuth/SSRF, and impact escalation paths. Use for web app testing and bug bounty open redirect discovery.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 16609
+    },
+    {
+      "name": "offensive-osint",
+      "description": "Operational arsenal for authorized external red-team and bug-bounty recon. Concrete probes, wordlists, regexes, dorks, curl one-liners for: subdomain enum, GraphQL/Swagger/REST discovery, identity fabric (Entra/Okta/ADFS/Google/SAML/M365 deep — Teams/SharePoint/OneDrive), cloud bucket enum (S3/GCS/Azure), CDN/WAF bypass, origin discovery, vendor fingerprinting (Citrix/F5/Pulse/Fortinet/PaloAlto/Cisco/VMware), CI/CD exposure, 48-pattern secret-scan catalog (AWS/GCP/GitHub/Stripe/Slack/Anthropic/OpenAI/Atlassian/DataDog/npm/PyPI), Postman workspaces, breach correlation (HudsonRock/HIBP/DeHashed/IntelX), TLS/JA3 audit, certificate transparency, JS endpoint extraction, package registry leaks, mobile/APK recon, sat imagery, sector-specific recon (healthcare DICOM, finance SWIFT, ICS/SCADA Modbus/BACnet). Detail content in 15 modular reference files, loaded on demand. Use for any authorized recon: scoping, asset discovery, attack-path mapping, secret triage, severity scoring.",
+      "category": "",
+      "license": "",
+      "version": "3.0.0",
+      "bytes": 34038
+    },
+    {
+      "name": "offensive-osint-methodology",
+      "description": "Structured OSINT methodology framework: target definition, source selection, collection workflows, data correlation, timeline reconstruction, and reporting. Use to guide systematic OSINT campaigns or teach OSINT methodology.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 23103
+    },
+    {
+      "name": "offensive-parameter-pollution",
+      "description": "HTTP parameter pollution (HPP) checklist: duplicate parameter injection, backend vs frontend parsing differences, WAF bypass via HPP, server-side vs client-side HPP, and practical exploitation patterns. Use when testing web applications for parameter handling flaws.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 17070
+    },
+    {
+      "name": "offensive-persistence",
+      "description": "Comprehensive persistence tradecraft for authorized red team engagements covering Windows and Linux mechanisms. Windows techniques include registry Run/RunOnce keys, scheduled tasks, WMI event subscriptions, DLL search order hijacking, COM object hijacking, Startup folder drops, service creation, Security Support Provider (SSP) DLL injection, and Active Directory persistence (AdminSDHolder abuse, DCShadow, Golden Ticket, Silver Ticket, Skeleton Key, SID History injection). Linux techniques include cron and at jobs, systemd timers and services, SSH authorized_keys injection, shell profile backdoors (.bashrc/.bash_profile), PAM module backdoors, LD_PRELOAD hijacking, kernel module rootkits, web shells, and Git hook abuse. Provides operator-ready command sequences for SharPersist, Impacket ticketer, schtasks, sc.exe, crontab, and systemctl with OPSEC considerations for each method. Maps to MITRE ATT&CK T1547 (Boot or Logon Autostart), T1053 (Scheduled Task/Job), T1546 (Event Triggered Execution), T1556 (Modify Authentication Process), and sub-techniques. Includes detection indicators and a rapid engagement cheatsheet.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 23558
+    },
+    {
+      "name": "offensive-phishing",
+      "description": "Phishing campaign execution methodology for authorized red team engagements. Covers end-to-end campaign lifecycle: infrastructure provisioning (GoPhish, SMTP relay configuration, domain acquisition and aging, SPF/DKIM/DMARC alignment), payload delivery vectors (Office macro weaponization, HTA droppers, ISO/IMG container abuse, LNK shortcut hijacking, OneNote embedded payloads, HTML smuggling), email authentication bypass techniques (SPF softfail exploitation, DKIM replay attacks, display name spoofing, homoglyph and cousin domain registration), credential harvesting with MFA bypass (EvilGinx2 transparent proxy, Modlishka session relay, pixel-perfect HTML cloning), spear phishing pretext development informed by OSINT, email security gateway evasion, QR code phishing (quishing), and callback phishing for initial access. Integrates with GoPhish for campaign management, EvilGinx2 for adversary-in-the-middle credential interception, King Phisher for template design, and the Social Engineering Toolkit for payload generation. Maps to MITRE ATT&CK T1566 (Phishing) and sub-techniques T1566.001 (Spearphishing Attachment), T1566.002 (Spearphishing Link), T1566.003 (Spearphishing via Service). Assumes you have written authorization and a defined scope before any campaign execution.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 19361
+    },
+    {
+      "name": "offensive-race-condition",
+      "description": "Race condition (TOCTOU) testing checklist: identifying timing windows, Burp Suite Turbo Intruder, Last-Byte sync technique, rate limit bypass, double-spend attacks, and concurrent request exploitation. Use for web app race condition testing or bug bounty time-of-check-to-time-of-use bugs.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 29691
+    },
+    {
+      "name": "offensive-rce",
+      "description": "Remote Code Execution testing checklist: OS command injection, SSTI-to-RCE, deserialization RCE, file upload RCE, XXE with SSRF to RCE, RCE via dependency confusion, and CVE-based RCE patterns. Use for web app pentests and bug bounty RCE discovery.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 26895
+    },
+    {
+      "name": "offensive-reporting",
+      "description": "Penetration test and red team report writing methodology. Covers executive summary structuring (risk-led narrative for non-technical readers), technical finding format (title, severity, affected scope, narrative, reproduction steps, impact, remediation, references), CVSS v3.1 / v4.0 scoring with vector justification, OWASP risk rating, evidence hygiene (redacting credentials, hashing client data, time-stamping every action), screenshot and PoC artifact management, finding chain narratives, scope/limitations/assumptions documentation, retest evidence and remediation tracking, deliverable formats (PDF, DOCX, HTML, JSON for SIEM ingestion), client-customer-deliverable separation, and common report mistakes (over-CVSSing, undermining the triager, missing the 'so what'). Use at the end of an engagement when authoring a deliverable, when restructuring a draft for executive readability, or when establishing a reusable report template for a consulting practice.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 14720
+    },
+    {
+      "name": "offensive-request-smuggling",
+      "description": "HTTP request smuggling checklist: CL.TE, TE.CL, TE.TE variants, detection with timing and differential responses, WAF bypass, cache poisoning, credential hijacking, and request smuggling via HTTP/2. Use when testing reverse proxy/load balancer configurations.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 22160
+    },
+    {
+      "name": "offensive-shellcode",
+      "description": "Shellcode development reference for offensive security engagements. Use when writing custom x86/x64 shellcode, implementing position-independent code (PIC), building shellcode loaders, evading AV/EDR detection, or converting PE files to shellcode. Covers null byte avoidance, API hashing, encoder/decoder patterns, staged vs stageless payloads, Windows PEB traversal, and cross-platform shellcode techniques.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 18885
+    },
+    {
+      "name": "offensive-social-engineering",
+      "description": "Social engineering attack techniques beyond email phishing for authorized red team and physical penetration testing engagements. Covers pretexting methodology (persona creation, authority and urgency psychological triggers, rapport building), vishing (voice phishing via caller ID spoofing, IVR system exploitation, VoIP infrastructure setup with Twilio/Asterisk), smishing (SMS-based phishing, carrier gateway abuse, short code impersonation), physical social engineering (tailgating and piggybacking, RFID badge cloning with Proxmark3, lock picking and bypass, dumpster diving for sensitive documents), USB drop attacks (Rubber Ducky keystroke injection, Bash Bunny multi-vector payloads, O.MG cable covert implants, BadUSB firmware attacks), watering hole attack planning and execution, and OSINT-driven targeting (LinkedIn harvesting, organizational chart reconstruction, employee pattern analysis). Integrates with the Social Engineering Toolkit for attack automation, Proxmark3 for RFID/NFC cloning, USB Rubber Ducky and Bash Bunny for physical payload delivery, and BeEF for browser exploitation. Maps to MITRE ATT&CK T1598 (Phishing for Information), T1566 (Phishing), T1091 (Replication Through Removable Media), and T1189 (Drive-by Compromise). All techniques require explicit written authorization and defined rules of engagement.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 22933
+    },
+    {
+      "name": "offensive-sqli",
+      "description": "SQL injection testing skill for offensive security assessments and bug bounty hunting. Covers error-based, UNION-based, boolean/time-based blind, out-of-band, second-order, NoSQL, GraphQL, WebSocket, and JSON-operator SQLi. Includes WAF bypass techniques, database-specific exploitation (MySQL, MSSQL, PostgreSQL, Oracle), cloud-native attack paths, ORM CVE tracking, and SQLmap automation. Use when performing web application SQL injection testing, database enumeration, privilege escalation via SQLi, or assessing injection vectors in APIs and modern stacks.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 9880
+    },
+    {
+      "name": "offensive-ssrf",
+      "description": "Server-Side Request Forgery testing checklist: SSRF discovery, blind SSRF with out-of-band, cloud metadata endpoints (AWS/GCP/Azure), SSRF filter bypass techniques (IP encoding, DNS rebinding, redirect chains), and SSRF to RCE escalation. Use for web app SSRF testing and bug bounty.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 26219
+    },
+    {
+      "name": "offensive-ssti",
+      "description": "Dense description covering Server-Side Template Injection across Jinja2, Twig, Freemarker, Velocity, Pebble, Smarty, Mako, Handlebars, ERB, Thymeleaf, EJS, Pug. Engine fingerprinting, filter bypass, blind exploitation, WAF evasion, SSTI-to-RCE chains. Tools: tplmap. CWE-1336. MITRE T1190. Use when testing template rendering endpoints or exploiting template injection for code execution.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 22984
+    },
+    {
+      "name": "offensive-supply-chain",
+      "description": "Comprehensive offensive methodology for software supply chain attacks covering the full kill chain from reconnaissance through exploitation. Addresses dependency confusion across npm, PyPI, and NuGet ecosystems where internal registry override allows an attacker to inject malicious packages that shadow private dependencies. Covers typosquatting techniques for popular packages, compromised package injection via maintainer account takeover or social engineering, and build system attacks through Makefile injection, setup.py install hooks, and npm postinstall scripts. Extends into CI/CD artifact tampering where build outputs are replaced or modified in transit, code signing abuse through stolen or self-signed certificates, upstream repository compromise via commit injection or force-push to trusted repos, and container image supply chain attacks including base image trojaning and registry confusion. Maps to MITRE ATT&CK T1195.001 (Supply Chain Compromise: Compromise Software Dependencies and Development Tools) and T1195.002 (Supply Chain Compromise: Compromise Software Supply Chain). Integrates tooling such as confused for dependency confusion scanning and dependency-check for known vulnerable component detection. Each technique section provides reproducible proof-of-concept patterns, detection guidance for defenders, and engagement-safe execution notes for authorized red team operations.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 18507
+    },
+    {
+      "name": "offensive-tls-attacks",
+      "description": "Comprehensive methodology for auditing and exploiting TLS/SSL implementations and misconfigurations across network services and mobile applications. Covers protocol downgrade attacks including POODLE (CVE-2014-3566) against SSLv3 CBC padding, DROWN (CVE-2016-0800) cross-protocol attack leveraging SSLv2 export ciphers to decrypt TLS sessions, and FREAK (CVE-2015-0204) forcing RSA export-grade key exchange. Addresses BEAST (CVE-2011-3389) exploiting CBC IV predictability in TLS 1.0, CRIME (CVE-2012-4929) and BREACH targeting TLS-level and HTTP-level compression oracles respectively, and Heartbleed (CVE-2014-0160) for OpenSSL memory disclosure. Covers certificate validation bypass techniques for applications with improper hostname verification or chain validation, certificate pinning bypass using Frida and Objection for mobile application interception, HSTS bypass via NTP manipulation and subdomain exploitation, TLS 1.3 0-RTT replay attacks against non-idempotent endpoints, mutual TLS (mTLS) authentication attacks including client certificate theft and relay, and Certificate Transparency log monitoring for reconnaissance. Primary tooling includes testssl.sh for comprehensive TLS auditing, sslyze for Python-integrated scanning, sslscan for quick cipher enumeration, and tlsx for high-speed TLS probing at scale. Maps to CWE-295 (Improper Certificate Validation), CWE-319 (Cleartext Transmission of Sensitive Information), and CWE-757 (Selection of Less-Secure Algorithm During Negotiation).",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 25574
+    },
+    {
+      "name": "offensive-toctou",
+      "description": "Time-of-Check / Time-of-Use (TOCTOU) race condition exploitation methodology across binary, kernel, filesystem, web, and container layers. Covers symbolic-link races (open/access/stat split), file-descriptor races, fopen/realpath traversal races, /proc and procfs races, FUSE-backed slow-fs races to widen the window, ptrace and signal races, kernel double-fetch / userspace pointer races, container/runc/symlink escape primitives, kubernetes admission/authz TOCTOU, web auth-vs-authz TOCTOU, JWT-claim TOCTOU at gateway vs service, payment/idempotency races, and modern race-amplification techniques (single-packet attack, slow loris, FUSE pause, cgroup freeze, scheduler shaping). Use when you've identified a 'check then act' pattern in code, when fuzzing for race conditions, or when exploiting concurrency bugs in privileged binaries / kernel / orchestrators.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 12855
+    },
+    {
+      "name": "offensive-vuln-classes",
+      "description": "Exploit development curriculum covering core vulnerability classes with real-world CVE case studies: stack/heap buffer overflows, use-after-free, integer overflows, format strings, type confusion, and race conditions. Use when learning or teaching vuln classes, researching specific CVE patterns, or building exploit dev knowledge.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 96809
+    },
+    {
+      "name": "offensive-waf-bypass",
+      "description": "WAF bypass techniques checklist: encoding bypass (URL/HTML/Unicode/double encoding), case variation, comment injection, HTTP header manipulation, chunked encoding, IP rotation, timing attacks, and payload obfuscation per WAF vendor. Use when WAF is blocking payloads during web app tests.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 38078
+    },
+    {
+      "name": "offensive-wifi",
+      "description": "Wireless / 802.11 attack methodology for red team engagements and wireless security assessments. Covers monitor-mode setup, WPA/WPA2-PSK handshake capture and PMKID attacks, WPA3 SAE downgrade and Dragonblood, WPA-Enterprise (EAP) attacks (MSCHAPv2 cracking, EAP-TLS cert theft, evil-twin RADIUS), Karma / Known Beacons / Mana evil twin attacks, captive-portal phishing, KRACK and FragAttacks, WPS Pixie Dust, deauthentication and disassociation attacks, rogue AP construction (hostapd-mana), 802.1X bypass, MAC randomization defeat, BLE/Zigbee/IEEE 802.15.4 sidebands, and Wi-Fi 6/6E/7 considerations. Use when scoping wireless pentest, war-driving an estate, or testing corporate wireless segmentation.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 11053
+    },
+    {
+      "name": "offensive-wifi-recon",
+      "description": "Wi-Fi reconnaissance methodology — adapter selection, monitor mode and packet injection setup, regulatory domain handling, multi-band airspace mapping, hidden SSID discovery, BSSID/ESSID/channel/PMF/encryption fingerprinting, client probe analysis, vendor OUI lookup, war-driving with Kismet/airodump-ng/Wigle, and structured airspace data capture for downstream attacks. Use at the start of any wireless engagement to build the target map before active attacks; covers 2.4 GHz, 5 GHz, and 6 GHz (Wi-Fi 6E) bands and adapter compatibility for each.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 6857
+    },
+    {
+      "name": "offensive-windows-boundaries",
+      "description": "Windows security boundary taxonomy and attack surface enumeration: kernel/user boundary, sandbox boundaries (LPAC, AppContainer), COM/RPC boundaries, hypervisor boundary, trust level transitions. Use when planning privilege escalation paths, sandbox escapes, or understanding Windows security architecture.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 567850
+    },
+    {
+      "name": "offensive-windows-mitigations",
+      "description": "Deep-dive on Windows exploit mitigations: ASLR, DEP/NX, CFG, CET/Shadow Stack, SEHOP, Heap Guard, ACG, Arbitrary Code Guard. Covers both the protection mechanism and known bypass techniques. Use when researching Windows exploit mitigations, planning bypass strategies, or understanding protection depth.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 530823
+    },
+    {
+      "name": "offensive-windows-privesc",
+      "description": "Comprehensive Windows privilege escalation methodology for offensive security engagements. Covers the full attack surface from a standard user shell to NT AUTHORITY\\\\SYSTEM: token impersonation via SeImpersonate and SeAssignPrimaryToken privileges using JuicyPotato, PrintSpoofer, GodPotato, SweetPotato, and RoguePotato; service misconfigurations including unquoted service paths, weak service DACLs, writable service binaries, and insecure service creation permissions; AlwaysInstallElevated MSI exploitation; DLL hijacking through search order abuse, phantom DLL loading, and writable PATH directory injection; UAC bypass techniques via fodhelper.exe, eventvwr.exe, CMSTP, and environment variable manipulation; scheduled task abuse for writable task actions and new task creation; registry autorun exploitation for persistence and escalation; PrintNightmare (CVE-2021-34527) for remote and local privilege escalation; and credential harvesting from SAM database extraction, DPAPI blob decryption, LSA secret dumping, and Credential Manager enumeration. Integrates automated enumeration with WinPEAS, PowerUp, SharpUp, Seatbelt, and BeRoot. Each technique includes detection signatures and defender-side visibility for purple team operations. Maps to MITRE ATT&CK T1548 (Abuse Elevation Control Mechanism) and T1574 (Hijack Execution Flow). Designed for authorized penetration testing, red team engagements, and CTF competitions where you hold a standard user shell and need to escalate to SYSTEM or local Administrator.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 22580
+    },
+    {
+      "name": "offensive-wpa-enterprise",
+      "description": "WPA/WPA2/WPA3-Enterprise (802.1X / EAP) attack methodology — EAP method identification (PEAP-MSCHAPv2, EAP-TTLS, EAP-TLS, EAP-GTC, EAP-PWD, EAP-FAST), evil-twin RADIUS attacks with eaphammer for credential capture, MSCHAPv2 challenge-response cracking, EAP-TLS client certificate theft paths (DPAPI, NDES, AD CS auto-enrollment), supplicant validation bypass (missing server cert validation, missing CN pinning, BYOD misconfigurations), and post-capture pivots into AD via cracked domain credentials. Use for corporate Wi-Fi engagements where the network is 802.1X authenticated.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 7687
+    },
+    {
+      "name": "offensive-wpa2-psk",
+      "description": "WPA/WPA2-PSK attack methodology — four-way handshake capture via targeted deauthentication, PMKID attacks (no client required), hcxdumptool / hcxpcapngtool conversion to hashcat hc22000 format, GPU-accelerated cracking with dictionary, mask, and rule-based attacks, vendor default-PSK generators (UPC, Sky, BT, etc.), 802.11r FT key cracking, opportunistic key cache analysis, and signal-level optimization. Use when the in-scope network is WPA/WPA2 Personal — the most common consumer/SMB encryption mode.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 6280
+    },
+    {
+      "name": "offensive-wpa3-sae",
+      "description": "WPA3 / SAE (Simultaneous Authentication of Equals) attack methodology — transition-mode (mixed WPA2/WPA3) downgrade, Dragonblood side-channel attacks (CVE-2019-9494, 9495, 13377, 13456), SAE auth flooding for AP CPU exhaustion, Hash-to-Element (H2E) timing analysis, group downgrade, and 6 GHz / Wi-Fi 6E spec implications (PMF mandatory, no transition mode allowed). Use when target advertises WPA3-SAE or WPA3-Personal/Enterprise, or operates in 6 GHz where WPA3 + PMF are required by spec.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 6439
+    },
+    {
+      "name": "offensive-wps",
+      "description": "WPS (Wi-Fi Protected Setup) PIN attack methodology — Pixie Dust offline attack against vulnerable chipsets (Ralink, Realtek, Broadcom, MediaTek), online PIN brute-force with reaver/bully, lockout handling, time-of-day evasion, WPS push-button vulnerability windows, and PIN-to-PSK derivation. Use when a target SOHO router exposes WPS — common on consumer ISP gear, often left enabled by default even when WPS attacks have been known for over a decade.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 5874
+    },
+    {
+      "name": "offensive-xss",
+      "description": "Cross-Site Scripting testing checklist: stored/reflected/DOM/blind XSS discovery, polyglot payloads, CSP bypass, XSS filter bypass, event handler injection, DOM clobbering, mutation XSS, and impact escalation (session hijack, phishing, keylogging). Use for web app XSS testing and bug bounty.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 25232
+    },
+    {
+      "name": "offensive-xxe",
+      "description": "XML External Entity injection testing checklist: classic XXE, blind XXE (out-of-band), XXE via file upload (SVG/docx), XXE in SOAP/REST, error-based XXE, XInclude attacks, and XXE filter bypass. Use for web app XXE testing and bug bounty.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 28770
+    },
+    {
+      "name": "offensive-z-wave",
+      "description": "Z-Wave attack methodology — sniffing with Z-Force / EZ-Wave / RTL-SDR + ZniffMobile, S0 (legacy) network-key derivation flaw and key reuse, S2 (modern) ECDH commissioning analysis, replay/injection on unauthenticated nodes, default-key brute-force on test deployments, and home-automation hub pivots. Use when targeting Z-Wave smart home devices (door locks, sensors, garage controllers) — common in mid-2010s smart home deployments still in production.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 5400
+    },
+    {
+      "name": "offensive-zigbee-thread-matter",
+      "description": "Zigbee, Thread, and Matter mesh-protocol attack methodology — IEEE 802.15.4 sniffing with TI CC2531 / CC2540 / Sonoff Zigbee Dongle E, KillerBee toolkit, Touchlink commissioning abuse with the well-known transport key, replay/injection attacks, Zigbee Cluster Library command abuse for door locks and bulbs, Thread network credential theft, Matter commissioning chain analysis, and 6LoWPAN/IPv6 routing exploitation. Use when targeting smart-home or commercial mesh deployments, Zigbee-based door locks, lighting, or sensor networks.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 5864
+    },
+    {
+      "name": "recon-scope-triage",
+      "description": "Triage ASM/recon output for ownership before testing — separate the target's real assets from namespace-collision noise. Automated recon keyword-matches on the brand name, so for any target whose name is a common/dictionary word, the output is dominated by assets belonging to UNRELATED same-named companies (repos, cloud buckets, mobile apps, breach corpora, typosquats). Built from an authorized engagement where an ASM report's \"Criticals\" were overwhelmingly false positives and the combo/repos/mobile/bucket lists were polluted with unrelated same-named orgs. Use at the START of any engagement, immediately on receiving any ASM/recon/OSINT dataset, BEFORE testing anything.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 7509
+    },
+    {
+      "name": "supply-chain-attack-recon",
+      "description": "External recon for software supply-chain attack surface — package-namespace squatting candidates, dependency-confusion vulnerabilities, GitHub Actions injection openings, container image registry exposure, SBOM mining, internal-package-name leakage, and CI/CD configuration exposure. Reconnaissance and identification ONLY — actual package publishing / typosquat attacks are EXTERNAL-OFFENSIVE and require explicit written sign-off because they can affect the entire npm/PyPI ecosystem. Use when the target has a public GitHub org, when their build artifacts/SBOMs are reachable, when their docker images are on Docker Hub/GHCR, or when you find internal package names in their JS bundles.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 42450
+    },
+    {
+      "name": "triage-validation",
+      "description": "Finding validation before writing any report — 7-Question Gate (all 7 questions), 4 pre-submission gates, always-rejected list, conditionally valid with chain table, CVSS 3.1 quick reference, severity decision guide, report title formula, 60-second pre-submit checklist. Use BEFORE writing any report. One wrong answer = kill the finding and move on. Saves N/A ratio.",
+      "category": "",
+      "license": "",
+      "version": "",
+      "bytes": 22210
+    }
+  ]
+}
