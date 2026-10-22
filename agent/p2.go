@@ -61,7 +61,7 @@ func (t *ToolSet) P2PlannerTools() []actool.CoreTool {
 	}
 	// 规划者只拿"读态势/判方向"的工具；扫描与执行类工具留给 worker，避免 40+ 工具挤占上下文。
 	return []actool.CoreTool{
-		t.rankIntents(), t.diagnoseProgress(), t.listCapabilities(), t.verifyClaimTool(),
+		t.rankIntents(), t.diagnoseProgress(), t.listCapabilities(),
 		t.listCreds(), t.listSessions(), t.listOwned(), t.dueOwned(), t.routeResolve(),
 	}
 }

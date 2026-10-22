@@ -28,6 +28,9 @@ type Input struct {
 	Severity  string `json:"severity"`
 	Surface   string `json:"surface"`
 	Evidence  string `json:"evidence"`
+	// Retest 是复测工具（retester）最近一次结论：reproduced|fixed|inconclusive。
+	Retest     string `json:"retest,omitempty"`
+	RetestNote string `json:"retest_note,omitempty"`
 }
 
 // Review 是复核结果（落 evidence_timeline.meta）。
@@ -57,11 +60,18 @@ func Prompt(goal string, in Input) string {
 		b.WriteString(in.Evidence)
 		b.WriteString("\n")
 	}
+	if strings.TrimSpace(in.Retest) != "" {
+		fmt.Fprintf(&b, "\n复测结论（retester）：%s\n", in.Retest)
+		if strings.TrimSpace(in.RetestNote) != "" {
+			b.WriteString("复测摘要：" + clip(in.RetestNote, 400) + "\n")
+		}
+	}
 	b.WriteString(`
 判定规则：
 1) 证据里能看到"实际请求/命令 + 实际响应/输出"，且响应确实体现了该漏洞 → verified；
 2) 证据只是版本匹配、模板命中、现象推断，或只验证了半条链 → inferred，并列出缺什么；
 3) 证据为空、含猜测措辞、或与结论无关 → rejected。
+复测结论的使用规则：reproduced 可作为独立复现的强证据；fixed/inconclusive 不得判 verified（最多 inferred）。
 只输出 JSON：{"verdict":"verified|inferred|rejected","reason":"一句话","missing":["要补的证据"]}`)
 	return b.String()
 }
@@ -105,4 +115,12 @@ func ParseJSON(raw string) (Review, error) {
 	}
 	r.Source = "llm"
 	return r, nil
+}
+
+func clip(s string, n int) string {
+	r := []rune(strings.TrimSpace(s))
+	if len(r) <= n {
+		return string(r)
+	}
+	return string(r[:n]) + "…"
 }

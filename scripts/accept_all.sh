@@ -15,7 +15,7 @@ go build ./...
 
 echo "== 2/3 go test（排除 PG/sed 依赖包）=="
 PKGS=$(go list ./... | grep -v '/server$' | grep -v '/intercept$')
-go test $PKGS
+go test $PKGS -p 1
 
 echo "== 3/3 前端 =="
 if [ -d web/node_modules ]; then

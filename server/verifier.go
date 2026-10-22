@@ -115,9 +115,11 @@ func (s *Server) verifierPass(ctx context.Context, t *Task) int {
 			continue
 		}
 		c, cancel := context.WithTimeout(ctx, 60*time.Second)
+		// 把 retester 的复测结论喂给复核员（两条线合流：复测给事实，复核做判断）。
+		retest, retestNote := s.latestRetest(ctx, f.ID)
 		raw, cerr := streamCollectText(c, rt, verifier.SystemPrompt,
 			verifier.Prompt(t.Goal, verifier.Input{FindingID: f.ID, Title: f.Title, Severity: f.Severity,
-				Surface: f.Surface, Evidence: f.Evidence}))
+				Surface: f.Surface, Evidence: f.Evidence, Retest: retest, RetestNote: retestNote}))
 		cancel()
 		if cerr != nil {
 			log.Printf("[verifier] task %s finding %d: %v (skip)", t.ID, f.ID, cerr)
@@ -225,4 +227,23 @@ func parseInt64(s string) (int64, error) {
 	var err error
 	_, err = fmt.Sscanf(strings.TrimSpace(s), "%d", &n)
 	return n, err
+}
+
+// latestRetest 返回某 finding 最近一次已完成复测的 verdict 与摘要。
+func (s *Server) latestRetest(ctx context.Context, findingID int64) (string, string) {
+	if s.p2 == nil || s.p2.DB == nil || findingID <= 0 {
+		return "", ""
+	}
+	var verdict, summary, evidence string
+	err := s.p2.DB.QueryRowContext(ctx,
+		`SELECT verdict, COALESCE(summary,''), COALESCE(evidence,'') FROM finding_retests
+		 WHERE finding_id = $1 AND status = 'completed' ORDER BY id DESC LIMIT 1`, findingID).
+		Scan(&verdict, &summary, &evidence)
+	if err != nil {
+		return "", ""
+	}
+	if summary == "" {
+		summary = evidence
+	}
+	return verdict, summary
 }

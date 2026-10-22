@@ -41,3 +41,12 @@ func TestParseJSONDefaultsReason(t *testing.T) {
 		t.Fatalf("reason default: %+v %v", r, err)
 	}
 }
+
+func TestPromptIncludesRetest(t *testing.T) {
+	p := Prompt("g", Input{Title: "x", Evidence: "GET / → 200", Retest: "reproduced", RetestNote: "复测命中同一响应"})
+	for _, want := range []string{"复测结论（retester）：reproduced", "fixed/inconclusive 不得判 verified"} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("prompt missing %q", want)
+		}
+	}
+}
