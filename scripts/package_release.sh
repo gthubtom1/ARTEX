@@ -15,7 +15,16 @@ cp dist/artex.exe "$STAGE/artex.exe"          # ← 关键：改名在这里做�
 cp start.bat 启动.bat config.example.json 使用教程.md "$STAGE/" 2>/dev/null || true
 cp -r skills kb "$STAGE/"
 
-( cd dist && zip -qr "$(basename "$STAGE").zip" "$(basename "$STAGE")" )
+# Windows 的 Git Bash 默认没有 zip；退到 PowerShell 的 Compress-Archive（产出的 .zip 通用）。
+if command -v zip >/dev/null 2>&1; then
+  ( cd dist && zip -qr "$(basename "$STAGE").zip" "$(basename "$STAGE")" )
+elif command -v powershell >/dev/null 2>&1 || command -v powershell.exe >/dev/null 2>&1; then
+  PS=$(command -v powershell.exe || command -v powershell)
+  "$PS" -NoProfile -Command "Compress-Archive -Path 'dist/$(basename "$STAGE")' -DestinationPath 'dist/$(basename "$STAGE").zip' -Force" >/dev/null
+else
+  echo "[!] 既没有 zip 也没有 powershell，无法打包。目录仍在：dist/$(basename "$STAGE")"
+  exit 1
+fi
 SIZE=$(du -h "dist/$(basename "$STAGE").zip" | cut -f1)
 echo "[+] dist/$(basename "$STAGE").zip  ($SIZE)"
 echo "    解压后：双击 start.bat 或 启动.bat 即可；只需自己准备 config.json 里的数据库"
