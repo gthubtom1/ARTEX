@@ -3772,19 +3772,22 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	// P9-3 的两个开关。少了这段，前端把 adviser_enabled 发上来后端不认识，
 	// 设置页上那个勾选框点了等于没点（R2 契约审查发现的 bug）。
-	for key, v := range map[string]*bool{
-		"adviser.enabled":  req.AdviserEnabled,
-		"verifier.enabled": req.VerifierEnabled,
-	} {
-		if v == nil {
-			continue
-		}
-		if err := s.m.pg.SetBool(key, *v); err != nil {
+	if req.AdviserEnabled != nil {
+		if err := s.m.pg.SetBool("adviser.enabled", *req.AdviserEnabled); err != nil {
 			writeErr(w, 500, err.Error())
 			return
 		}
 		if s.settings != nil {
-			_ = s.settings.Set(r.Context(), key, fmt.Sprintf("%t", *v))
+			_ = s.settings.Set(r.Context(), "adviser.enabled", fmt.Sprintf("%t", *req.AdviserEnabled))
+		}
+	}
+	if req.VerifierEnabled != nil {
+		if err := s.m.pg.SetBool("verifier.enabled", *req.VerifierEnabled); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "verifier.enabled", fmt.Sprintf("%t", *req.VerifierEnabled))
 		}
 	}
 	if req.FindingsVerifyGate != nil {
