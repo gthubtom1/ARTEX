@@ -21,12 +21,22 @@ rem   second instance fails to bind and respawns forever.
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
-set "BIN=artex.exe"
-if not exist "%BIN%" (
-	echo [artex] %BIN% not found in %CD%
-	echo [artex] put artex.exe next to start.bat
+rem ---- locate the binary: no manual rename/move needed ----
+rem search order: same dir -> dist\ -> distrtex-win-amd64.exe -> artex-win-amd64.exe
+set "BIN="
+if exist "artex.exe" set "BIN=artex.exe"
+if not defined BIN if exist "distrtex.exe" set "BIN=distrtex.exe"
+if not defined BIN if exist "artex-win-amd64.exe" set "BIN=artex-win-amd64.exe"
+if not defined BIN (
+	echo [artex] cannot find the ARTEX executable. Looked for:
+	echo   .rtex.exe
+	echo   .\distrtex.exe
+	echo   .rtex-win-amd64.exe
+	echo.
+	echo [artex] either unzip the release package, or run: go build -o artex.exe ./cmd/artex
 	exit /b 1
 )
+echo [artex] using %BIN%
 
 set "PORT=8787"
 if not "%~1"=="" set "ARGS=%*"
