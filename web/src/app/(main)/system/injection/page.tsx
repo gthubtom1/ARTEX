@@ -18,7 +18,7 @@ import { api } from "@/lib/api";
 // 注意：本页不再强制把 mode 写成 hybrid|off。之前那样会让系统设置页选的
 // always/on-miss/on-refusal 被静默改回 hybrid。
 
-const MAX_CUSTOM = 8000;
+const MAX_CUSTOM = 200000;
 
 function estimateTokens(text: string): number {
   let cjk = 0;
@@ -200,7 +200,7 @@ export default function InjectionPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">破甲词 / 人设（原文）</CardTitle>
           <CardDescription>
-            粘贴完整文本即可。留空且「内置人设」开启时使用内置版本。后端上限 {MAX_CUSTOM} 字符。
+            粘贴完整文本即可。留空且「内置人设」开启时使用内置版本。人设是<b>原样注入、不截断</b>的；只有当长度超过 {MAX_CUSTOM.toLocaleString()} 字符（约 200KB）才会被拦，用来防"贴错文件"。
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -253,7 +253,7 @@ export default function InjectionPage() {
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">单次块最大字符</span>
+            <span className="text-muted-foreground">自动上下文块上限（人设不受此限）</span>
             <input
               type="number"
               min={200}

@@ -3745,8 +3745,12 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.InjectCustom != nil {
 		v := *req.InjectCustom
-		if len([]rune(v)) > 8000 {
-			writeErr(w, 400, "inject_custom 最长 8000 字符")
+		// 人设正文是**原样注入、不截断**的（见 inject.PersonaBlock）。这里只做一个
+		// 防误贴的极端上限（20 万字符 ≈ 200KB）：超过基本是贴错文件，而不是"人设太长"。
+		// 注意：这个值与页面上"单次块最大字符"（inject.max_chars，默认 4000）**无关** ——
+		// 那个只管自动拼的「执行上下文块」，从不影响人设正文。
+		if len([]rune(v)) > 200000 {
+			writeErr(w, 400, "inject_custom 超过 20 万字符（约 200KB）：请确认是否贴错了文件")
 			return
 		}
 		if err := s.m.pg.SetSetting("inject.custom", v); err != nil {
