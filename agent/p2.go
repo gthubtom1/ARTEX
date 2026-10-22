@@ -61,10 +61,9 @@ func (t *ToolSet) P2PlannerTools() []actool.CoreTool {
 		return nil
 	}
 	// 规划者只拿"读态势/判方向"的工具；扫描与执行类工具留给 worker，避免 40+ 工具挤占上下文。
-	return []actool.CoreTool{
-		t.rankIntents(), t.diagnoseProgress(), t.listCapabilities(),
-		t.listCreds(), t.listSessions(), t.listOwned(), t.dueOwned(), t.routeResolve(),
-	}
+	// 状态门：空状态只留 3 个核心诊断工具，其余按"有凭据/有立足点/有台账"逐组挂载；
+	// 状态未知（无 taskID / DB 出错）时 gateState 返回 nil → 全量挂载（fail-open）。
+	return gatePlannerTools(t.gateState(), t.p2PlannerToolsAll())
 }
 
 // P2MainTools 是人机界面（主 agent）可见的 P2 工具：看菜单 + 做裁决。
@@ -86,19 +85,18 @@ func (t *ToolSet) P2WorkerTools() []actool.CoreTool {
 	if t.p2 == nil {
 		return nil
 	}
-	out := []actool.CoreTool{
-		t.recordCapability(), t.listCapabilities(), t.verifyClaimTool(),
-		t.addCred(), t.listCreds(), t.credReusePlan(), t.verifyCred(),
-		t.registerSession(), t.leaseSession(), t.listSessions(), t.releaseSession(),
-		t.registerOwned(), t.listOwned(), t.checkOwned(), t.statusOwned(), t.cleanupOwned(),
-		t.privescPlan(), t.lateralPlan(), t.routePlan(),
-		t.dataLocate(), t.dataMask(), t.credHarvest(), t.credStaleScan(),
-	}
-	// L3/L4 执行面：提权 / 横移 / 战后清理（在会话上执行）+ 会话命令 + 凭据复用执行。
-	out = append(out, t.P2OpsTools()...)
-	out = append(out, t.sessionExec(), t.credReuseRun(), t.routeResolve())
-	return out
+	// 按任务状态挂载：核心 4 个永远在；凭据/立足点/台账/两者兼有/数据发现各自开门。
+	// 状态未知（无 taskID / DB 出错）时 gateState 返回 nil → 全量挂载（fail-open）。
+	return gateWorkerTools(t.gateState(), t.p2WorkerToolsAll())
 }
+
+// P2WorkerDeferred 返回本次 run 被状态门挡掉的 worker P2 工具名（排序）。
+// 调用方应把它并入 DeferredInfo.GlobalNames，让模型仍能在
+// <available-deferred-tools> 里看到这些名字（见 worker.go 的 AugmentTools 之后）。
+func (t *ToolSet) P2WorkerDeferred() []string { return p2WorkerDeferredNames(t) }
+
+// P2PlannerDeferred 返回本次 run 被状态门挡掉的 planner P2 工具名（排序）。
+func (t *ToolSet) P2PlannerDeferred() []string { return p2PlannerDeferredNames(t) }
 
 // ───────────────────────── GateChain ─────────────────────────
 
