@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 
 	actool "github.com/Autumn-27/norma/tool"
@@ -214,4 +215,16 @@ func toolNames(tools []actool.CoreTool) []string {
 		out = append(out, tool.Name())
 	}
 	return out
+}
+
+// 守一条容易被人"顺手删掉"的 SQL：继承型台账必须也算 HasOwned。
+// 删掉它 -> 新任务即使继承了来源任务的台账，也挂不上 owned_* 工具，
+// "跨任务长期持有"这个核心卖点在界面上就变成空的。
+func TestGateStateSQLCoversInheritedOwned(t *testing.T) {
+	if !strings.Contains(gateStateSQL, "source_task_ids") {
+		t.Fatal("gateStateSQL 丢了继承判定（source_task_ids）：继承来的台账不会挂 owned_* 工具")
+	}
+	if !strings.Contains(gateStateSQL, "first_task_id = $1") {
+		t.Fatal("gateStateSQL 丢了本任务台账判定（first_task_id）")
+	}
 }

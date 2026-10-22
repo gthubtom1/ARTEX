@@ -83,6 +83,9 @@ const gateStateSQL = `SELECT
            JOIN assets_owned o ON o.id = ar.owned_id
            WHERE o.first_task_id = $1),
     EXISTS(SELECT 1 FROM assets_owned WHERE first_task_id = $1),
+    -- 继承型：本任务有来源任务（source_task_ids 非空）时，来源任务的台账对本任务可用。
+    -- 不加这条，"跨任务长期持有"这个核心卖点在新任务里连 owned_* 工具都挂不上。
+    EXISTS(SELECT 1 FROM tasks WHERE id = $1 AND cardinality(COALESCE(source_task_ids,'{}')) > 0),
     EXISTS(SELECT 1 FROM findings
            WHERE task_id = $1
              AND (lower(vulnclass) LIKE '%sql%'
@@ -95,6 +98,8 @@ const gateStateSQL = `SELECT
 // gateState loads the task's current state. It returns nil when the state cannot
 // be established (no P2, no DB, no task id, query/scan error) — callers pass nil
 // to the gate functions to get the full tool set.
+//
+// HasOwned 同时覆盖"本任务登记过的台账"与"本任务继承了来源任务的台账"（见 SQL 第 4 个 EXISTS）。
 //
 // last_verified_at is intentionally not used for ownership: it is a per-row
 // verification timestamp, not a task link. assets_owned.first_task_id is the
@@ -117,8 +122,8 @@ func (t *ToolSet) gateState() *gateState {
 	if !rows.Next() {
 		return nil
 	}
-	var creds, foothold, owned, dataFinding bool
-	if err := rows.Scan(&creds, &foothold, &owned, &dataFinding); err != nil {
+	var creds, foothold, owned, inherited, dataFinding bool
+	if err := rows.Scan(&creds, &foothold, &owned, &inherited, &dataFinding); err != nil {
 		return nil
 	}
 	if err := rows.Err(); err != nil {
@@ -126,7 +131,7 @@ func (t *ToolSet) gateState() *gateState {
 	}
 	st.HasCreds = st.HasCreds || creds
 	st.HasFoothold = st.HasFoothold || foothold
-	st.HasOwned = owned
+	st.HasOwned = owned || inherited
 	st.HasDataFinding = dataFinding
 	return st
 }
