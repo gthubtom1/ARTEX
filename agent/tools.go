@@ -1294,6 +1294,8 @@ func (t *ToolSet) addFinding() actool.CoreTool {
 		"vulnclass": str("漏洞类别"), "name": str("漏洞名称"), "severity": str("critical|high|medium|low"), "summary": str("发现摘要"),
 		"intent_id": idp("当前任务的意图 id"), "asset_ids": map[string]any{"type": "array", "items": map[string]any{"type": "integer"}, "description": "受影响资产 id"},
 		"evidence":         str("证据/PoC 文本"),
+		"control_tested": map[string]any{"type": "boolean", "description": "可选：是否做过对照组（同请求去掉 payload，或换一个不存在的 id）。有对照组时证据才可能过 grounding 门。"},
+		"control_note":   str("可选：对照组怎么做的（一句话，会写进证据）"),
 		"evidence_hint_id": idp("可选：本任务中对应此漏洞的提示节点 ID，自动携带其结构化 traffic_refs；不能引用继承提示或其他漏洞的提示"),
 		"traffic_refs": map[string]any{"type": "array", "description": "可选；HTTP/HTTPS 漏洞先检索并逐条核实请求/响应确实支持漏洞结论，再按复现顺序填写真实 ID。TCP 等非 HTTP 漏洞、未采集或找不到确切记录时省略或传 []，不阻止上报；可在 evidence 说明原因并提供其他可验证证据。不要猜测 ID、按域名/时间推定关联或仅为补包重复探测。用途 baseline 正常对照 / proof 漏洞证明 / verification 补充验证 / supporting 辅助证据。",
 			"items": obj(map[string]any{"traffic_id": str("traffic_search 返回的真实流量 ID"), "role": map[string]any{"type": "string", "enum": []string{"baseline", "proof", "verification", "supporting"}}, "note": str("该流量如何支持漏洞结论")}, "traffic_id")},
@@ -1304,6 +1306,8 @@ func (t *ToolSet) addFinding() actool.CoreTool {
 			AssetIDs                                     []json.RawMessage `json:"asset_ids"`
 			TrafficRefs                                  []db.TrafficRef   `json:"traffic_refs"`
 			EvidenceHintID                               json.RawMessage   `json:"evidence_hint_id"`
+			ControlTested                                bool              `json:"control_tested"`
+			ControlNote                                  string            `json:"control_note"`
 		}
 		if err := json.Unmarshal(in, &a); err != nil {
 			return actool.Errorf(err.Error()), nil
@@ -1325,6 +1329,30 @@ func (t *ToolSet) addFinding() actool.CoreTool {
 		refs, err := t.findingRefsFromHint(pid(a.EvidenceHintID), a.TrafficRefs)
 		if err != nil {
 			return actool.Errorf(err.Error()), nil
+		}
+		// P8-3 三门质量闸：证据不够的结论不入 finding（off/infer/strict 三档）。
+		// 质量闸不是权限门：被拦下来的结论会改写为一条 inferred 事实，线索不丢。
+		if out := runGate(findingGateMode(), gateArgs{
+			Name:          a.Name,
+			VulnClass:     a.VulnClass,
+			Summary:       a.Summary,
+			Evidence:      a.Evidence,
+			ControlTested: a.ControlTested,
+			ControlNote:   a.ControlNote,
+		}); !out.Store {
+			if _, ferr := t.recordOneFact(factItem{
+				Summary:    "【待验证】" + a.Summary,
+				Detail:     a.VulnClass + "\n" + a.Evidence,
+				Evidence:   a.Evidence,
+				Confidence: "inferred",
+				IntentID:   a.IntentID,
+				AssetIDs:   a.AssetIDs,
+			}, pid(a.IntentID)); ferr != nil {
+				return actool.Text(gateMessage(out) + "（写入待验证事实也失败了：" + ferr.Error() + "）"), nil
+			}
+			return actool.Text(gateMessage(out)), nil
+		} else {
+			a.Summary, a.Evidence = out.Summary, out.Evidence
 		}
 		input := db.RecordFindingInput{TaskID: t.taskID, ExplorationID: t.ts.ID(), IntentID: pid(a.IntentID), VulnClass: a.VulnClass, Name: a.Name, Severity: a.Severity, Summary: a.Summary, Evidence: a.Evidence, Worker: t.worker, AssetIDs: pidList(a.AssetIDs)}
 		var recorded *db.RecordedFinding

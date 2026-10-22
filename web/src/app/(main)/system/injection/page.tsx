@@ -8,8 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 
-// 与 pi-web 的「人设」一致：一整段文本原样注入系统提示，每轮生效，不截断、不设字数上限。
-// 不暴露“重定向预算/最大字符”这类内部参数——那是自动上下文块的事，用户不需要管。
+// 注入层 / 人设 页。
+//
+// 三件事：
+//   1) 开关（inject.mode）+ 注入方式（cached / every-turn）；
+//   2) 人设正文（inject.custom）——原样注入系统提示，不截断，但后端有 8000 字符上限；
+//   3) 内置人设（inject.preset）——Custom 为空时用随二进制发布的默认人设，开箱即用。
+//
+// 注意：本页不再强制把 mode 写成 hybrid|off。之前那样会让系统设置页选的
+// always/on-miss/on-refusal 被静默改回 hybrid。
+
+const MAX_CUSTOM = 8000;
+
 function estimateTokens(text: string): number {
   let cjk = 0;
   let other = 0;
@@ -20,39 +30,50 @@ function estimateTokens(text: string): number {
   return cjk + Math.ceil(other / 4);
 }
 
+type Payload = Record<string, unknown>;
+
 export default function InjectionPage() {
-  const [enabled, setEnabled] = React.useState(true);
+  const [mode, setMode] = React.useState("hybrid");
   const [custom, setCustom] = React.useState("");
   const [personaMode, setPersonaMode] = React.useState<"cached" | "every-turn">("cached");
+  const [preset, setPreset] = React.useState<"on" | "off">("on");
+  const [presetText, setPresetText] = React.useState("");
+  const [presetName, setPresetName] = React.useState("内置人设");
   const [loaded, setLoaded] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
-  const apply = React.useCallback((s: Record<string, unknown>) => {
-    setEnabled(((s.inject_mode as string) ?? "hybrid") !== "off");
+  const apply = React.useCallback((s: Payload) => {
+    setMode(String(s.inject_mode ?? "hybrid"));
     setCustom(String(s.inject_custom ?? ""));
     setPersonaMode((s.inject_persona_mode as "cached" | "every-turn") ?? "cached");
+    setPreset((s.inject_preset as "on" | "off") ?? "on");
+    setPresetText(String(s.inject_default_persona ?? ""));
+    setPresetName(String(s.inject_default_persona_name ?? "内置人设"));
   }, []);
 
   React.useEffect(() => {
     api
       .settings()
       .then((s) => {
-        apply(s as unknown as Record<string, unknown>);
+        apply(s as unknown as Payload);
         setLoaded(true);
       })
       .catch((e) => toast.error(`读取配置失败：${(e as Error).message}`));
   }, [apply]);
 
+  const enabled = mode !== "off";
+
   async function save() {
     setSaving(true);
     try {
       const s = await api.setSettings({
-        inject_mode: enabled ? "hybrid" : "off",
+        inject_mode: enabled ? (mode === "off" ? "hybrid" : mode) : "off",
         inject_custom: custom,
         inject_persona_mode: personaMode,
+        inject_preset: preset,
       } as never);
-      apply(s as unknown as Record<string, unknown>);
-      toast.success("已保存（对之后启动的 run 生效）");
+      apply(s as unknown as Payload);
+      toast.success("已保存（下一轮模型请求即生效，不用重启任务）");
     } catch (e) {
       toast.error(`保存失败：${(e as Error).message}`);
     } finally {
@@ -60,19 +81,23 @@ export default function InjectionPage() {
     }
   }
 
+  const tooLong = custom.length > MAX_CUSTOM;
+  const tokens = estimateTokens(custom);
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 md:gap-6">
       <div>
         <h1 className="text-lg font-semibold">注入层 / 人设</h1>
         <p className="text-sm text-muted-foreground">
-          这里就是“破甲词 / 人设”的输入处。和 pi-web 的人设一样：整段原文注入系统提示，每轮生效，不截断、不限制字数。
+          这里是「破甲词 / 人设」的输入处，也是拒答重定向的开关。人设正文原样拼进系统提示；
+          模型出现拒答时自动补一条技术重定向（目标 → 方法 → 下一步）。
         </p>
       </div>
 
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">启用</CardTitle>
-          <CardDescription>关闭后不注入人设，也不做拒答重定向。</CardDescription>
+          <CardDescription>关闭后既不注入人设，也不做拒答重定向。</CardDescription>
         </CardHeader>
         <CardContent>
           <label className="flex cursor-pointer items-center gap-2 text-sm">
@@ -80,9 +105,9 @@ export default function InjectionPage() {
               type="checkbox"
               checked={enabled}
               disabled={!loaded}
-              onChange={(e) => setEnabled(e.target.checked)}
+              onChange={(e) => setMode(e.target.checked ? (mode === "off" ? "hybrid" : mode) : "off")}
             />
-            <span>{enabled ? "已启用（hybrid）" : "已关闭（off）"}</span>
+            <span>{enabled ? `已启用（${mode}）` : "已关闭（off）"}</span>
           </label>
         </CardContent>
       </Card>
@@ -90,17 +115,73 @@ export default function InjectionPage() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">注入方式</CardTitle>
-          <CardDescription>和 pi-web 一样：默认“缺失时补”，上下文里没有这份人设时才重新注入。</CardDescription>
+          <CardDescription>和 pi-web 一样：默认「缺失时补」，上下文里没有这份人设时才重新注入。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           <label className="flex cursor-pointer items-start gap-2 text-sm">
-            <input type="radio" className="mt-1" checked={personaMode === "cached"} disabled={!loaded} onChange={() => setPersonaMode("cached")} />
-            <span><b>缺失时补（推荐）</b><span className="ml-2 text-muted-foreground">上下文里还有人设就不重复发；被压缩/丢了才补一次。</span></span>
+            <input
+              type="radio"
+              className="mt-1"
+              checked={personaMode === "cached"}
+              disabled={!loaded}
+              onChange={() => setPersonaMode("cached")}
+            />
+            <span>
+              <b>缺失时补（推荐）</b>
+              <span className="ml-2 text-muted-foreground">上下文里还有人设就不重复发；被压缩/丢了才补一次。</span>
+            </span>
           </label>
           <label className="flex cursor-pointer items-start gap-2 text-sm">
-            <input type="radio" className="mt-1" checked={personaMode === "every-turn"} disabled={!loaded} onChange={() => setPersonaMode("every-turn")} />
-            <span><b>每轮注入</b><span className="ml-2 text-muted-foreground">每轮都发一次完整人设，最贵，只在模型确实会忘时用。</span></span>
+            <input
+              type="radio"
+              className="mt-1"
+              checked={personaMode === "every-turn"}
+              disabled={!loaded}
+              onChange={() => setPersonaMode("every-turn")}
+            />
+            <span>
+              <b>每轮注入</b>
+              <span className="ml-2 text-muted-foreground">每轮都发一次完整人设，最贵，只在模型确实会忘时用。</span>
+            </span>
           </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">内置人设（开箱即用）</CardTitle>
+          <CardDescription>
+            下面这段是随程序发布的默认人设。开启后，只要人设正文留空就用它 —— 新装用户不用去别处粘贴。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={preset === "on"}
+              disabled={!loaded}
+              onChange={(e) => setPreset(e.target.checked ? "on" : "off")}
+            />
+            <span>
+              {preset === "on" ? `已启用（${presetName}）` : "已关闭（人设正文为空时不注入任何人设）"}
+            </span>
+          </label>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!loaded || !presetText}
+              onClick={() => {
+                setCustom(presetText);
+                toast.success("已填入下方人设正文，记得点保存");
+              }}
+            >
+              复制内置人设到正文
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {presetText ? `≈ ${estimateTokens(presetText).toLocaleString()} tokens / 次注入` : ""}
+            </span>
+          </div>
         </CardContent>
       </Card>
 
@@ -108,59 +189,57 @@ export default function InjectionPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">破甲词 / 人设（原文）</CardTitle>
           <CardDescription>
-            粘贴完整文本即可，几十 KB 也可以。它会被原样拼进每轮系统提示；保存后对之后启动的 run 生效。
+            粘贴完整文本即可。留空且「内置人设」开启时使用内置版本。后端上限 {MAX_CUSTOM} 字符。
           </CardDescription>
         </CardHeader>
         <CardContent>
           <textarea
             className="min-h-[360px] w-full rounded-md border bg-background p-2 font-mono text-xs leading-relaxed"
-            placeholder="把完整的破甲词 / 人设 / 执行约定粘到这里……"
+            placeholder="把完整的破甲词 / 人设 / 执行约定粘到这里……（留空则使用内置人设）"
             value={custom}
             disabled={!loaded}
             onChange={(e) => setCustom(e.target.value)}
           />
           <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <span>已输入 {custom.length} 字符（不设上限）</span>
-            <span>≈ {estimateTokens(custom).toLocaleString()} tokens / 次请求</span>
+            <span className={tooLong ? "text-red-600 dark:text-red-400" : ""}>
+              已输入 {custom.length} / {MAX_CUSTOM} 字符
+            </span>
+            <span>≈ {tokens.toLocaleString()} tokens / 次请求</span>
+            {custom.trim() === "" && preset === "on" && (
+              <span>当前生效的是内置人设（{presetName}）</span>
+            )}
           </div>
-          {estimateTokens(custom) > 12000 && (
+          {tooLong && (
+            <div className="mt-2 rounded-md border border-red-500/40 bg-red-500/5 p-2 text-xs text-red-700 dark:text-red-400">
+              超过后端上限，保存会被拒绝。请精简到 {MAX_CUSTOM} 字符以内。
+            </div>
+          )}
+          {!tooLong && tokens > 12000 && (
             <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-700 dark:text-amber-400">
-              人设偏长：它会在每次模型请求里随系统提示一起发送。建议精简到 1 万 tokens 以内，
-              或保持内容不变以命中提供方的提示缓存（缓存命中时按缓存价计费）。
+              人设偏长：它会随系统提示一起发送。建议精简到 1 万 tokens 以内，
+              或保持内容稳定以命中提供方的提示缓存（缓存命中时按缓存价计费）。
             </div>
           )}
         </CardContent>
       </Card>
 
       <div className="flex items-center gap-2">
-        <Button onClick={save} disabled={!loaded || saving}>
+        <Button onClick={save} disabled={!loaded || saving || tooLong}>
           {saving ? "保存中…" : "保存"}
         </Button>
         <span className="text-xs text-muted-foreground">
-          {enabled ? "每轮注入" : "已关闭"} · {custom.length} 字符
+          {enabled ? mode : "off"} · {personaMode} · {custom.trim() === "" && preset === "on" ? "内置人设" : `${custom.length} 字符`}
         </span>
       </div>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">省 token 的方式（和 pi-web 一致）</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1 text-sm text-muted-foreground">
-          <p>1. 人设不是每轮额外复制一遍：它只在系统提示里出现一次，同一任务内保持稳定。</p>
-          <p>2. 稳定的系统提示会被模型提供方缓存（Anthropic / DeepSeek 等），缓存命中的部分按更低价格计费。</p>
-          <p>3. 不要在任务进行中反复改人设——每次修改都会让缓存失效，下一轮按全价重算。</p>
-          <p>4. 越长越贵：建议控制在 1 万 tokens 以内；需要超长设定时，把“每轮都要生效的规则”留在人设里，参考资料放知识库按需检索。</p>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">它怎么工作</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1 text-sm text-muted-foreground">
-          <p>1. 每轮请求前把这段原文拼进系统提示（与 pi-web 人设相同的方式）。</p>
-          <p>2. 模型出现拒答时，额外注入一条技术重定向（目标→方法→下一步），最多 2 次，不需要你配置。</p>
-          <p>3. 不写“禁止”文案，不做字数截断；你写多少就注入多少。</p>
+          <p>1. 请求模型前，把这段原文作为额外的一段系统提示追加进去（planner / worker / 对话页都覆盖）。</p>
+          <p>2. 模型出现拒答时，额外注入一条技术重定向（目标→方法→下一步），次数受「拒答重定向次数」限制。</p>
+          <p>3. 不写「禁止」类文案。改完保存后对正在跑的任务下一轮就生效，不需要重启。</p>
         </CardContent>
       </Card>
     </div>

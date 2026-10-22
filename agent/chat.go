@@ -124,8 +124,11 @@ func (c *ChatAgent) Chat(ctx context.Context, agentKey, sessionID, message strin
 	defer cleanup()
 
 	system, boundary := deferredSystem(chatSystem(agentKey, c.workDir, sessionWorkDir), def)
+	// 注入层：对话页（Auto / 渗透测试 / retester）也要有人设与拒答重定向。
+	// goal 为空串——对话页没有任务目标，只有会话上下文。
+	system = append(system, injectPromptBlock(""))
 	opts := agentcore.Options{
-		Provider:        c.prov,
+		Provider:        WrapProvider(c.prov, func() string { return "" }),
 		SystemPrompt:    system,
 		DynamicBoundary: boundary,
 		Tools:           tools,
@@ -161,7 +164,9 @@ func (c *ChatAgent) Chat(ctx context.Context, agentKey, sessionID, message strin
 		MaxTokens:    c.maxTokens(),    // 0 = 不发上限,由服务端默认值决定
 	}
 	if c.guard != nil {
-		opts.Hooks = c.guard.Hooks()
+		opts.Hooks = WrapHooks(c.guard.Hooks(), nil)
+	} else if h := WrapHooks(nil, nil); h != nil {
+		opts.Hooks = h
 	}
 	if c.tx != nil { // persist raw human↔AI conversation; one accumulating file per thread
 		opts.Transcript = c.tx

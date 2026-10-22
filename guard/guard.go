@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Autumn-27/artex/intercept"
+	"github.com/Autumn-27/artex/internal/errev"
 	"github.com/Autumn-27/norma/hook"
 )
 
@@ -46,6 +47,20 @@ var AutoDecide func(ctx context.Context, tool string, input json.RawMessage) (ac
 // 返回 ok=false 时 hint 是一条**正向**建议（例如"可用 masscan+nc 继续，或去环境页安装"）。
 // 注意：它只影响"命令首词不存在"这一种情况，不做任何权限判断。
 var ToolPresence func(name string) (ok bool, hint string)
+
+// TaskIDOf 由 server 注入：从 ctx 里取当前任务 id（取不到返回 0）。
+// 只用于把错误归类落到 task_error_events，不参与任何判定。
+var TaskIDOf func(context.Context) int64
+
+// errEvent 把一条工具侧错误写进任务级错误事件（P8-8）。
+// 未注入 TaskIDOf / errev.Sink 时是空操作。
+func errEvent(ctx context.Context, class, tool, detail string) {
+	taskID := int64(0)
+	if TaskIDOf != nil {
+		taskID = TaskIDOf(ctx)
+	}
+	errev.Emit(ctx, taskID, class, tool, detail)
+}
 
 // firstCommand 从一行 shell 里取出真正要执行的命令名：
 // 跳过 VAR=val 前缀、sudo/timeout/env 包装与路径前缀。
@@ -122,6 +137,7 @@ func (g *Guard) preToolUse(ctx context.Context, ev hook.Event) hook.Result {
 				if hint == "" {
 					hint = "本机未找到 " + name + "。可以改用等价工具继续，或到环境页安装后再试。"
 				}
+				errEvent(ctx, errev.ClassToolMissing, name, cmd)
 				return g.block(ev.ToolName, hint, cmd)
 			}
 		}
@@ -153,6 +169,7 @@ func (g *Guard) applyIntercept(ctx context.Context, ev hook.Event) hook.Result {
 	case "deny":
 		// 观测:deny 命中不阻塞审批,直接记一条 denied（历史/任务拦截页可见）。
 		g.interceptor.Log(ctx, intercept.ConvIDFromContext(ctx), dec, ev.ToolName, ev.Input, "denied")
+		errEvent(ctx, errev.ClassPolicyBlocked, ev.ToolName, dec.Message)
 		return g.block(ev.ToolName, systemBlockMessage(dec.Message), "")
 	case "allow":
 		// Record explicit rule and model approvals so review details remain auditable.
@@ -170,6 +187,7 @@ func (g *Guard) applyIntercept(ctx context.Context, ev hook.Event) hook.Result {
 					reason = "自动裁决拒绝"
 				}
 				g.interceptor.Log(ctx, intercept.ConvIDFromContext(ctx), dec, ev.ToolName, ev.Input, "denied")
+				errEvent(ctx, errev.ClassPolicyBlocked, ev.ToolName, reason)
 				return g.block(ev.ToolName, systemBlockMessage(reason), "")
 			}
 		}

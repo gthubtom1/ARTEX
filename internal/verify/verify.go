@@ -67,8 +67,17 @@ func Check(c Claim, opt Options) Verdict {
 	case hasHedging(ev):
 		g.OK = false
 		g.Reason = "证据里含猜测性措辞（可能/据说/未验证），这不是证据"
+	case CVEClaimWithoutTrace(ev):
+		g.OK = false
+		g.Reason = "证据只有版本号/CVE 断言，没有实际触发记录（需要请求行+响应片段，或命令+输出）"
 	default:
-		g.OK = true
+		if hits, ok := LooksLikeTrace(ev); ok {
+			g.OK = true
+			g.Reason = "命中痕迹：" + strings.Join(hits, "/")
+		} else {
+			g.OK = false
+			g.Reason = "证据里没有请求行/响应片段/命令输出的痕迹，无法对应到具体入口"
+		}
 	}
 	v.Gates = append(v.Gates, g)
 	if !g.OK {
@@ -109,7 +118,7 @@ func Check(c Claim, opt Options) Verdict {
 	//   任一门未过             → inferred（写进"待确认"，不写成结论）
 	//   全过                   → verified
 	switch {
-	case !g.OK && (ev == "" || hasHedging(ev)):
+	case !g.OK && (ev == "" || hasHedging(ev) || CVEClaimWithoutTrace(ev)):
 		v.Level = "rejected"
 		v.ProofLevel = "P1"
 	case !g.OK || !n.OK || !q.OK:

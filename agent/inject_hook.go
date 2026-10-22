@@ -23,6 +23,7 @@ type InjectConfig struct {
 	MaxRetries  int         `json:"max_retries"`
 	Custom      string      `json:"custom"`
 	PersonaMode string      `json:"persona_mode"` // cached（缺失时补）| every-turn
+	Preset      string      `json:"preset"`       // on（默认内置人设）| off（只用 Custom）
 }
 
 // InjectConfigFor 由 server 安装；nil = 默认 hybrid / 900 / 2。
@@ -45,6 +46,12 @@ func resolveInjectConfig() InjectConfig {
 		if got.PersonaMode != "" {
 			c.PersonaMode = got.PersonaMode
 		}
+		c.Preset = got.Preset
+	}
+	// 内置人设兜底：Custom 为空且 preset 未被关掉时，用随二进制发布的默认人设。
+	// 这是开箱即用的关键——没有这一段，新装用户的人设就是空的，注入层等于没开。
+	if strings.TrimSpace(c.Custom) == "" && inject.DefaultPersonaPresetOn(c.Preset) {
+		c.Custom = inject.DefaultPersona()
 	}
 	return c
 }
@@ -180,5 +187,7 @@ func WrapProvider(prov llm.Provider, goal func() string) llm.Provider {
 	inj := inject.NewInjector(prov, c.Mode, goal, c.MaxChars)
 	inj.Custom = c.Custom
 	inj.PersonaEveryTurn = c.PersonaMode == "every-turn"
+	// 人设正文每请求现取：设置页改完对正在跑的任务立刻生效。
+	inj.CustomFn = func() string { return resolveInjectConfig().Custom }
 	return inj
 }

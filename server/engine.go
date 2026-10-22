@@ -16,6 +16,7 @@ import (
 	"github.com/Autumn-27/artex/intercept"
 	"github.com/Autumn-27/artex/internal/audit"
 	"github.com/Autumn-27/artex/internal/errclass"
+	"github.com/Autumn-27/artex/internal/errev"
 	"github.com/Autumn-27/norma/harness"
 	"github.com/Autumn-27/norma/llm"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -1180,6 +1181,16 @@ func (e *Engine) runIntent(ctx context.Context, t *Task, name string, worker *ag
 	if err != nil {
 		cls := errclass.Classify(err, "")
 		log.Printf("[worker %s] intent %d: %v (class=%s; %s)", name, intent.ID, err, cls, errclass.Hint(cls))
+		// P8-8：把失败按五类落进 task_error_events，供任务页顶部聚合条使用。
+		// 分类口径优先看错误文本（目标拒绝/环境问题比 errclass 的通用分类更准）。
+		evClass := errev.ClassSelfError
+		switch {
+		case errev.LooksLikeEnvError(err.Error()):
+			evClass = errev.ClassEnvError
+		case errev.LooksLikeTargetBlocked(err.Error()):
+			evClass = errev.ClassTargetBlocked
+		}
+		errev.Emit(ctx, wTaskID, evClass, "worker:"+name, err.Error())
 		if e.audit != nil {
 			e.audit.LogFail(context.Background(), wTaskID, "worker:"+name, "intent", "", "run", err.Error(), nil)
 		}

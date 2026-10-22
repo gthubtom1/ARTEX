@@ -726,6 +726,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/stats", s.stats)
 	s.registerP2Routes(mux)     // 能力卡 / 持有台账 / 进度诊断 / 审计（只读面板）
+	s.registerErrorRoutes(mux)  // P8-8：任务级错误事件聚合（错误可解释面板）
 	s.registerPanelRoutes(mux)  // 环境 / 网络 / 知识（只读面板）
 	s.registerMCPRoutes(mux)    // MCP：知识库（kb_search / kb_read）
 	s.registerReplayRoutes(mux) // 回放看板：两个任务的成本/产出对比
@@ -3459,6 +3460,27 @@ func personaModeSetting(s *Server) string {
 	return "cached"
 }
 
+// injectPresetSetting 回显内置人设开关：on（默认，Custom 为空时用内置人设）| off。
+func injectPresetSetting(s *Server) string {
+	if s.settings != nil && inject.DefaultPersonaPresetOn(s.settings.String("inject.preset", "on")) {
+		return "on"
+	}
+	return "off"
+}
+
+// findingGateSetting 回显 report_finding 的三门质量闸档位：off|infer|strict。
+func findingGateSetting(s *Server) string {
+	if s.settings == nil {
+		return "infer"
+	}
+	switch v := strings.ToLower(strings.TrimSpace(s.settings.String("findings.verify_gate", "infer"))); v {
+	case "off", "strict":
+		return v
+	default:
+		return "infer"
+	}
+}
+
 func injectSetting(s *Server) string {
 	if s.settings == nil {
 		return "hybrid"
@@ -3504,13 +3526,17 @@ func (s *Server) settingsPayload() map[string]any {
 		"constraints_inject_worker":  s.constraintInjectWorker(),
 		// 实验功能:noa 模型驱动上下文压缩(默认关)。开启后平台接入的四类 agent 由 noa
 		// 接管上下文压缩,取代内置 compaction;每 run 读一次,对之后启动的 run 生效。
-		"noa_compaction":        s.m.NoaCompactionEnabled(),
-		"intercept_auto_decide": autoDecideSetting(s.m.pg),
-		"inject_mode":           injectSetting(s),
-		"inject_max_chars":      s.settings.Int("inject.max_chars", 900),
-		"inject_max_retries":    s.settings.Int("inject.max_retries", 2),
-		"inject_custom":         s.settings.String("inject.custom", ""),
-		"inject_persona_mode":   personaModeSetting(s),
+		"noa_compaction":              s.m.NoaCompactionEnabled(),
+		"intercept_auto_decide":       autoDecideSetting(s.m.pg),
+		"inject_mode":                 injectSetting(s),
+		"inject_max_chars":            s.settings.Int("inject.max_chars", 900),
+		"inject_max_retries":          s.settings.Int("inject.max_retries", 2),
+		"inject_custom":               s.settings.String("inject.custom", ""),
+		"inject_persona_mode":         personaModeSetting(s),
+		"inject_preset":               injectPresetSetting(s),
+		"findings_verify_gate":        findingGateSetting(s),
+		"inject_default_persona":      inject.DefaultPersona(),
+		"inject_default_persona_name": inject.DefaultPersonaName,
 		// 漏洞 IM 推送的全局项。渠道本身是独立资源，走 /api/notify/* 管理；
 		// 这里只放「作用于全部渠道」的三项。
 		"notify_enabled":             s.m.pg.GetBool(settingNotifyEnabled, true),
@@ -3598,6 +3624,8 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		InjectMaxRetries    *int    `json:"inject_max_retries"`
 		InjectCustom        *string `json:"inject_custom"`
 		InjectPersonaMode   *string `json:"inject_persona_mode"`
+		InjectPreset        *string `json:"inject_preset"`
+		FindingsVerifyGate  *string `json:"findings_verify_gate"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, 400, err.Error())
@@ -3673,6 +3701,36 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.settings != nil {
 			_ = s.settings.Set(r.Context(), "inject.custom", v)
+		}
+	}
+	if req.InjectPreset != nil {
+		v := strings.ToLower(strings.TrimSpace(*req.InjectPreset))
+		if v != "on" && v != "off" {
+			writeErr(w, 400, "inject_preset 只接受 on|off")
+			return
+		}
+		if err := s.m.pg.SetSetting("inject.preset", v); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "inject.preset", v)
+		}
+	}
+	if req.FindingsVerifyGate != nil {
+		v := strings.ToLower(strings.TrimSpace(*req.FindingsVerifyGate))
+		switch v {
+		case "off", "infer", "strict":
+		default:
+			writeErr(w, 400, "findings_verify_gate 只接受 off|infer|strict")
+			return
+		}
+		if err := s.m.pg.SetSetting("findings.verify_gate", v); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "findings.verify_gate", v)
 		}
 	}
 	if req.InjectMaxRetries != nil {
@@ -4255,6 +4313,7 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 			MaxRetries:  s.settings.Int("inject.max_retries", 2),
 			Custom:      s.settings.String("inject.custom", ""),
 			PersonaMode: s.settings.String("inject.persona_mode", "cached"),
+			Preset:      s.settings.String("inject.preset", "on"),
 		}
 	}
 	s.snapshots = snapshot.New(filepath.Join(dataDir, "snapshots"))
@@ -4291,6 +4350,10 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		_, err := s.netguard.Verify(c)
 		return err
 	})
+	// P8-8：guard 写错误事件时需要知道当前任务 id（只读，不参与判定）。
+	guard.TaskIDOf = func(c context.Context) int64 { return agent.RunInfoFrom(c).TaskID }
+	// P8-3：report_finding 的三门质量闸档位（每轮读，改完下一轮生效）。
+	agent.FindingGateMode = func() string { return s.settings.String("findings.verify_gate", "infer") }
 	// 执行面出口闸：所有会发包的执行器（execx/remote/recheck/replay）统一 fail-closed。
 	if os.Getenv("ARTEX_ALLOW_DIRECT") != "1" {
 		egress.Check = func(c context.Context) error {
@@ -4349,6 +4412,7 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 			return nil
 		})
 		go s.recheckLoop(ctx)
+		s.installErrevSink() // P8-0：任务级错误事件落库通道
 		log.Printf("[p2] gatechain/adviser/capability/creds/access/ledger wired (cred_key_set=%v)",
 			os.Getenv("ARTEX_CRED_KEY") != "")
 	}

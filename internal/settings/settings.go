@@ -48,6 +48,10 @@ var Defaults = map[string]string{
 	"inject.max_retries":  "2",      // 单次 run 最多做几次拒答重定向
 	"inject.custom":       "",       // 用户自定义破甲词/人设（整段原文）
 	"inject.persona_mode": "cached", // cached=缺失时补 | every-turn=每轮注入
+	"inject.preset":       "on",     // on=Custom 为空时用内置默认人设 | off=只用 Custom
+	// P8-3：report_finding 的三门质量闸（质量门，不是权限门）。
+	// off=不过门 | infer=证据不足改写为待验证事实（默认）| strict=inferred 也不入库
+	"findings.verify_gate": "infer",
 
 	// 审批自动裁决（off=完全保持原人工/模型路径；reviewer=本地规则自动裁决；allow_all=直接放行）
 	"intercept_auto_decide": "off",

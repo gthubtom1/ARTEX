@@ -28,6 +28,9 @@ type Injector struct {
 	// Custom 是用户人设/破甲词；PersonaEveryTurn=true 时每轮都带，否则只在上下文里缺失时补。
 	Custom           string
 	PersonaEveryTurn bool
+	// CustomFn（可选）：每次请求现取人设正文。设置后优先于 Custom，
+	// 这样在设置页改完人设，正在跑的任务下一轮就生效，不用重建 agent。
+	CustomFn func() string
 }
 
 // NewInjector 包装 provider；inner 为 nil 时 Stream/Complete 返回空实现。
@@ -52,8 +55,12 @@ func (p *Injector) Patch(req llm.CompletionRequest) llm.CompletionRequest {
 		return req
 	}
 	needCtx := p.mode.ShouldCheckRequest() && !requestHasMarker(req)
-	pm := PersonaMarker(p.Custom)
-	needPersona := strings.TrimSpace(p.Custom) != "" &&
+	custom := p.Custom
+	if p.CustomFn != nil {
+		custom = p.CustomFn()
+	}
+	pm := PersonaMarker(custom)
+	needPersona := strings.TrimSpace(custom) != "" &&
 		(p.PersonaEveryTurn || !requestHasText(req, pm))
 	if !needCtx && !needPersona {
 		return req
@@ -70,7 +77,7 @@ func (p *Injector) Patch(req llm.CompletionRequest) llm.CompletionRequest {
 		if block != "" {
 			block += string(rune(10)) + string(rune(10))
 		}
-		block += PersonaBlock(p.Custom)
+		block += PersonaBlock(custom)
 	}
 	if block == "" {
 		return req
