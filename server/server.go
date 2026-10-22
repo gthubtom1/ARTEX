@@ -3502,6 +3502,7 @@ func (s *Server) settingsPayload() map[string]any {
 		"inject_mode":           injectSetting(s),
 		"inject_max_chars":      s.settings.Int("inject.max_chars", 900),
 		"inject_max_retries":    s.settings.Int("inject.max_retries", 2),
+		"inject_custom":         s.settings.String("inject.custom", ""),
 		// 漏洞 IM 推送的全局项。渠道本身是独立资源，走 /api/notify/* 管理；
 		// 这里只放「作用于全部渠道」的三项。
 		"notify_enabled":             s.m.pg.GetBool(settingNotifyEnabled, true),
@@ -3587,6 +3588,7 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		InjectMode          *string `json:"inject_mode"`
 		InjectMaxChars      *int    `json:"inject_max_chars"`
 		InjectMaxRetries    *int    `json:"inject_max_retries"`
+		InjectCustom        *string `json:"inject_custom"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, 400, err.Error())
@@ -3634,6 +3636,20 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.settings != nil {
 			_ = s.settings.Set(r.Context(), "inject.max_chars", strconv.Itoa(n))
+		}
+	}
+	if req.InjectCustom != nil {
+		v := *req.InjectCustom
+		if len([]rune(v)) > 8000 {
+			writeErr(w, 400, "inject_custom 最长 8000 字符")
+			return
+		}
+		if err := s.m.pg.SetSetting("inject.custom", v); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "inject.custom", v)
 		}
 	}
 	if req.InjectMaxRetries != nil {
@@ -4214,6 +4230,7 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 			Mode:       inject.ParseMode(s.settings.String("inject.mode", "hybrid")),
 			MaxChars:   s.settings.Int("inject.max_chars", 900),
 			MaxRetries: s.settings.Int("inject.max_retries", 2),
+			Custom:     s.settings.String("inject.custom", ""),
 		}
 	}
 	s.snapshots = snapshot.New(filepath.Join(dataDir, "snapshots"))

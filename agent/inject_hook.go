@@ -21,6 +21,7 @@ type InjectConfig struct {
 	Mode       inject.Mode `json:"mode"`
 	MaxChars   int         `json:"max_chars"`
 	MaxRetries int         `json:"max_retries"`
+	Custom     string      `json:"custom"`
 }
 
 // InjectConfigFor 由 server 安装；nil = 默认 hybrid / 900 / 2。
@@ -39,6 +40,7 @@ func resolveInjectConfig() InjectConfig {
 		if got.MaxRetries >= 0 {
 			c.MaxRetries = got.MaxRetries
 		}
+		c.Custom = got.Custom
 	}
 	return c
 }
@@ -60,18 +62,19 @@ type InjectHook struct {
 	maxChars int
 	retries  int
 
-	used int
+	used   int
+	custom string
 }
 
 // NewInjectHook 构造；inner 可为 nil。
-func NewInjectHook(inner harness.HookRunner, mode inject.Mode, goal func() string, maxChars, maxRetries int) *InjectHook {
+func NewInjectHook(inner harness.HookRunner, mode inject.Mode, goal func() string, maxChars, maxRetries int, custom string) *InjectHook {
 	if maxChars <= 0 {
 		maxChars = 900
 	}
 	if maxRetries < 0 {
 		maxRetries = 0
 	}
-	return &InjectHook{inner: inner, mode: mode, goal: goal, maxChars: maxChars, retries: maxRetries}
+	return &InjectHook{inner: inner, mode: mode, goal: goal, maxChars: maxChars, retries: maxRetries, custom: custom}
 }
 
 func (h *InjectHook) PreToolUse(ctx context.Context, name string, input []byte) (bool, string, []byte) {
@@ -107,6 +110,10 @@ func (h *InjectHook) Stop(ctx context.Context, messages []llm.Message) (bool, []
 		goal = h.goal()
 	}
 	redirect := inject.Redirect(text, goal, h.maxChars)
+	if strings.TrimSpace(h.custom) != "" {
+		redirect = strings.TrimSpace(h.custom) + string(rune(10)) + redirect
+		redirect = clipRunes(redirect, h.maxChars)
+	}
 	if strings.TrimSpace(redirect) == "" {
 		return false, nil, ""
 	}
@@ -156,7 +163,7 @@ func WrapHooks(inner harness.HookRunner, goal func() string) harness.HookRunner 
 	if c.Mode == inject.ModeOff || (inner == nil && !c.Mode.ShouldRetryRefusal()) {
 		return inner
 	}
-	return NewInjectHook(inner, c.Mode, goal, c.MaxChars, c.MaxRetries)
+	return NewInjectHook(inner, c.Mode, goal, c.MaxChars, c.MaxRetries, c.Custom)
 }
 
 // WrapProvider 按当前配置给 provider 挂上「按需注入」装饰器（on-miss/always/hybrid）。
@@ -167,4 +174,12 @@ func WrapProvider(prov llm.Provider, goal func() string) llm.Provider {
 		return prov
 	}
 	return inject.NewInjector(prov, c.Mode, goal, c.MaxChars)
+}
+
+func clipRunes(s string, n int) string {
+	r := []rune(strings.TrimSpace(s))
+	if n <= 0 || len(r) <= n {
+		return string(r)
+	}
+	return string(r[:n]) + "…"
 }

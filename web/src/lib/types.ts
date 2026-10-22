@@ -989,6 +989,7 @@ export interface Settings {
   inject_mode?: "off" | "always" | "on-miss" | "on-refusal" | "hybrid";
   inject_max_chars?: number;
   inject_max_retries?: number;
+  inject_custom?: string;
   // ---- 漏洞 IM 推送（渠道本身是独立资源，见 /api/notify/*，这里只有三项全局配置）----
   notify_enabled?: boolean; // 推送总开关，默认开；用于维护期一键止血
   notify_public_base_url?: string; // 漏洞详情回链的外部访问地址；空=消息不带回链
