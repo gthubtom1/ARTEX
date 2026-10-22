@@ -90,10 +90,12 @@ function deltaTone(pp: number) {
   return "text-muted-foreground";
 }
 
-// 后端 /bench/runs 里的 delta_pass_rate 是两次通过率之差（0..1），
 // 展示统一换算成百分点（pp）。
+// delta_pass_rate 单位是**百分点(pp)**，与 internal/bench.Delta 同口径，不要再乘 100。
+// 2026-10-22 修：后端原先返回 0..1 比例、这里乘 100；两边口径不一致，谁改谁错。
 function deltaPpOf(row: BenchRunRow) {
-  return row.delta_pass_rate * 100;
+  const raw = row.delta_pass_rate ?? 0;
+  return Math.round(raw * 10) / 10;
 }
 
 function outcomeOf(c: BenchCaseResult) {
@@ -215,7 +217,9 @@ export default function BenchPage() {
 
   async function copyCommand() {
     const setName = latest?.set_name ?? "<set_name>";
-    const profile = latest?.model_profile ?? "<id>";
+    // 注意：--profile 要的是 llm_profile_id（数字），不是 model_profile（模型名）。
+    // 以前这里填的是 model_profile，复制出来的命令必然失败。
+    const profile = "<你的模型配置 id>";
     const cmd = `python scripts/bench/run.py --set ${setName} --profile ${profile}`;
     try {
       await navigator.clipboard.writeText(cmd);
@@ -283,7 +287,7 @@ export default function BenchPage() {
               <Stat label="Token" value={fmtTok(latest.total_tokens)} hint="总计" />
             </div>
             <p className="font-mono text-muted-foreground text-xs">
-              python scripts/bench/run.py --set {latest.set_name} --profile {latest.model_profile}
+              python scripts/bench/run.py --set {latest.set_name} --profile &lt;模型配置 id&gt;
             </p>
           </CardContent>
         </Card>

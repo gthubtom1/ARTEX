@@ -129,16 +129,18 @@ func (s *Server) benchIngest(w http.ResponseWriter, r *http.Request) {
 
 // benchRunRow 是列表里的一行（带环比）。
 type benchRunRow struct {
-	RunKey        string  `json:"run_key"`
-	SetName       string  `json:"set_name"`
-	ModelProfile  string  `json:"model_profile"`
-	Total         int     `json:"total"`
-	Passed        int     `json:"passed"`
-	PassRate      float64 `json:"pass_rate"`
-	DurationMS    int64   `json:"duration_ms"`
-	TotalTokens   int64   `json:"total_tokens"`
-	Notes         string  `json:"notes"`
-	CreatedAt     string  `json:"created_at"`
+	RunKey       string  `json:"run_key"`
+	SetName      string  `json:"set_name"`
+	ModelProfile string  `json:"model_profile"`
+	Total        int     `json:"total"`
+	Passed       int     `json:"passed"`
+	PassRate     float64 `json:"pass_rate"`
+	DurationMS   int64   `json:"duration_ms"`
+	TotalTokens  int64   `json:"total_tokens"`
+	Notes        string  `json:"notes"`
+	CreatedAt    string  `json:"created_at"`
+	// DeltaPassRate 是**百分点（pp）**，不是 0..1 比例。
+	// 口径与 internal/bench.Summary.DeltaPassRate 一致（那边也是 pp）。
 	DeltaPassRate float64 `json:"delta_pass_rate"`
 	DeltaDuration int64   `json:"delta_duration_ms"`
 	PrevRunKey    string  `json:"prev_run_key,omitempty"`
@@ -185,7 +187,10 @@ func (s *Server) benchListRuns(w http.ResponseWriter, r *http.Request) {
 			if prev.SetName != cur.SetName || prev.ModelProfile != cur.ModelProfile {
 				continue
 			}
-			cur.DeltaPassRate = cur.PassRate - prev.PassRate
+			// 单位统一成**百分点(pp)**：与 internal/bench.Summary.DeltaPassRate 同口径。
+			// 2026-10-22 修：这里原来返回 0..1 的比例，而 internal/bench.Delta 返回 ×100 的 pp，
+			// 同一个字段名两种单位 —— 前端被迫 ×100，任何按 pp 直接读的调用方都会错 100 倍。
+			cur.DeltaPassRate = (cur.PassRate - prev.PassRate) * 100
 			cur.DeltaDuration = cur.DurationMS - prev.DurationMS
 			cur.PrevRunKey = prev.RunKey
 			break
