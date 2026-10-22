@@ -3452,6 +3452,18 @@ func autoDecideSetting(pg *db.DB) string {
 	}
 }
 
+func injectSetting(s *Server) string {
+	if s.settings == nil {
+		return "hybrid"
+	}
+	switch v := strings.ToLower(strings.TrimSpace(s.settings.String("inject.mode", "hybrid"))); v {
+	case "off", "always", "on-miss", "on-refusal", "hybrid":
+		return v
+	default:
+		return "hybrid"
+	}
+}
+
 func (s *Server) settingsPayload() map[string]any {
 	on, backend, braveKey, tavilyKey, proxy := s.m.WebSearch()
 	pyStored, _, _ := s.m.pg.GetSetting(settingPythonInterp)
@@ -3487,6 +3499,9 @@ func (s *Server) settingsPayload() map[string]any {
 		// 接管上下文压缩,取代内置 compaction;每 run 读一次,对之后启动的 run 生效。
 		"noa_compaction":        s.m.NoaCompactionEnabled(),
 		"intercept_auto_decide": autoDecideSetting(s.m.pg),
+		"inject_mode":           injectSetting(s),
+		"inject_max_chars":      s.settings.Int("inject.max_chars", 900),
+		"inject_max_retries":    s.settings.Int("inject.max_retries", 2),
 		// 漏洞 IM 推送的全局项。渠道本身是独立资源，走 /api/notify/* 管理；
 		// 这里只放「作用于全部渠道」的三项。
 		"notify_enabled":             s.m.pg.GetBool(settingNotifyEnabled, true),
@@ -3569,6 +3584,9 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		NotifyDigestMins *int    `json:"notify_digest_interval_min"`
 		// 拦截自动裁决：off|reviewer|allow_all（用户可在系统设置页切换）。
 		InterceptAutoDecide *string `json:"intercept_auto_decide"`
+		InjectMode          *string `json:"inject_mode"`
+		InjectMaxChars      *int    `json:"inject_max_chars"`
+		InjectMaxRetries    *int    `json:"inject_max_retries"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, 400, err.Error())
@@ -3586,6 +3604,50 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.settings != nil {
 			_ = s.settings.Set(r.Context(), "intercept_auto_decide", v)
+		}
+	}
+	if req.InjectMode != nil {
+		v := strings.ToLower(strings.TrimSpace(*req.InjectMode))
+		switch v {
+		case "off", "always", "on-miss", "on-refusal", "hybrid":
+		default:
+			writeErr(w, 400, "inject_mode 只接受 off|always|on-miss|on-refusal|hybrid")
+			return
+		}
+		if err := s.m.pg.SetSetting("inject.mode", v); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "inject.mode", v)
+		}
+	}
+	if req.InjectMaxChars != nil {
+		n := *req.InjectMaxChars
+		if n < 200 || n > 4000 {
+			writeErr(w, 400, "inject_max_chars 范围 200–4000")
+			return
+		}
+		if err := s.m.pg.SetSetting("inject.max_chars", strconv.Itoa(n)); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "inject.max_chars", strconv.Itoa(n))
+		}
+	}
+	if req.InjectMaxRetries != nil {
+		n := *req.InjectMaxRetries
+		if n < 0 || n > 5 {
+			writeErr(w, 400, "inject_max_retries 范围 0–5")
+			return
+		}
+		if err := s.m.pg.SetSetting("inject.max_retries", strconv.Itoa(n)); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "inject.max_retries", strconv.Itoa(n))
 		}
 	}
 	if req.ConstraintsInjectPlanner != nil {

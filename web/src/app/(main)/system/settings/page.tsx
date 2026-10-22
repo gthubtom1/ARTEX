@@ -51,6 +51,9 @@ export default function SystemSettingsPage() {
   // 实验功能:noa 上下文压缩(默认关)。
   const [noaCompaction, setNoaCompaction] = React.useState(false);
   const [autoDecide, setAutoDecide] = React.useState<"off" | "reviewer" | "allow_all">("off");
+  const [injectMode, setInjectMode] = React.useState<"off" | "always" | "on-miss" | "on-refusal" | "hybrid">("hybrid");
+  const [injectChars, setInjectChars] = React.useState("900");
+  const [injectRetries, setInjectRetries] = React.useState("2");
   // 纯前端偏好：不走 /api/settings，直接读写 localStorage。
   const sendMode = useChatSendMode();
 
@@ -72,6 +75,9 @@ export default function SystemSettingsPage() {
     setInjectWorker(s.constraints_inject_worker !== false);
     setNoaCompaction(!!s.noa_compaction);
     setAutoDecide((s.intercept_auto_decide as "off" | "reviewer" | "allow_all") ?? "off");
+    setInjectMode((s.inject_mode as typeof injectMode) ?? "hybrid");
+    setInjectChars(String(s.inject_max_chars ?? 900));
+    setInjectRetries(String(s.inject_max_retries ?? 2));
   }, []);
 
   const saveWorkers = () => {
@@ -174,6 +180,10 @@ export default function SystemSettingsPage() {
         setAutoDecide(prev);
         toast.error(`保存失败：${(e as Error).message}`);
       });
+  };
+
+  const saveInject = (patch: { inject_mode?: typeof injectMode; inject_max_chars?: number; inject_max_retries?: number }) => {
+    api.setSettings(patch).then(apply).catch((e) => toast.error(`保存失败：${(e as Error).message}`));
   };
 
   const toggleNoaCompaction = (v: boolean) => {
@@ -497,6 +507,50 @@ export default function SystemSettingsPage() {
               <option value="reviewer">reviewer（规则裁决）</option>
               <option value="allow_all">allow_all（全部放行）</option>
             </select>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-4 break-inside-avoid md:mb-6">
+          <CardHeader>
+            <CardTitle>注入层（防拒答）</CardTitle>
+            <CardDescription>
+              hybrid（默认）= 每轮带执行上下文 + 拒答时自动重定向；on-miss = 每次模型请求前检查上下文指纹，丢了就补；
+              on-refusal = 只在拒答时重定向；always = 每轮强制带；off = 关闭。max_chars 控制单次注入长度，max_retries 控制单次 run 最多重定向几次。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-3">
+            <Label htmlFor="inject-mode" className="text-sm font-normal text-muted-foreground">模式</Label>
+            <select
+              id="inject-mode"
+              className="h-8 rounded-md border bg-background px-2 text-sm"
+              value={injectMode}
+              disabled={!loaded}
+              onChange={(e) => { const v = e.target.value as typeof injectMode; setInjectMode(v); saveInject({ inject_mode: v }); }}
+            >
+              <option value="off">off</option>
+              <option value="on-miss">on-miss</option>
+              <option value="on-refusal">on-refusal</option>
+              <option value="always">always</option>
+              <option value="hybrid">hybrid（默认）</option>
+            </select>
+            <Label htmlFor="inject-chars" className="text-sm font-normal text-muted-foreground">最大字符</Label>
+            <input
+              id="inject-chars"
+              className="h-8 w-24 rounded-md border bg-background px-2 text-sm"
+              value={injectChars}
+              disabled={!loaded}
+              onChange={(e) => setInjectChars(e.target.value)}
+              onBlur={() => saveInject({ inject_max_chars: Number(injectChars) || 900 })}
+            />
+            <Label htmlFor="inject-retries" className="text-sm font-normal text-muted-foreground">最多重定向</Label>
+            <input
+              id="inject-retries"
+              className="h-8 w-20 rounded-md border bg-background px-2 text-sm"
+              value={injectRetries}
+              disabled={!loaded}
+              onChange={(e) => setInjectRetries(e.target.value)}
+              onBlur={() => saveInject({ inject_max_retries: Number(injectRetries) || 0 })}
+            />
           </CardContent>
         </Card>
 

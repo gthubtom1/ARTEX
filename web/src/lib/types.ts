@@ -985,6 +985,10 @@ export interface Settings {
   noa_compaction?: boolean;
   // 拦截自动裁决：off=全部人工/模型审批；reviewer=规则自动放行/拒绝（拿不准才挂起）；allow_all=全部放行。
   intercept_auto_decide?: "off" | "reviewer" | "allow_all";
+  // 注入层（防拒答）：off|always|on-miss|on-refusal|hybrid
+  inject_mode?: "off" | "always" | "on-miss" | "on-refusal" | "hybrid";
+  inject_max_chars?: number;
+  inject_max_retries?: number;
   // ---- 漏洞 IM 推送（渠道本身是独立资源，见 /api/notify/*，这里只有三项全局配置）----
   notify_enabled?: boolean; // 推送总开关，默认开；用于维护期一键止血
   notify_public_base_url?: string; // 漏洞详情回链的外部访问地址；空=消息不带回链
