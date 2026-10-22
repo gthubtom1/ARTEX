@@ -10,6 +10,9 @@ cd "$(dirname "$0")/.."
 echo "== 0/3 链路审计（导航↔页面↔路由↔p2api）=="
 python scripts/audit_links.py
 
+echo "== 0.5/3 设置归属审计（同一个 setting 键不许被两个页面写）=="
+python scripts/settings_owners.py
+
 echo "== 1/3 go build ./... =="
 go build ./...
 
@@ -22,7 +25,8 @@ if [ -d web/node_modules ]; then
   ( cd web && ./node_modules/.bin/tsc --noEmit -p tsconfig.json )
   ( cd web && NODE_ENV=production NEXT_EXPORT=1 ./node_modules/.bin/next build >/tmp/artex-next-build.log 2>&1 )
   for page in function/capabilities function/owned function/knowledge function/report function/data \
-              system/audit system/environment system/network system/replay system/verifier; do
+              system/audit system/environment system/network system/replay system/verifier \
+              system/bench system/onboard system/injection; do
     grep -q "/$page" /tmp/artex-next-build.log || { echo "缺少页面 /$page"; exit 1; }
   done
   echo "前端构建 OK（10 个新增页面 + 既有页面）"

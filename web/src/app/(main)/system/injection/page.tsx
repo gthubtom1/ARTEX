@@ -37,6 +37,8 @@ export default function InjectionPage() {
   const [custom, setCustom] = React.useState("");
   const [personaMode, setPersonaMode] = React.useState<"cached" | "every-turn">("cached");
   const [preset, setPreset] = React.useState<"on" | "off">("on");
+  const [maxChars, setMaxChars] = React.useState("900");
+  const [maxRetries, setMaxRetries] = React.useState("2");
   const [presetText, setPresetText] = React.useState("");
   const [presetName, setPresetName] = React.useState("内置人设");
   const [loaded, setLoaded] = React.useState(false);
@@ -47,6 +49,8 @@ export default function InjectionPage() {
     setCustom(String(s.inject_custom ?? ""));
     setPersonaMode((s.inject_persona_mode as "cached" | "every-turn") ?? "cached");
     setPreset((s.inject_preset as "on" | "off") ?? "on");
+    setMaxChars(String(s.inject_max_chars ?? 900));
+    setMaxRetries(String(s.inject_max_retries ?? 2));
     setPresetText(String(s.inject_default_persona ?? ""));
     setPresetName(String(s.inject_default_persona_name ?? "内置人设"));
   }, []);
@@ -71,6 +75,8 @@ export default function InjectionPage() {
         inject_custom: custom,
         inject_persona_mode: personaMode,
         inject_preset: preset,
+        inject_max_chars: Math.min(4000, Math.max(200, Number(maxChars) || 900)),
+        inject_max_retries: Math.min(5, Math.max(0, Number(maxRetries) || 0)),
       } as never);
       apply(s as unknown as Payload);
       toast.success("已保存（下一轮模型请求即生效，不用重启任务）");
@@ -236,6 +242,42 @@ export default function InjectionPage() {
           {enabled ? mode : "off"} · {personaMode} · {custom.trim() === "" && preset === "on" ? "内置人设" : `${custom.length} 字符`}
         </span>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">高级（一般不用动）</CardTitle>
+          <CardDescription>
+            这两个只影响「执行上下文块」和「拒答重定向」，不影响上面的人设正文。
+            <b>注：本页是注入层的唯一入口</b>——系统设置页里已经不再重复放这些项，避免两处互相覆盖。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">单次块最大字符</span>
+            <input
+              type="number"
+              min={200}
+              max={4000}
+              className="h-8 w-24 rounded-md border bg-background px-2 text-sm"
+              value={maxChars}
+              disabled={!loaded}
+              onChange={(e) => setMaxChars(e.target.value)}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">单次 run 最多重定向</span>
+            <input
+              type="number"
+              min={0}
+              max={5}
+              className="h-8 w-20 rounded-md border bg-background px-2 text-sm"
+              value={maxRetries}
+              disabled={!loaded}
+              onChange={(e) => setMaxRetries(e.target.value)}
+            />
+          </label>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-2">

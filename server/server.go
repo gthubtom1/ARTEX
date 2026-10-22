@@ -4377,7 +4377,7 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 			_, err := s.netguard.Verify(c)
 			return err
 		}
-		egress.ProxyEnv = proxyEnvsFromSettings(s.settings)
+		egress.ProxyEnv = s.proxyEnvs()
 	} else {
 		egress.Check = nil
 		egress.ProxyEnv = nil // 明确允许直连时不再注入代理环境变量
@@ -4480,9 +4480,10 @@ func snapshotPaths(tool string, in json.RawMessage) []string {
 // （仅限内网/本地靶场；默认必须经代理，fail-closed）。
 func (s *Server) egressConfig() netguard.Config {
 	requireProxy := os.Getenv("ARTEX_ALLOW_DIRECT") != "1"
+	httpProxy, socksProxy := s.egressProxy()
 	cfg := netguard.Config{
-		ProxyHTTP:    s.settings.String("net.proxy_http", ""),
-		ProxySOCKS:   s.settings.String("net.proxy_socks", ""),
+		ProxyHTTP:    httpProxy,
+		ProxySOCKS:   socksProxy,
 		Controller:   s.settings.String("net.clash_controller", ""),
 		Secret:       s.settings.String("net.clash_secret", ""),
 		VerifyURLs:   s.settings.List("net.verify_urls"),
@@ -4491,13 +4492,36 @@ func (s *Server) egressConfig() netguard.Config {
 	return cfg
 }
 
-// proxyEnvsFromSettings 把出口参数转成子进程可用的代理环境变量。
-func proxyEnvsFromSettings(st *settings.Store) []string {
-	if st == nil {
-		return nil
+// egressProxy 解析"出口到底走哪个代理"。
+//
+// 为什么需要回落：UI 里唯一能改代理的地方是「系统设置 → 全局出口代理」，
+// 它写的是 `global_proxy`；而 netguard 读的是 `net.proxy_http` / `net.proxy_socks`。
+// 这两个键名不统一的结果是：用户在界面上配好代理，netguard 依然读到空值 →
+// RequireProxy=true → 任务一建就 paused "出口未就绪"，而界面上没有任何地方能修。
+// 现在统一成：`net.proxy_*` 是给高级用的覆盖项，留空就回落到 `global_proxy`。
+func (s *Server) egressProxy() (httpProxy, socks string) {
+	// 用户显式设过「全局出口代理」（UI 唯一写入口）就以它为准。
+	// 这一条是必须的：net.proxy_http/net.proxy_socks 在 settings 里有硬编码默认值
+	// （127.0.0.1:7897），所以"留空才回落"永远不会触发 —— 用户在界面上把代理改成
+	// 别的端口，netguard 却还在验 7897，表现为"界面配了、任务还是说出口没就绪"。
+	// 现在优先级：global_proxy（用户意图）> net.proxy_*（高级覆盖/历史默认）。
+	if s.m != nil {
+		if g := strings.TrimSpace(s.m.GlobalProxy()); g != "" {
+			// socks5:// 也交给 http.Transport.Proxy 处理（Go 原生支持 socks5 scheme），
+			// 所以统一放 ProxyHTTP，ProxySOCKS 只作记录。
+			return g, ""
+		}
 	}
-	httpProxy := strings.TrimSpace(st.String("net.proxy_http", ""))
-	socks := strings.TrimSpace(st.String("net.proxy_socks", ""))
+	if s.settings != nil {
+		httpProxy = strings.TrimSpace(s.settings.String("net.proxy_http", ""))
+		socks = strings.TrimSpace(s.settings.String("net.proxy_socks", ""))
+	}
+	return httpProxy, socks
+}
+
+// proxyEnvs 把出口参数转成子进程可用的代理环境变量。
+func (s *Server) proxyEnvs() []string {
+	httpProxy, socks := s.egressProxy()
 	all := httpProxy
 	if all == "" {
 		all = socks
