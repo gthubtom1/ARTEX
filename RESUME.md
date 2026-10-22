@@ -11,6 +11,51 @@
 
 > 换会话/换模型/上下文压缩后用这一页续接。**不需要旧对话 ID**——进度全在磁盘上。
 
+## P8 状态（2026-10-22，v0.6.0-p8）
+
+**代码层面 P8-0～P8-9 全部落地**，成品 `dist/artex.exe`（55MB，前端内嵌）。
+逐格进度与证据在 `docs/02-P8执行手册.md` §9（39 格已勾，10 格需要外部环境）。
+
+已完成（可复核）：
+
+```
+P8-0  db/migrations/0004_p8.sql + internal/errev（五类错误事件 + 4 个写入点）
+P8-1  internal/bench + bench/cases(10 题) + bench/compose.yml + scripts/bench/run.py + /system/bench 页面
+P8-3  internal/findinggate 三档闸 + agent/finding_gate.go（接进 report_finding）
+      ★ internal/verify 新增 trace 判定：只有版本号/CVE 断言一律 rejected（原来会判 verified）
+P8-4  POST /api/tasks/quickstart + GET /api/egress/check + 首页 QuickStartCard
+P8-5  internal/ledger/nextstate（3 次失败→lost）+ frozen_asset_ids 落库与消费
+P8-6  netguard.VerifyCached + guard.EgressCheck（Bash/WebFetch 也要过出口闸）
+P8-7  creds.LoadOrCreateKey + envfilter（凭据密钥不再进子进程）+ /system/onboard 向导
+P8-8  task_error_events + /api/tasks/{id}/errors + 任务详情顶部聚合条
+P8-9  internal/llmmodel 三档 + /api/llm/tier-suggest
+P8-2  内置默认人设 + 每请求现取 + 主对话/对话页全覆盖
+```
+
+**必须由人补的一次性验证**（本机没有 PostgreSQL / docker，代码写完了但跑不了）：
+
+| 要验什么 | 怎么验 |
+|---|---|
+| 0004 迁移在真 PG 上执行 | 起 PG → 启动 artex → 看日志无迁移错误 |
+| 10 个靶标 + 基线跑批 | `docker compose -f bench/compose.yml up -d` → `python scripts/bench/run.py --set smoke` |
+| 贴 URL 3 分钟出第一张卡 | 首页 QuickStartCard 贴 `http://127.0.0.1:18083/`（DSVW） |
+| 台账 3 次失败 → lost | 关掉靶标端口，等复查 3 轮 |
+| 换目标后不再派单 | 能力菜单点"换目标"，看 planner 是否被拒 |
+| 删 cred.key 重启旧凭据仍可解 | 删 `data/cred.key` 前先存一条凭据 |
+| 拔代理 → 任务页出现"环境 ×N" | `interrupt` 代理后跑任务 |
+
+验证命令（每次提交前）：
+
+```bash
+go build ./... && go vet ./agent/... ./server/... ./guard/... ./internal/...
+go test ./agent/ ./guard/ ./internal/... -count=1
+cd web && npx tsc --noEmit
+python scripts/audit_links.py          # 必须 AUDIT_RESULT PASS
+bash scripts/package_local.sh v0.6.0-p8
+```
+
+---
+
 ## 项目路径
 
 ```
