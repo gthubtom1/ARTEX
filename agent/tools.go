@@ -2140,7 +2140,6 @@ func (t *ToolSet) PlannerTools() []actool.CoreTool {
 		// list_untested_assets：按需查本任务范围内未测资产(类型+分页)，自行决定补测。
 		t.listUntestedAssets(),
 	}
-	out = append(out, t.AdapterTools()...)
 	out = append(out, t.P2PlannerTools()...)
 	return out
 }

@@ -19,7 +19,7 @@ func TestP2ToolsRegistered(t *testing.T) {
 	for _, tl := range ts.PlannerTools() {
 		planner[tl.Name()] = true
 	}
-	for _, want := range []string{"rank_intents", "diagnose_progress", "list_capabilities", "owned_list", "nmap_scan", "httpx_probe", "nuclei_scan", "owned_due"} {
+	for _, want := range []string{"rank_intents", "diagnose_progress", "list_capabilities", "owned_list", "owned_due", "route_resolve"} {
 		if !planner[want] {
 			t.Fatalf("planner missing tool %q", want)
 		}
@@ -31,7 +31,7 @@ func TestP2ToolsRegistered(t *testing.T) {
 	}
 	for _, want := range []string{"record_capability", "verify_claim", "cred_add", "cred_reuse_plan",
 		"session_register", "session_lease", "owned_register", "owned_check", "owned_cleanup",
-		"privesc_plan", "lateral_plan", "route_plan",
+		"privesc_plan", "lateral_plan", "route_plan", "nmap_scan", "httpx_probe", "nuclei_scan",
 		"privesc_run", "lateral_run", "cleanup_run", "data_locate", "cred_harvest",
 		"session_exec", "cred_reuse_run", "route_resolve", "data_mask"} {
 		if !worker[want] {

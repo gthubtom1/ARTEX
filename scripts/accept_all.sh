@@ -7,6 +7,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+echo "== 0/3 链路审计（导航↔页面↔路由↔p2api）=="
+python scripts/audit_links.py
+
 echo "== 1/3 go build ./... =="
 go build ./...
 
