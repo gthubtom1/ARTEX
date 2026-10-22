@@ -56,6 +56,13 @@ var Defaults = map[string]string{
 	// 审批自动裁决（off=完全保持原人工/模型路径；reviewer=本地规则自动裁决；allow_all=直接放行）
 	"intercept_auto_decide": "off",
 
+	// 实验角色（D2 决策：留代码、默认关、UI 标注「实验」）。
+	// 真靶场 25 分钟实测：adviser 只触发 1 次且无可见影响、verifier 0 次；
+	// 三门校验（零 token）已经把幻觉拦住了。关掉 = 完全不做额外 LLM 调用；
+	// 确定性停顿检测 / hint 写入 / 三门校验都不依赖这两个开关。
+	"adviser.enabled":  "false", // LLM 顾问：停顿检测命中后额外问一次强模型
+	"verifier.enabled": "false", // LLM 复核：每轮规划后对 finding 做对抗式复核
+
 	// 复查
 	"asset.recheck_hours":   "24",
 	"asset.recheck_minutes": "60", // 复查执行器轮询间隔（0=关闭）

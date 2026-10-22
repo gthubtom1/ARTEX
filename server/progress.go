@@ -12,7 +12,21 @@ import (
 	"github.com/Autumn-27/artex/agent"
 	"github.com/Autumn-27/artex/db"
 	"github.com/Autumn-27/artex/internal/adviser"
+	"github.com/Autumn-27/artex/internal/stall"
 )
+
+// shouldConsultLLMAdviser 决定本轮的停顿是否需要额外 LLM 顾问。
+// 两个条件：确定性检测命中（rep.Hit）且用户在设置里开了 adviser.enabled。
+// 默认关：关掉时返回 false，调用点完全不碰 LLM；检测与规则 hint 照常。
+func (s *Server) shouldConsultLLMAdviser(rep stall.Report) bool {
+	return rep.Hit() && s.adviserLLMEnabled()
+}
+
+// adviserLLMEnabled 读 D2 的 adviser.enabled 开关。默认 false，
+// settings 为 nil 时也按关处理（宁可不调，也不能凭空花 token）。
+func (s *Server) adviserLLMEnabled() bool {
+	return s.settings != nil && s.settings.Bool("adviser.enabled", false)
+}
 
 // progressHook 是每轮规划之后的反跑偏闭环（best-effort）：
 //  1. 确定性停顿检测 → 顾问诊断（LLM 顾问可用时优先，失败回落规则）→ 可执行 hint 写图并唤醒 planner；
@@ -41,11 +55,18 @@ func (s *Server) progressHook(m *Manager) func(context.Context, *Task) error {
 		}
 		d := adviser.Diagnose(rep, led, neg)
 		d.Source = "rule"
-		if rep.Hit() {
+		// D2：adviser 默认关。关着时**完全不调 LLM**（省 token），
+		// 但上面的 stall 检测与下面的 hint 写入照常跑 —— 那部分不花 token。
+		// 开关由 shouldConsultLLMAdviser 读 settings（默认为 false）。
+		if s.shouldConsultLLMAdviser(rep) {
 			if llmD, ok := s.tryLLMAdviser(ctx, t, rep, led, neg); ok {
 				d = llmD
 			}
 		}
+		// 一行诊断：把本轮两个实验角色的开关状态写进日志。D2 默认关，
+		// 出问题时能直接看出是“没检测到停顿”还是“开关没开”，不必猜。
+		log.Printf("[progress] task %s 停顿=%v adviser_llm=%v verifier_llm=%v",
+			t.ID, rep.Stuck, s.adviserLLMEnabled(), s.verifierLLMEnabled())
 		wrote := 0
 		for _, h := range d.Hints {
 			if ok, _ := tsx.AddHintOnce(ctx, h); ok {
@@ -93,6 +114,8 @@ func (s *Server) progressHook(m *Manager) func(context.Context, *Task) error {
 		}
 
 		// 独立角色复核：证据不够就降级（每任务 5 分钟最多一次）。
+		// D2：verifier 默认关，关着时 verifierPass 内部直接返回 0（零 LLM、零 DB 查询）。
+		// 人工手动触发走 verifierPassNow，不受该开关影响。
 		if n := s.verifierPass(ctx, t); n > 0 {
 			log.Printf("[progress] task %s verifier 复核 %d 条 finding", t.ID, n)
 		}

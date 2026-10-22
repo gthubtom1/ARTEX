@@ -19,6 +19,9 @@ import (
 //
 // 与三门校验的分工：三门是零 token 的确定性门槛；这里是"第二个视角"，
 // 只判断证据是否支持结论，并明确写出"还缺什么"。每任务 5 分钟最多一次。
+//
+// D2 决策：本角色默认关（settings "verifier.enabled"=false，真靶场 25 分钟 0 次调用）。
+// 自动路径（verifierPass）读开关；手动路径（verifierPassNow）不受开关影响。
 
 type verifierGate struct {
 	mu   sync.Mutex
@@ -81,12 +84,32 @@ func findingsForVerifier(nodes []*db.Node) []findingForReview {
 	return out
 }
 
-// verifierPass 跑一轮复核。返回本轮新增的复核条数。
+// verifierLLMEnabled 读 D2 的 verifier.enabled 开关。默认 false；
+// settings 为 nil 时按关处理。
+func (s *Server) verifierLLMEnabled() bool {
+	return s.settings != nil && s.settings.Bool("verifier.enabled", false)
+}
+
+// verifierPass 是「自动复核」入口：受 verifier.enabled 开关控制（D2：默认关）。
+// 关着时直接返回 0，连冷却门禁与 DB 查询都不做 —— 零 LLM、零查询。
+// 需要人工强制复核时调 verifierPassNow（人点了就要跑，不受开关影响）。
 func (s *Server) verifierPass(ctx context.Context, t *Task) int {
-	if s.p2 == nil || s.p2.DB == nil || t == nil || t.Store == nil {
+	if !s.verifierLLMEnabled() {
+		return 0
+	}
+	return s.verifierPassNow(ctx, t)
+}
+
+// verifierPassNow 无视 verifier.enabled 跑一轮复核（手动触发用）。
+// 返回本轮新增的复核条数。
+func (s *Server) verifierPassNow(ctx context.Context, t *Task) int {
+	if t == nil {
 		return 0
 	}
 	if !s.verifierCooldown.allow(t.ID, 5*time.Minute) {
+		return 0
+	}
+	if s.p2 == nil || s.p2.DB == nil || t.Store == nil {
 		return 0
 	}
 	nodes, err := t.Store.ListByKind(db.KindFinding, 50)

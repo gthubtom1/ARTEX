@@ -36,8 +36,6 @@ export default function SystemSettingsPage() {
   const [savingTavilyKey, setSavingTavilyKey] = React.useState(false);
   const [proxyInput, setProxyInput] = React.useState("");
   const [savingProxy, setSavingProxy] = React.useState(false);
-  const [globalProxyInput, setGlobalProxyInput] = React.useState("");
-  const [savingGlobalProxy, setSavingGlobalProxy] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -50,6 +48,9 @@ export default function SystemSettingsPage() {
   const [injectWorker, setInjectWorker] = React.useState(true);
   // 实验功能:noa 上下文压缩(默认关)。
   const [noaCompaction, setNoaCompaction] = React.useState(false);
+  // 实验角色（D2）：adviser / verifier 默认关，关掉时零额外 LLM 调用。
+  const [adviserEnabled, setAdviserEnabled] = React.useState(false);
+  const [verifierEnabled, setVerifierEnabled] = React.useState(false);
   const [autoDecide, setAutoDecide] = React.useState<"off" | "reviewer" | "allow_all">("off");
   // 纯前端偏好：不走 /api/settings，直接读写 localStorage。
   const sendMode = useChatSendMode();
@@ -65,12 +66,13 @@ export default function SystemSettingsPage() {
     setBraveKeySet(!!s.brave_key_set);
     setTavilyKeySet(!!s.tavily_key_set);
     setProxyInput(s.web_search_proxy ?? "");
-    setGlobalProxyInput(s.global_proxy ?? "");
     setPyInterp(s.python_interpreter ?? "");
     setWorkers(String(s.workers ?? 3));
     setInjectPlanner(s.constraints_inject_planner !== false);
     setInjectWorker(s.constraints_inject_worker !== false);
     setNoaCompaction(!!s.noa_compaction);
+    setAdviserEnabled(!!s.adviser_enabled);
+    setVerifierEnabled(!!s.verifier_enabled);
     setAutoDecide((s.intercept_auto_decide as "off" | "reviewer" | "allow_all") ?? "off");
   }, []);
 
@@ -192,6 +194,35 @@ export default function SystemSettingsPage() {
       });
   };
 
+  // 实验角色开关（D2）：默认关，关着时后端不会发起任何额外 LLM 调用。
+  const toggleAdviser = (v: boolean) => {
+    setAdviserEnabled(v); // optimistic
+    api
+      .setSettings({ adviser_enabled: v })
+      .then((s) => {
+        apply(s);
+        toast.success(v ? "已开启 LLM 顾问（实验）" : "已关闭 LLM 顾问（默认）");
+      })
+      .catch((e) => {
+        setAdviserEnabled(!v); // revert on failure
+        toast.error(`保存失败：${(e as Error).message}`);
+      });
+  };
+
+  const toggleVerifier = (v: boolean) => {
+    setVerifierEnabled(v); // optimistic
+    api
+      .setSettings({ verifier_enabled: v })
+      .then((s) => {
+        apply(s);
+        toast.success(v ? "已开启 LLM 复核（实验）" : "已关闭 LLM 复核（默认）");
+      })
+      .catch((e) => {
+        setVerifierEnabled(!v); // revert on failure
+        toast.error(`保存失败：${(e as Error).message}`);
+      });
+  };
+
   // Persist a web-search patch (enable and/or backend). Optimistic with refetch.
   const saveWebSearch = (patch: Partial<Settings>) => {
     setSaving(true);
@@ -247,18 +278,6 @@ export default function SystemSettingsPage() {
       })
       .catch((e) => toast.error("保存失败：" + (e as Error).message))
       .finally(() => setSavingProxy(false));
-  };
-
-  const saveGlobalProxy = () => {
-    setSavingGlobalProxy(true);
-    api
-      .setSettings({ global_proxy: globalProxyInput.trim() })
-      .then((s) => {
-        apply(s);
-        toast.success(globalProxyInput.trim() ? "已保存全局代理" : "已清除全局代理（改为直连）");
-      })
-      .catch((e) => toast.error("保存失败：" + (e as Error).message))
-      .finally(() => setSavingGlobalProxy(false));
   };
 
   // Run a real "test" search ("test") against the CURRENT form values (backend +
@@ -370,47 +389,6 @@ export default function SystemSettingsPage() {
         <Card className="mb-4 break-inside-avoid md:mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <RadioTowerIcon className="size-4" />
-              全局代理
-            </CardTitle>
-            <CardDescription>
-              所有 Agent 的<b>目标流量</b>经此代理出网（隐藏源 IP / 走跳板）。支持 <b>http / https / socks5</b>，可带{" "}
-              <code>user:pass</code> 认证。留空=直连。
-              <br />
-              开启<b>流量捕获</b>时，它作为记录代理的<b>上游</b>（流量仍全量落库，再经此代理出网）；关闭捕获时，直接注入
-              Agent 的 bash / WebFetch 出网。与网络搜索代理、LLM 代理相互独立。
-              <br />
-              <b>提示</b>：socks5 在<b>关闭捕获</b>时依赖各命令行工具对 <code>ALL_PROXY</code> 的支持（curl
-              可用，部分工具可能忽略）； 若主要用 socks5，建议开启流量捕获——此路径由 MITM
-              亲自拨号，工具无感知、稳定生效。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <Label htmlFor="global-proxy" className="text-sm font-normal text-muted-foreground">
-              代理地址
-            </Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="global-proxy"
-                autoComplete="off"
-                placeholder="socks5://user:pass@host:1080 或 http://host:port（留空=直连）"
-                value={globalProxyInput}
-                disabled={!loaded || savingGlobalProxy}
-                onChange={(e) => setGlobalProxyInput(e.target.value)}
-              />
-              <Button type="button" onClick={saveGlobalProxy} disabled={!loaded || savingGlobalProxy}>
-                保存
-              </Button>
-            </div>
-            <p className="text-muted-foreground text-xs">
-              {globalProxyInput.trim() ? "已配置 · 所有目标流量经此代理出网" : "未配置 · 目标流量直连出网"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="mb-4 break-inside-avoid md:mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
               <ShieldAlertIcon className="size-4" />
               操作约束注入
             </CardTitle>
@@ -461,18 +439,59 @@ export default function SystemSettingsPage() {
               <b>规划者 / 执行者 / 主 Agent / 对话</b>）改用 noa 接管上下文，取代内置压缩，
               压缩原文会归档到任务工作目录下便于回溯。切换即时生效（对之后启动的运行生效），无需重建 Agent；
               关闭后立即恢复内置压缩。
+              <br />
+              <b>LLM 顾问 / LLM 复核</b>：两个独立角色（agentKey=<code>adviser</code> / <code>verifier</code>），
+              默认关。真靶场 25 分钟实测中顾问只触发 1 次且无可见影响、复核 0 次，三门校验（零 token）已经把幻觉拦住了。
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex items-center justify-between gap-4">
-            <Label htmlFor="noa-compaction" className="text-sm font-normal text-muted-foreground">
-              noa 上下文压缩{noaCompaction ? " · 已开启" : " · 已关闭"}
-            </Label>
-            <Switch
-              id="noa-compaction"
-              checked={noaCompaction}
-              disabled={!loaded}
-              onCheckedChange={toggleNoaCompaction}
-            />
+          <CardContent className="flex flex-col gap-5">
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="noa-compaction" className="text-sm font-normal text-muted-foreground">
+                noa 上下文压缩{noaCompaction ? " · 已开启" : " · 已关闭"}
+              </Label>
+              <Switch
+                id="noa-compaction"
+                checked={noaCompaction}
+                disabled={!loaded}
+                onCheckedChange={toggleNoaCompaction}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="adviser-enabled" className="text-sm font-normal text-muted-foreground">
+                  LLM 顾问（实验·默认关）{adviserEnabled ? " · 已开启" : " · 已关闭"}
+                </Label>
+                <Switch
+                  id="adviser-enabled"
+                  aria-describedby="adviser-enabled-description"
+                  checked={adviserEnabled}
+                  disabled={!loaded}
+                  onCheckedChange={toggleAdviser}
+                />
+              </div>
+              <p id="adviser-enabled-description" className="text-muted-foreground text-xs">
+                打开后每 10 分钟最多一次（仅在停顿检测命中时）会对任务做一次额外 LLM 判断，增加 token
+                消耗；确定性的停顿检测与纠正提示写入不依赖它，默认关不影响质量。
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="verifier-enabled" className="text-sm font-normal text-muted-foreground">
+                  LLM 复核（实验·默认关）{verifierEnabled ? " · 已开启" : " · 已关闭"}
+                </Label>
+                <Switch
+                  id="verifier-enabled"
+                  aria-describedby="verifier-enabled-description"
+                  checked={verifierEnabled}
+                  disabled={!loaded}
+                  onCheckedChange={toggleVerifier}
+                />
+              </div>
+              <p id="verifier-enabled-description" className="text-muted-foreground text-xs">
+                打开后每 5 分钟最多一次（每轮规划后）会对已上报的 finding 做一次额外 LLM 复核，并可能据此降档能力卡，
+                增加 token 消耗；report_finding 的三门校验不依赖它，默认关不影响质量。
+              </p>
+            </div>
           </CardContent>
         </Card>
 
