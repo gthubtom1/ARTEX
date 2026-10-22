@@ -3335,7 +3335,6 @@ export const settings: Settings = {
   brave_key_set: false,
   tavily_key_set: true,
   web_search_proxy: "",
-  global_proxy: "",
   python_interpreter: "/usr/bin/python3",
   workers: 3,
   llm_pool_enabled: true,

@@ -162,10 +162,10 @@ export function QuickStartCard() {
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-400">
             <AlertTriangleIcon className="size-3.5 shrink-0" />
             <span className="min-w-0 flex-1 break-all">
-              出口未就绪（{egress.detail || "代理连不上"}）。任务仍可创建，但发不出包。
+              出口自检未通过（{egress.detail || "未知原因"}）。任务仍可创建；请确认宿主层网络（VPS 路由 / TUN 全局）。
             </span>
             <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => router.push("/system/network")}>
-              改代理
+              看出口
             </Button>
             <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => void checkEgress()}>
               重试

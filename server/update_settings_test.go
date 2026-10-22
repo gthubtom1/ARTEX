@@ -56,10 +56,8 @@ func TestUpdateSettingsHTTPPersistence(t *testing.T) {
 			t.Fatalf("invalid setting accepted: %d %s", r.Code, r.Body.String())
 		}
 	}
-	m.mu.Lock()
-	m.globalProxy = "http://127.0.0.1:1"
-	m.mu.Unlock()
-	originalGlobal := m.GlobalProxy()
+	// P9-2：应用内「全局出口代理」已移除（出网交给宿主层），
+	// 这里不再需要"保存更新代理时不得改动全局代理"的前置与环境断言。
 	for _, proxy := range []string{" http://127.0.0.1:7897 ", ""} {
 		body, _ := json.Marshal(updateSettings{Proxy: proxy})
 		if r := request("PUT", string(body), true); r.Code != 200 {
@@ -90,9 +88,6 @@ func TestUpdateSettingsHTTPPersistence(t *testing.T) {
 		}
 		if proxy == "" && client.Transport.(*http.Transport).Proxy != nil {
 			t.Fatal("direct inherited proxy")
-		}
-		if m.GlobalProxy() != originalGlobal {
-			t.Fatal("update setting changed global proxy")
 		}
 	}
 }

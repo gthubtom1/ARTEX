@@ -92,16 +92,24 @@ func (s *Server) registerQuickstartRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/egress/check", s.egressCheck)
 }
 
-// egressCheck 供首页卡片做出口预检（60s 缓存，失败也缓存 30s）。
+// egressCheck 供首页卡片 / 网络页做「出口自检」（60s 缓存，失败也缓存 30s）。
+// D1 之后这里只回答两件事：现在从哪个 IP 出去、这个 IP 跟基准一样吗。
+// 结果**不阻塞任何任务** —— 应用内不再拥有出口控制权，只负责显形。
 func (s *Server) egressCheck(w http.ResponseWriter, r *http.Request) {
-	out := map[string]any{"ok": true, "detail": "", "proxy": s.m.ProxyAddr()}
+	out := map[string]any{"ok": true, "detail": ""}
 	if s.netguard == nil {
 		writeJSON(w, 200, out)
 		return
 	}
+	// 手动「重新检测」带 ?fresh=1：清缓存，立刻真打一次。
+	if r.URL.Query().Get("fresh") == "1" {
+		s.netguard.InvalidateCache()
+	}
 	st, err := s.netguard.VerifyCached(r.Context(), 60e9)
 	out["exit_ip"] = st.EgressIP
-	out["node"] = st.Node
+	out["baseline_ip"] = st.BaselineIP
+	out["ok"] = st.OK
+	out["detail"] = st.Detail
 	if err != nil {
 		out["ok"] = false
 		out["detail"] = err.Error()
@@ -140,14 +148,19 @@ func (s *Server) quickstartTask(w http.ResponseWriter, r *http.Request) {
 	}
 	warnings := make([]string, 0, 2)
 
-	// 1) 出口自检：不通只告警，不拦住建任务。
+	// 1) 出口自检：只告警，不拦住建任务（D1：出口由宿主层（VPS/TUN）负责）。
 	egress := map[string]any{"ok": true, "detail": ""}
 	allowDirect := tier == tierLab && isLoopbackHost(host)
 	if s.netguard != nil && !allowDirect {
-		if st, verr := s.netguard.VerifyCached(r.Context(), 60e9); verr != nil {
+		st, verr := s.netguard.VerifyCached(r.Context(), 60e9)
+		detail := st.Detail
+		if verr != nil {
+			detail = verr.Error()
+		}
+		if verr != nil || !st.OK {
 			egress["ok"] = false
-			egress["detail"] = verr.Error()
-			warnings = append(warnings, "出口未就绪（"+verr.Error()+"）：任务能建，但发不出包。请起代理或到「系统 → 网络」改代理；只打本地靶场改用「本地靶场」档位。")
+			egress["detail"] = detail
+			warnings = append(warnings, "出口自检未通过（"+detail+"）：任务照常创建，请确认宿主层网络（VPS 路由 / TUN 全局）是否正常。")
 		} else {
 			egress["exit_ip"] = st.EgressIP
 		}

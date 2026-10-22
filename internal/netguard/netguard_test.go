@@ -2,7 +2,6 @@ package netguard
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +9,10 @@ import (
 	"testing"
 	"time"
 )
+
+// 说明（D1）：本包已删掉 Clash 外部控制（version/proxies/delay/switch）与
+// 「必须配代理否则 fail-closed」的语义，相应测试一并删除 —— 应用内不再管出口。
+// 现在测的是「纯自检」：互证出口 IP、拒绝内网 IP、白名单、基准比对。
 
 func ipServer(ip string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +48,72 @@ func TestVerifyOK(t *testing.T) {
 	}
 }
 
+// 首次成功要自动记下基准（net.baseline_ip）。
+func TestVerifyRecordsBaselineOnFirstSuccess(t *testing.T) {
+	a, b := ipServer("1.2.3.4"), ipServer("1.2.3.4")
+	defer a.Close()
+	defer b.Close()
+
+	var saved string
+	g := New(fixedCfg([]string{a.URL, b.URL}, func(c *Config) {
+		c.SetBaseline = func(_ context.Context, ip string) error { saved = ip; return nil }
+	}), nil)
+
+	st, err := g.Verify(context.Background())
+	if err != nil {
+		t.Fatalf("want ok, got %v", err)
+	}
+	if !st.OK || st.BaselineIP != "1.2.3.4" {
+		t.Fatalf("baseline not adopted: %+v", st)
+	}
+	if saved != "1.2.3.4" {
+		t.Fatalf("SetBaseline not called, got %q", saved)
+	}
+}
+
+// 出口变了：OK=false（显形），Detail 写清 baseline 与现值。
+func TestVerifyBaselineMismatchShowsBothIPs(t *testing.T) {
+	a, b := ipServer("5.6.7.8"), ipServer("5.6.7.8")
+	defer a.Close()
+	defer b.Close()
+
+	called := false
+	g := New(fixedCfg([]string{a.URL, b.URL}, func(c *Config) {
+		c.Baseline = "1.2.3.4"
+		c.SetBaseline = func(context.Context, string) error { called = true; return nil }
+	}), nil)
+
+	st, err := g.Verify(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "出口 IP 变了") {
+		t.Fatalf("want baseline-changed error, got %v", err)
+	}
+	if st.OK {
+		t.Fatalf("want OK=false on baseline change, got %+v", st)
+	}
+	if !strings.Contains(st.Detail, "baseline=1.2.3.4") || !strings.Contains(st.Detail, "现在=5.6.7.8") {
+		t.Fatalf("detail must show both IPs, got %q", st.Detail)
+	}
+	if called {
+		t.Fatalf("baseline must not be overwritten on mismatch")
+	}
+}
+
+// 出口没变：ok。
+func TestVerifyBaselineMatch(t *testing.T) {
+	a, b := ipServer("1.2.3.4"), ipServer("1.2.3.4")
+	defer a.Close()
+	defer b.Close()
+
+	st, err := New(fixedCfg([]string{a.URL, b.URL}, func(c *Config) { c.Baseline = "1.2.3.4" }), nil).
+		Verify(context.Background())
+	if err != nil || !st.OK {
+		t.Fatalf("want ok, got st=%+v err=%v", st, err)
+	}
+	if st.BaselineIP != "1.2.3.4" {
+		t.Fatalf("baseline not echoed: %+v", st)
+	}
+}
+
 func TestVerifySplitRouting(t *testing.T) {
 	a, b := ipServer("1.2.3.4"), ipServer("5.6.7.8")
 	defer a.Close()
@@ -67,12 +136,15 @@ func TestVerifyRejectsPrivateIP(t *testing.T) {
 	}
 }
 
-func TestRequireProxyWithoutProxyFailsClosed(t *testing.T) {
-	_, err := New(fixedCfg([]string{"http://127.0.0.1:1"}, func(c *Config) {
-		c.RequireProxy = true
-	}), nil).Verify(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "fail-closed") {
-		t.Fatalf("want fail-closed error, got %v", err)
+// 没有配代理也要能跑（D1：不再 fail-closed）。
+func TestVerifyWithoutProxyStillWorks(t *testing.T) {
+	a, b := ipServer("1.2.3.4"), ipServer("1.2.3.4")
+	defer a.Close()
+	defer b.Close()
+
+	st, err := New(fixedCfg([]string{a.URL, b.URL}, nil), nil).Verify(context.Background())
+	if err != nil || !st.OK {
+		t.Fatalf("direct egress must pass without any proxy config: st=%+v err=%v", st, err)
 	}
 }
 
@@ -89,44 +161,24 @@ func TestAllowEgressList(t *testing.T) {
 	}
 }
 
-func TestClashVersionSwitchAndDelay(t *testing.T) {
-	var switched string
+// 缓存 TTL 语义不变：成功按 ttl、失败 min(ttl, 30s)。
+func TestVerifyCachedTTL(t *testing.T) {
+	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/version":
-			_ = json.NewEncoder(w).Encode(map[string]any{"version": "v1.19.0", "meta": true})
-		case strings.HasPrefix(r.URL.Path, "/proxies/") && strings.HasSuffix(r.URL.Path, "/delay"):
-			_ = json.NewEncoder(w).Encode(map[string]any{"delay": 120})
-		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/proxies/"):
-			var body map[string]string
-			_ = json.NewDecoder(r.Body).Decode(&body)
-			switched = body["name"]
-			w.WriteHeader(http.StatusNoContent)
-		case strings.HasPrefix(r.URL.Path, "/proxies/"):
-			_ = json.NewEncoder(w).Encode(map[string]any{"now": "HK-01", "type": "Selector", "all": []string{"HK-01", "JP-02"}})
-		default:
-			http.NotFound(w, r)
-		}
+		hits++
+		_, _ = io.WriteString(w, "1.2.3.4")
 	}))
 	defer srv.Close()
 
-	g := New(fixedCfg(nil, func(c *Config) { c.Controller = srv.URL; c.Secret = "s" }), nil)
+	g := New(fixedCfg([]string{srv.URL}, nil), nil)
 	ctx := context.Background()
-
-	if v, err := g.ClashVersion(ctx); err != nil || v != "v1.19.0" {
-		t.Fatalf("version=%q err=%v", v, err)
+	for i := 0; i < 3; i++ {
+		if _, err := g.VerifyCached(ctx, time.Minute); err != nil {
+			t.Fatalf("verify: %v", err)
+		}
 	}
-	if node, err := g.CurrentNode(ctx, "GLOBAL"); err != nil || node != "HK-01" {
-		t.Fatalf("node=%q err=%v", node, err)
-	}
-	if d, err := g.Delay(ctx, "HK-01"); err != nil || d != 120 {
-		t.Fatalf("delay=%d err=%v", d, err)
-	}
-	if err := g.Switch(ctx, "GLOBAL", "JP-02"); err != nil {
-		t.Fatalf("switch: %v", err)
-	}
-	if switched != "JP-02" {
-		t.Fatalf("switch body not received: %q", switched)
+	if hits != 1 {
+		t.Fatalf("success should be cached for ttl, hits=%d", hits)
 	}
 }
 

@@ -244,11 +244,6 @@ type Manager struct {
 	braveKey         string
 	tavilyKey        string
 	webSearchProxy   string
-	// globalProxy is the egress proxy all target traffic routes through
-	// (http/https/socks5, optional user:pass). Empty = direct. When traffic
-	// capture is on it becomes the MITM's upstream; when capture is off it is
-	// injected into agent bash env / WebFetch directly. See ProxyAddr.
-	globalProxy string
 }
 
 // Settings keys the UI toggles at runtime.
@@ -260,9 +255,7 @@ const (
 	settingBraveKey            = "brave_search_api_key"
 	settingTavilyKey           = "tavily_search_api_key"
 	settingWebSearchProxy      = "web_search_proxy"
-	// settingGlobalProxy is the global egress proxy for all target traffic
-	// (http/https/socks5). Empty = direct. Distinct from web_search_proxy (which
-	// only routes the search backend) and the per-profile LLM proxy.
+	// settingGlobalProxy 只用于"清理历史遗留行"（见 NewManager）。应用内已无出口代理。
 	settingGlobalProxy = "global_proxy"
 	settingWorkers     = "workers"
 	settingLLMRecord   = "llm_record"
@@ -432,15 +425,11 @@ func NewManager(dir, proxyAddr string) (*Manager, error) {
 	if v, ok, _ := pg.GetSetting(settingWebSearchProxy); ok {
 		m.webSearchProxy = v
 	}
-	// Global egress proxy (default: direct). When capture is on, feed it to the
-	// MITM as its upstream so recorded traffic exits through it; when capture is
-	// off, ProxyAddr hands it to agents directly (bash env / WebFetch).
-	if v, ok, _ := pg.GetSetting(settingGlobalProxy); ok {
-		m.globalProxy = strings.TrimSpace(v)
-	}
-	if m.traffic != nil {
-		if err := m.traffic.SetUpstreamProxy(m.globalProxy); err != nil {
-			log.Printf("[proxy] 全局代理 %q 无效，已忽略: %v", m.globalProxy, err)
+	// 应用内「全局出口代理」已移除（P9-2 / D1）：出网由宿主层负责（VPS 直连或 VM 的 TUN 全局）。
+	// 老库里可能还留着 global_proxy 行，这里一次性清掉，避免以后有人以为它还有效。
+	if _, ok, _ := pg.GetSetting(settingGlobalProxy); ok {
+		if _, err := pg.Exec(`DELETE FROM settings WHERE key = $1`, settingGlobalProxy); err == nil {
+			log.Printf("[proxy] 已清理历史 global_proxy 设置（应用内代理已移除，出网交给宿主层）")
 		}
 	}
 	m.enrich = enrich.New(m.assets, m.ProxyAddr, 4)
@@ -751,11 +740,10 @@ func (m *Manager) Traffic() *traffic.Traffic { return m.traffic }
 // capturing, in the agent's own bash env / WebFetch when not.
 func (m *Manager) ProxyAddr() string {
 	if m.traffic != nil && m.TrafficEnabled() {
-		return m.traffic.ProxyAddr()
+		return m.traffic.ProxyAddr() // 记录型 MITM（取证用），与出口无关
 	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.globalProxy
+	// 记录关闭时不再有"应用内出口代理"可返回：出网由宿主层负责。
+	return ""
 }
 
 // ProxyCACert returns the CA cert path agents must trust to verify HTTPS through
@@ -768,40 +756,6 @@ func (m *Manager) ProxyCACert() string {
 		return ""
 	}
 	return m.traffic.CACertPath()
-}
-
-// GlobalProxy returns the configured global egress proxy URL (empty = direct).
-func (m *Manager) GlobalProxy() string {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.globalProxy
-}
-
-// SetGlobalProxy validates, persists and applies the global egress proxy
-// (http/https/socks5, optional user:pass; empty = direct). It updates the MITM's
-// upstream immediately; callers must rebuild agents (applyLLM) afterwards so the
-// capture-off path (bash env / WebFetch) picks up the change too.
-func (m *Manager) SetGlobalProxy(raw string) error {
-	raw = strings.TrimSpace(raw)
-	if raw != "" {
-		if _, err := traffic.ValidateProxyURL(raw); err != nil {
-			return err
-		}
-	}
-	if err := m.pg.SetSetting(settingGlobalProxy, raw); err != nil {
-		return err
-	}
-	m.mu.Lock()
-	m.globalProxy = raw
-	m.mu.Unlock()
-	if m.traffic != nil {
-		if err := m.traffic.SetUpstreamProxy(raw); err != nil {
-			return err
-		}
-	}
-	// Keep the browser MCP's egress in sync with the new global proxy too.
-	m.syncBrowserMCPProxy()
-	return nil
 }
 
 func (m *Manager) Close() error {

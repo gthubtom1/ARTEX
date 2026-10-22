@@ -440,7 +440,7 @@ export default function SystemOnboardPage() {
               <RadioTowerIcon className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">出口可用</p>
               <Badge variant="outline">exit_ip={egress.exit_ip || "—"}</Badge>
-              <Badge variant="outline">node={egress.node || "—"}</Badge>
+              <Badge variant="outline">baseline_ip={egress.baseline_ip || "未建立"}</Badge>
               <Button
                 variant="outline"
                 size="sm"

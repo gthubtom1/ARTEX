@@ -53,10 +53,8 @@ RE_GO_WRITE = re.compile(
 )
 
 # 已知语义别名（同一件事两把钥匙）。只放**确认过**的，人工维护。
-ALIASES = [
-    ("global_proxy", "net.proxy_http",
-     "全局出口代理：UI 写 global_proxy，netguard 读 net.proxy_http（已加回落，但键名仍不统一）"),
-]
+# P9-2 之后应用内已无出口代理（出网交给宿主层），这里不再有条目。
+ALIASES: list[tuple[str, str, str]] = []
 
 
 def _balanced(src: str, open_brace: int):
@@ -278,9 +276,8 @@ def main() -> int:
     conflicts = {k: v for k, v in owners_by_setting.items() if len(v) > 1}
 
     # dead 要按 **setting 键** 判定（前面 fe 是 payload 字段名，两个命名空间不能混）
-    KNOWN_MANAGED = {
-        "global_proxy": "由 Manager.GlobalProxy() 读，不走 settings 包",
-    }
+    # P9-2 之后 global_proxy 已被移除，无需例外清单。
+    KNOWN_MANAGED: dict[str, str] = {}
     dead = sorted(
         k for k in owners_by_setting
         if not k.startswith("@manager:")

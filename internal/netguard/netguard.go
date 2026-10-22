@@ -1,21 +1,26 @@
-// Package netguard 是出口守卫：确保所有对外流量都经过代理，并在出击前验证出口 IP。
+// Package netguard 是「出口 IP 自检」：查出本机当前的对外出口 IP，并与首次记录的基准比对。
 //
-// 三条铁律（docs/全局出口与网络守卫.md）：
-//  1. 默认全代理：所有子进程/HTTP 客户端继承代理；
-//  2. 出击前验 IP：两个独立源互证，必须是代理 IP，不能是本机/内网 IP；
-//  3. 失效即停：代理不可用就直接报错（fail-closed），绝不回退直连。
+// D1 决策（docs/03-P9强化方案.md）：**删除应用内 Clash / 代理配置**。
+// 部署目标是 VPS 或 TUN 全局的 VM —— 网络在宿主层解决；应用内再管一遍必然漂移
+// （已实际出过一次 bug：UI 写 global_proxy、netguard 读 net.proxy_http，
+// 界面配好了任务却仍是 paused）。
 //
-// 本包只做"判定与记录"，不负责改系统代理；环境变量由调用方（agent.proxyEnv）注入。
+// 所以本包现在只做三件事，且**不拦任务**（不打 fail-closed，只把事实显形）：
+//  1. 两个独立源互证当前出口 IP（同一个 IP 才认）；
+//  2. 拒绝内网/回环/链路本地地址（说明流量根本没出网）；
+//  3. 与 net.baseline_ip 比对：首次成功后自动记基准；之后不一致 →
+//     Status.OK=false + Detail 写明「出口 IP 变了：baseline=x 现在=y」。
+//
+// 本包不读应用内的代理/Clash 配置、不向子进程注入环境变量、不碰 Clash 控制 API；
+// 唯一认可的“代理”是宿主层的 HTTP(S)_PROXY 环境变量（与子进程看到的出口一致）。
 package netguard
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -23,25 +28,27 @@ import (
 	"github.com/Autumn-27/artex/internal/dbiface"
 )
 
-// Config 是出口守卫的运行参数（来自 settings，每次调用实时读取）。
+// BaselineSettingKey 是「基准出口 IP」的 setting 键：首次校验成功时自动写入。
+const BaselineSettingKey = "net.baseline_ip"
+
+// Config 是出口自检的运行参数（来自 settings，每次调用实时读取）。
 type Config struct {
-	ProxyHTTP    string        // 例：http://127.0.0.1:7897
-	ProxySOCKS   string        // 例：socks5://127.0.0.1:7897（仅记录，客户端用 ProxyHTTP）
-	Controller   string        // Clash 外部控制：http://127.0.0.1:9097
-	Secret       string        // Clash secret（Bearer）
-	VerifyURLs   []string      // 出口 IP 查询源（至少两个，互证）
-	Timeout      time.Duration // 单次请求超时（默认 8s）
-	RequireProxy bool          // true（默认）= 没有代理直接判失败
-	AllowEgress  []string      // 可选：出口 IP 白名单（空=不限制具体 IP）
+	VerifyURLs  []string      // 出口 IP 查询源（至少两个，互证）
+	Timeout     time.Duration // 单次请求超时（默认 8s）
+	AllowEgress []string      // 可选：出口 IP 白名单（空=不限制具体 IP）
+	Baseline    string        // net.baseline_ip；空=还没建立基准
+	// SetBaseline 在首次校验成功时把基准写回 settings（server 注入）。
+	// 为 nil 时只在本次 Status 里体现，不持久化（测试/降级场景）。
+	SetBaseline func(ctx context.Context, ip string) error
 }
 
-// Status 是一次校验的结果。
+// Status 是一次出口自检的结果。
 type Status struct {
-	EgressIP string    `json:"egress_ip"`
-	Node     string    `json:"node,omitempty"`
-	OK       bool      `json:"ok"`
-	At       time.Time `json:"at"`
-	Detail   string    `json:"detail,omitempty"`
+	EgressIP   string    `json:"egress_ip"`
+	BaselineIP string    `json:"baseline_ip,omitempty"`
+	OK         bool      `json:"ok"`
+	At         time.Time `json:"at"`
+	Detail     string    `json:"detail,omitempty"`
 }
 
 // Guard 持有配置解析器与最近一次状态。
@@ -62,7 +69,7 @@ type Guard struct {
 
 func New(cfg func() Config, db dbiface.DB) *Guard { return &Guard{cfg: cfg, db: db} }
 
-// Last 返回最近一次校验结果。
+// Last 返回最近一次自检结果。
 func (g *Guard) Last() Status {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
@@ -80,45 +87,41 @@ func (g *Guard) config() Config {
 	if c.Timeout <= 0 {
 		c.Timeout = 8 * time.Second
 	}
-	c.ProxyHTTP = strings.TrimSpace(c.ProxyHTTP)
-	c.Controller = strings.TrimRight(strings.TrimSpace(c.Controller), "/")
+	c.Baseline = strings.TrimSpace(c.Baseline)
 	if len(c.VerifyURLs) == 0 {
 		c.VerifyURLs = []string{"https://api.ipify.org", "https://ifconfig.me"}
 	}
 	return c
 }
 
-// Client 返回一个走代理的 HTTP 客户端（代理未配置且 RequireProxy=false 时直连）。
-func (g *Guard) Client() (*http.Client, error) {
+// Client 返回出口自检用的 HTTP 客户端。
+//
+// 代理来源只有一个：**宿主层**。应用内不再配代理（D1），但如果是 VPS 上用
+// HTTP_PROXY / HTTPS_PROXY 环境变量统一出网（docker-compose 的 env、systemd 的
+// Environment= 都是这种形态），自检也走它 —— 否则子进程经代理出网、自检却直连，
+// 报出来的“出口”就是假的。没有这两个环境变量时 ProxyFromEnvironment 返回 nil，
+// 走直连（TUN 全局场景）。
+//
+// 注意：Go 的 ProxyFromEnvironment 对 localhost/127.0.0.1 自动免代理，所以测试
+// 里的 httptest 服务不会被环境变量干扰。
+func (g *Guard) Client() *http.Client {
 	c := g.config()
-	tr := &http.Transport{
-		Proxy:               nil, // 默认直连；配了代理才用代理（避免测试/环境变量干扰）
-		MaxIdleConns:        8,
-		IdleConnTimeout:     30 * time.Second,
-		TLSHandshakeTimeout: c.Timeout,
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy:               http.ProxyFromEnvironment,
+			MaxIdleConns:        8,
+			IdleConnTimeout:     30 * time.Second,
+			TLSHandshakeTimeout: c.Timeout,
+		},
+		Timeout: c.Timeout,
 	}
-	if c.ProxyHTTP != "" {
-		pu, err := url.Parse(c.ProxyHTTP)
-		if err != nil {
-			return nil, fmt.Errorf("netguard: bad proxy url %q: %w", c.ProxyHTTP, err)
-		}
-		tr.Proxy = http.ProxyURL(pu)
-	} else if c.RequireProxy {
-		return nil, fmt.Errorf("netguard: 未配置代理，且要求必须经代理出网（fail-closed）")
-	}
-	return &http.Client{Transport: tr, Timeout: c.Timeout}, nil
 }
 
-// Verify 校验出口 IP：
-//   - 所有 VerifyURLs 必须返回同一个 IP（否则说明分流规则坏了）；
-//   - 该 IP 不能是内网/回环/链路本地；
-//   - 若配置了 AllowEgress，必须命中白名单。
-//
 // VerifyCached 是 Verify 的带缓存版本。
 //
-// 为什么需要：出口校验每次要打两个独立源（互证出口 IP），一次两个外网往返。
+// 为什么需要：出口自检每次要打两个独立源（互证出口 IP），一次两个外网往返。
 // 规划每轮都问一次的话，一天下来是几百次无用请求。成功结果缓存 ttl；
-// 失败结果缓存 min(ttl, 30s) —— 代理刚恢复时不能等满 5 分钟才放行。
+// 失败结果缓存 min(ttl, 30s) —— 出口刚恢复时不能等满 5 分钟才生效。
 func (g *Guard) VerifyCached(ctx context.Context, ttl time.Duration) (Status, error) {
 	if ttl <= 0 {
 		return g.Verify(ctx)
@@ -147,23 +150,25 @@ func (g *Guard) VerifyCached(ctx context.Context, ttl time.Duration) (Status, er
 	return st, err
 }
 
-// InvalidateCache 清掉缓存（改代理后用，让下一次立即真校验）。
+// InvalidateCache 清掉缓存（手工「重新检测」后用，让下一次立即真校验）。
 func (g *Guard) InvalidateCache() {
 	g.mu.Lock()
 	g.cacheSet = false
 	g.mu.Unlock()
 }
 
+// Verify 校验出口 IP：
+//   - 所有 VerifyURLs 必须返回同一个 IP（否则说明分流/双栈坏了）；
+//   - 该 IP 不能是内网/回环/链路本地；
+//   - 若配置了 AllowEgress，必须命中白名单；
+//   - 与 baseline 比对：首次成功 → 记下基准；之后不一致 → OK=false。
+//
+// 返回的 error 只描述「这次自检本身没通过」，**调用方不应据此拦截任务**：
+// 应用内不再拥有出口控制权，拦下来只会把宿主层的网络问题变成「任务一建就 paused」。
 func (g *Guard) Verify(ctx context.Context) (Status, error) {
 	c := g.config()
-	st := Status{At: time.Now()}
-	cli, err := g.Client()
-	if err != nil {
-		st.Detail = err.Error()
-		g.setLast(st)
-		g.logEgress(ctx, st, err)
-		return st, err
-	}
+	st := Status{At: time.Now(), BaselineIP: c.Baseline}
+	cli := g.Client()
 
 	ips := make([]string, 0, len(c.VerifyURLs))
 	for _, u := range c.VerifyURLs {
@@ -171,37 +176,53 @@ func (g *Guard) Verify(ctx context.Context) (Status, error) {
 		if ferr != nil {
 			st.Detail = fmt.Sprintf("%s: %v", u, ferr)
 			g.setLast(st)
-			g.logEgress(ctx, st, ferr)
-			return st, fmt.Errorf("netguard: 出口校验失败（%s）: %w", u, ferr)
+			g.logEgress(ctx, st)
+			return st, fmt.Errorf("netguard: 出口自检失败（%s）: %w", u, ferr)
 		}
 		ips = append(ips, ip)
 	}
 	for i := 1; i < len(ips); i++ {
 		if ips[i] != ips[0] {
-			err := fmt.Errorf("netguard: 出口 IP 不一致（%s vs %s），分流规则可能坏了", ips[0], ips[i])
+			err := fmt.Errorf("netguard: 两个源报的出口 IP 不一致（%s vs %s），分流规则可能坏了", ips[0], ips[i])
 			st.Detail = err.Error()
 			g.setLast(st)
-			g.logEgress(ctx, st, err)
+			g.logEgress(ctx, st)
 			return st, err
 		}
 	}
+	st.EgressIP = ips[0]
 	if err := checkIP(c, ips[0]); err != nil {
-		st.EgressIP = ips[0]
 		st.Detail = err.Error()
 		g.setLast(st)
-		g.logEgress(ctx, st, err)
+		g.logEgress(ctx, st)
 		return st, err
 	}
 
-	st.EgressIP = ips[0]
-	st.OK = true
-	st.Detail = "ok"
-	// 尽力补上当前节点名（不影响校验结果）
-	if node, nerr := g.CurrentNode(ctx, "GLOBAL"); nerr == nil {
-		st.Node = node
+	switch {
+	case c.Baseline == "":
+		// 第一次校验成功：记下基准。写失败不影响自检结论（下次会再记一次）。
+		st.OK = true
+		st.BaselineIP = st.EgressIP
+		st.Detail = "ok（已记录基准出口 IP " + st.EgressIP + "）"
+		if c.SetBaseline != nil {
+			if err := c.SetBaseline(ctx, st.EgressIP); err != nil {
+				st.Detail = "ok（基准出口 IP 写入失败：" + err.Error() + "，下次自检会重试）"
+			}
+		}
+	case c.Baseline != st.EgressIP:
+		// 出口变了：只显形，不阻塞。Detail 写清前后值，人一眼能看出换没换机房/掉没掉 TUN。
+		err := fmt.Errorf("netguard: 出口 IP 变了：baseline=%s 现在=%s", c.Baseline, st.EgressIP)
+		st.OK = false
+		st.Detail = err.Error()
+		g.setLast(st)
+		g.logEgress(ctx, st)
+		return st, err
+	default:
+		st.OK = true
+		st.Detail = "ok"
 	}
 	g.setLast(st)
-	g.logEgress(ctx, st, nil)
+	g.logEgress(ctx, st)
 	return st, nil
 }
 
@@ -212,7 +233,7 @@ func checkIP(c Config, raw string) error {
 		return fmt.Errorf("netguard: 出口 IP 无法解析: %q", raw)
 	}
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() {
-		return fmt.Errorf("netguard: 出口 IP 是内网/本机地址 %s，说明流量没有走代理（fail-closed）", raw)
+		return fmt.Errorf("netguard: 出口 IP 是内网/本机地址 %s，流量没有出网", raw)
 	}
 	if len(c.AllowEgress) > 0 {
 		for _, a := range c.AllowEgress {
@@ -254,100 +275,22 @@ func fetchIP(ctx context.Context, cli *http.Client, u string) (string, error) {
 	return s, nil
 }
 
-// ───────────────────────── Clash 外部控制 API ─────────────────────────
-
-func (g *Guard) clashDo(ctx context.Context, method, path string, body io.Reader, out any) error {
-	c := g.config()
-	if c.Controller == "" {
-		return fmt.Errorf("netguard: 未配置 Clash 控制地址")
-	}
-	req, err := http.NewRequestWithContext(ctx, method, c.Controller+path, body)
-	if err != nil {
-		return err
-	}
-	if c.Secret != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Secret)
-	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	cli := &http.Client{Timeout: c.Timeout}
-	resp, err := cli.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("clash %s %s: status %d: %s", method, path, resp.StatusCode, truncate(string(b), 200))
-	}
-	if out != nil {
-		return json.NewDecoder(resp.Body).Decode(out)
-	}
-	return nil
-}
-
-// ClashVersion 探活。
-func (g *Guard) ClashVersion(ctx context.Context) (string, error) {
-	var v struct {
-		Version string `json:"version"`
-		Meta    bool   `json:"meta"`
-	}
-	if err := g.clashDo(ctx, http.MethodGet, "/version", nil, &v); err != nil {
-		return "", err
-	}
-	if v.Version == "" {
-		return "unknown", nil
-	}
-	return v.Version, nil
-}
-
-// CurrentNode 返回某策略组当前选中的节点。
-func (g *Guard) CurrentNode(ctx context.Context, group string) (string, error) {
-	var d struct {
-		Now  string   `json:"now"`
-		Type string   `json:"type"`
-		All  []string `json:"all"`
-	}
-	if err := g.clashDo(ctx, http.MethodGet, "/proxies/"+url.PathEscape(group), nil, &d); err != nil {
-		return "", err
-	}
-	return d.Now, nil
-}
-
-// Delay 测某节点延迟（毫秒）。失败返回 error（调用方据此换节点）。
-func (g *Guard) Delay(ctx context.Context, node string) (int, error) {
-	var d struct {
-		Delay int `json:"delay"`
-	}
-	path := "/proxies/" + url.PathEscape(node) + "/delay?timeout=3000&url=" + url.QueryEscape("http://www.gstatic.com/generate_204")
-	if err := g.clashDo(ctx, http.MethodGet, path, nil, &d); err != nil {
-		return 0, err
-	}
-	return d.Delay, nil
-}
-
-// Switch 切换策略组节点。
-func (g *Guard) Switch(ctx context.Context, group, node string) error {
-	body, _ := json.Marshal(map[string]string{"name": node})
-	return g.clashDo(ctx, http.MethodPut, "/proxies/"+url.PathEscape(group), strings.NewReader(string(body)), nil)
-}
-
 // ───────────────────────── 记录 ─────────────────────────
-
-func (g *Guard) logEgress(ctx context.Context, st Status, cause error) {
+//
+// 只落库、不判定：egress_log 是「最近变更记录」的数据源（网络页直接读），
+// net_events 只在自检没通过时补一条，方便和任务活动流对齐时间线。
+func (g *Guard) logEgress(ctx context.Context, st Status) {
 	if g == nil || g.db == nil {
 		return
 	}
 	c, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	ok := cause == nil
 	_, _ = g.db.ExecContext(c,
-		`INSERT INTO egress_log (task_id, egress_ip, node, ok, detail) VALUES (0, $1, $2, $3, $4)`,
-		st.EgressIP, st.Node, ok, truncate(st.Detail, 500))
-	if !ok {
+		`INSERT INTO egress_log (task_id, egress_ip, ok, detail) VALUES (NULL, $1, $2, $3)`,
+		st.EgressIP, st.OK, truncate(st.Detail, 500))
+	if !st.OK {
 		_, _ = g.db.ExecContext(c,
-			`INSERT INTO net_events (task_id, kind, detail) VALUES (0, 'verify', $1)`,
+			`INSERT INTO net_events (task_id, kind, detail) VALUES (NULL, 'verify', $1)`,
 			truncate(st.Detail, 500))
 	}
 }

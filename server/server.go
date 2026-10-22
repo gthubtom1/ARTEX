@@ -3562,7 +3562,6 @@ func (s *Server) settingsPayload() map[string]any {
 		"brave_key_set":             strings.TrimSpace(braveKey) != "",
 		"tavily_key_set":            strings.TrimSpace(tavilyKey) != "",
 		"web_search_proxy":          proxy,                       // 独立出口代理(http/https/socks5)，空=直连
-		"global_proxy":              s.m.GlobalProxy(),           // 全局出口代理(http/https/socks5)，所有目标流量走它，空=直连
 		"python_interpreter":        strings.TrimSpace(pyStored), // 用户/自动设的值(空=用运行时检测)
 		"workers":                   s.m.Workers(),               // 并发工作 agent 数(默认3)；对之后启动的任务生效
 		"task_concurrency_enabled":  concOn,                      // 任务并发上限开关(默认关)
@@ -3648,7 +3647,6 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		BraveKey         *string `json:"brave_search_api_key"`
 		TavilyKey        *string `json:"tavily_search_api_key"`
 		WebSearchProxy   *string `json:"web_search_proxy"`   // 独立出口代理(http/https/socks5)；null=不改，""=清空
-		GlobalProxy      *string `json:"global_proxy"`       // 全局出口代理(http/https/socks5)；null=不改，""=清空(直连)
 		PythonInterp     *string `json:"python_interpreter"` // 自定义脚本工具的 python 解释器路径
 		Workers          *int    `json:"workers"`            // 并发工作 agent 数(>0)；对之后启动的任务生效
 		// 任务并发上限:同时「运行中」的任务数上限。关闭=不限;开启后新建任务超限则排队,有空位自动启动。
@@ -3925,14 +3923,6 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		changed = true
-	}
-	if req.GlobalProxy != nil {
-		// Validation failure (bad scheme/host) is a client error, not a 500.
-		if err := s.m.SetGlobalProxy(*req.GlobalProxy); err != nil {
-			writeErr(w, 400, err.Error())
-			return
-		}
-		changed = true // capture-off egress is baked into agents at build time → rebuild
 	}
 	if req.WebSearchEnabled != nil || req.WebSearchBackend != nil || req.BraveKey != nil || req.TavilyKey != nil || req.WebSearchProxy != nil {
 		// Fill unspecified fields from current state so a partial PUT doesn't reset them.
@@ -4397,36 +4387,20 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		}
 		return false, "本机未找到 " + name + "。可以改用等价工具继续（例如 nmap↔masscan+nc、sqlmap↔内置注入脚本），或到环境页安装后再试。"
 	}
-	s.engine.SetEgressCheck(func(c context.Context) error {
-		_, err := s.netguard.Verify(c)
-		return err
-	})
 	// P8-8：guard 写错误事件时需要知道当前任务 id（只读，不参与判定）。
 	guard.TaskIDOf = func(c context.Context) int64 { return agent.RunInfoFrom(c).TaskID }
-	// P8-6：Bash / WebFetch 也要过出口闸（原来只有 execx/remote/recheck/replay/adapter 过）。
-	// 用 VerifyCached 让 net.verify_every_s 真正生效，避免每轮打两次外网。
-	if os.Getenv("ARTEX_ALLOW_DIRECT") == "1" {
-		guard.EgressCheck = nil
-	} else {
-		guard.EgressCheck = func(c context.Context) error {
-			ttl := time.Duration(s.settings.Int("net.verify_every_s", 300)) * time.Second
-			_, err := s.netguard.VerifyCached(c, ttl)
-			return err
-		}
-	}
+	// D1（docs/03-P9强化方案.md）：**应用内不再管出口**。删掉代理/Clash 配置之后，
+	// 出口校验只剩「自检」（GET /api/egress/check + 网络页），不再拦任务：
+	// 部署目标是 VPS / TUN 全局的 VM，网络在宿主层解决；应用内再拦一次只会把
+	// 宿主层的网络问题变成「任务一建就 paused」。所以下面三个钩子显式置空 ——
+	// 这是有意的决定，不是漏接线。子进程也不再注入 HTTP(S)_PROXY：
+	// agent 的 proxyEnv("") 自然返回 nil（global_proxy 已删除，m.ProxyAddr() 为空）。
+	s.engine.SetEgressCheck(nil)
+	guard.EgressCheck = nil
+	egress.Check = nil
+	egress.ProxyEnv = nil
 	// P8-3：report_finding 的三门质量闸档位（每轮读，改完下一轮生效）。
 	agent.FindingGateMode = func() string { return s.settings.String("findings.verify_gate", "infer") }
-	// 执行面出口闸：所有会发包的执行器（execx/remote/recheck/replay）统一 fail-closed。
-	if os.Getenv("ARTEX_ALLOW_DIRECT") != "1" {
-		egress.Check = func(c context.Context) error {
-			_, err := s.netguard.Verify(c)
-			return err
-		}
-		egress.ProxyEnv = s.proxyEnvs()
-	} else {
-		egress.Check = nil
-		egress.ProxyEnv = nil // 明确允许直连时不再注入代理环境变量
-	}
 
 	guard := idem.New(m.pg)
 	agent.WriteGuard = func(c context.Context, tool string, in json.RawMessage) (bool, string) {
@@ -4521,64 +4495,18 @@ func snapshotPaths(tool string, in json.RawMessage) []string {
 	return nil
 }
 
-// egressConfig 从 settings 读出口参数。ARTEX_ALLOW_DIRECT=1 可临时允许直连
-// （仅限内网/本地靶场；默认必须经代理，fail-closed）。
+// egressConfig 构造「出口自检」参数。D1（docs/03-P9强化方案.md）之后这里**没有代理项**：
+// 出网路径由宿主层（VPS 路由 / TUN 全局 / 系统代理）决定，应用内不再配第二份。
+// 只留查询源、超时、白名单和基准 IP —— 基准在首次校验成功时自动写入 `net.baseline_ip`。
 func (s *Server) egressConfig() netguard.Config {
-	requireProxy := os.Getenv("ARTEX_ALLOW_DIRECT") != "1"
-	httpProxy, socksProxy := s.egressProxy()
-	cfg := netguard.Config{
-		ProxyHTTP:    httpProxy,
-		ProxySOCKS:   socksProxy,
-		Controller:   s.settings.String("net.clash_controller", ""),
-		Secret:       s.settings.String("net.clash_secret", ""),
-		VerifyURLs:   s.settings.List("net.verify_urls"),
-		RequireProxy: requireProxy,
+	cfg := netguard.Config{}
+	if s.settings == nil {
+		return cfg
+	}
+	cfg.VerifyURLs = s.settings.List("net.verify_urls")
+	cfg.Baseline = s.settings.String(netguard.BaselineSettingKey, "")
+	cfg.SetBaseline = func(ctx context.Context, ip string) error {
+		return s.settings.Set(ctx, netguard.BaselineSettingKey, ip)
 	}
 	return cfg
-}
-
-// egressProxy 解析"出口到底走哪个代理"。
-//
-// 为什么需要回落：UI 里唯一能改代理的地方是「系统设置 → 全局出口代理」，
-// 它写的是 `global_proxy`；而 netguard 读的是 `net.proxy_http` / `net.proxy_socks`。
-// 这两个键名不统一的结果是：用户在界面上配好代理，netguard 依然读到空值 →
-// RequireProxy=true → 任务一建就 paused "出口未就绪"，而界面上没有任何地方能修。
-// 现在统一成：`net.proxy_*` 是给高级用的覆盖项，留空就回落到 `global_proxy`。
-func (s *Server) egressProxy() (httpProxy, socks string) {
-	// 用户显式设过「全局出口代理」（UI 唯一写入口）就以它为准。
-	// 这一条是必须的：net.proxy_http/net.proxy_socks 在 settings 里有硬编码默认值
-	// （127.0.0.1:7897），所以"留空才回落"永远不会触发 —— 用户在界面上把代理改成
-	// 别的端口，netguard 却还在验 7897，表现为"界面配了、任务还是说出口没就绪"。
-	// 现在优先级：global_proxy（用户意图）> net.proxy_*（高级覆盖/历史默认）。
-	if s.m != nil {
-		if g := strings.TrimSpace(s.m.GlobalProxy()); g != "" {
-			// socks5:// 也交给 http.Transport.Proxy 处理（Go 原生支持 socks5 scheme），
-			// 所以统一放 ProxyHTTP，ProxySOCKS 只作记录。
-			return g, ""
-		}
-	}
-	if s.settings != nil {
-		httpProxy = strings.TrimSpace(s.settings.String("net.proxy_http", ""))
-		socks = strings.TrimSpace(s.settings.String("net.proxy_socks", ""))
-	}
-	return httpProxy, socks
-}
-
-// proxyEnvs 把出口参数转成子进程可用的代理环境变量。
-func (s *Server) proxyEnvs() []string {
-	httpProxy, socks := s.egressProxy()
-	all := httpProxy
-	if all == "" {
-		all = socks
-	}
-	var env []string
-	if httpProxy != "" {
-		env = append(env, "HTTP_PROXY="+httpProxy, "HTTPS_PROXY="+httpProxy)
-	}
-	if socks != "" {
-		env = append(env, "ALL_PROXY="+socks)
-	} else if all != "" {
-		env = append(env, "ALL_PROXY="+all)
-	}
-	return env
 }

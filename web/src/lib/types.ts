@@ -963,9 +963,6 @@ export interface Settings {
   tavily_search_api_key?: string;
   // 独立出口代理(http/https/socks5)，用于访问搜索端点；与记录流量的 MITM 代理无关。空=直连。
   web_search_proxy?: string;
-  // 全局出口代理(http/https/socks5，可带 user:pass)，所有目标流量走它。开启流量捕获时作为
-  // MITM 上游；关闭捕获时直接注入 agent 的 bash/WebFetch。空=直连。
-  global_proxy?: string;
   python_interpreter?: string; // 自定义脚本工具的 python 解释器路径(空=运行时检测)
   workers?: number; // 并发工作 agent 数(默认3)；对之后启动的任务生效
   // 任务并发上限:同时「运行中」的任务数上限。关闭=不限;开启后新建任务超限则排队,有空位自动启动。
@@ -983,6 +980,11 @@ export interface Settings {
   // worker/主 agent/对话)由 noa 接管上下文压缩,取代内置 compaction;每 run 读一次,对
   // 之后启动的 run 生效。
   noa_compaction?: boolean;
+  // 实验角色（D2 决策：留代码、默认关）。关掉时**零额外 LLM 调用**：
+  // adviser = 停顿检测命中后额外问一次强模型；verifier = 每轮规划后对 finding 做对抗式复核。
+  // 三门校验（零 token）与停顿检测不依赖它们，默认关不影响质量。
+  adviser_enabled?: boolean; // 默认 false
+  verifier_enabled?: boolean; // 默认 false
   // 拦截自动裁决：off=全部人工/模型审批；reviewer=规则自动放行/拒绝（拿不准才挂起）；allow_all=全部放行。
   intercept_auto_decide?: "off" | "reviewer" | "allow_all";
   // ── 以下由 settingsPayload() 回显，前端页面直接读（缺了就得每页写交叉类型绕过）──
@@ -1968,10 +1970,18 @@ export interface EnvironmentResponse {
   missing: string[] | null;
   settings: Record<string, string>;
 }
+// 网络面板（D1 之后只剩「出口 IP 自检」：当前出口 / 基准 / 最近变更记录）。
 export interface NetworkResponse {
-  settings: Record<string, string>;
-  direct_allowed: boolean;
-  egress: Array<{ ts: string; task_id: number; egress_ip: string; node: string; ok: boolean; detail: string }>;
+  settings: Record<string, string>; // net.baseline_ip / net.verify_urls / net.verify_every_s
+  /** netguard.Last()：最近一次自检结果；还没检测过时字段为空。 */
+  current: {
+    exit_ip?: string;
+    baseline_ip?: string;
+    ok?: boolean;
+    detail?: string;
+    at?: string;
+  };
+  egress: Array<{ ts: string; task_id: number; egress_ip: string; ok: boolean; detail: string }>;
   events: Array<{ ts: string; task_id: number; kind: string; detail: string }>;
 }
 export interface KBHit {

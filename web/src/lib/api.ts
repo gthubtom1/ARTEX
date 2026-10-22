@@ -1575,7 +1575,7 @@ export interface QuickstartResponse {
   tier: "lab" | "legacy" | "public" | string;
   url: string;
   host: string;
-  egress: { ok: boolean; detail?: string; exit_ip?: string; node?: string };
+  egress: { ok: boolean; detail?: string; exit_ip?: string; baseline_ip?: string };
   warnings: string[];
   redirect: string;
 }
@@ -1583,9 +1583,9 @@ export interface QuickstartResponse {
 export interface EgressCheck {
   ok: boolean;
   detail?: string;
-  proxy?: string;
   exit_ip?: string;
-  node?: string;
+  /** net.baseline_ip：首次自检成功后自动记录的基准出口 IP */
+  baseline_ip?: string;
 }
 
 export interface TaskErrorGroup {
@@ -1630,7 +1630,8 @@ export const p8api = {
     workers?: number;
     llm_profile_id?: number;
   }) => post<QuickstartResponse>("/tasks/quickstart", body),
-  egressCheck: () => get<EgressCheck>("/egress/check"),
+  // fresh=true：跳过 60s 缓存，立即真打一次两个 IP 源（「重新检测」用）。
+  egressCheck: (fresh = false) => get<EgressCheck>(`/egress/check${fresh ? "?fresh=1" : ""}`),
   taskErrors: (taskId: string, windowMin = 60) =>
     get<TaskErrorsResponse>(
       `/tasks/${encodeURIComponent(taskId)}/errors?window_min=${windowMin}`,
