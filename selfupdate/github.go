@@ -13,7 +13,12 @@ import (
 
 // Repo 是发布源。写死而不是做成配置项：更新源可配等于给任何能改配置的人一条
 // 远程代码执行通道，对一个渗透测试平台来说这个口子开不得。
-const Repo = "RuoJi6/ARTEX"
+//
+// ⚠️ 必须是**本 fork**，不能是上游。这是 2026-10-23 全量审查抓到的严重问题：
+// 原来写的是 "RuoJi6/ARTEX"（上游），用户点「页面一键更新」会把二开版二进制
+// 换成上游版 —— 能力卡/三门/台账/注入层全丢，且数据库已跑到 0004 迁移，
+// 上游没有这些表，等于把运行中的安装换成不兼容的版本。
+const Repo = "gthubtom1/ARTEX"
 
 // latestURL 是 GitHub 的"最新正式版"接口。它会自动跳过 prerelease 和 draft。
 const latestURL = "https://api.github.com/repos/" + Repo + "/releases/latest"
