@@ -3702,6 +3702,7 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		ReviewCond          *bool   `json:"review_cond"`
 		ReviewTier          *string `json:"review_tier"`
 		ReviewIntervalMin   *int    `json:"review_interval_min"`
+		ReviewCooldownMin   *int    `json:"review_cooldown_min"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, 400, err.Error())
@@ -3840,6 +3841,20 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.settings != nil {
 			_ = s.settings.Set(r.Context(), "review.interval_min", strconv.Itoa(m))
+		}
+	}
+	if req.ReviewCooldownMin != nil {
+		m := *req.ReviewCooldownMin
+		if m < 0 || m > 120 {
+			writeErr(w, 400, "review_cooldown_min 需在 0..120 分钟")
+			return
+		}
+		if err := s.m.pg.SetSetting("review.cooldown_min", strconv.Itoa(m)); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "review.cooldown_min", strconv.Itoa(m))
 		}
 	}
 	if req.FindingsVerifyGate != nil {

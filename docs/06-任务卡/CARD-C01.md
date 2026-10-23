@@ -1,5 +1,10 @@
 # CARD-C01 复盘官（A2：常驻 + 触发 + 笔记 + 可反驳）
 
+> 命名：Agent 页与界面现在统一叫「**审查官**」（`docs/09` 头注）；代码/DB 的 key 仍是 `adviser`。
+> 状态（2026-10-23）：手动/条件/定时三条腿 + 未读 + 三档 + 防抖 + 熔断 + ack 窗口 + 观察窗 + `propose_intent` 均已上线；
+> 逐项状态看 `docs/12` §一，交互协议看 `docs/13`/`docs/14`/`docs/15`。
+> 下文出现的 `_tabs/cando-tab.tsx` 已删除，不应再列入禁止清单（历史保留）。
+
 > 先读：`docs/06-判定标准-冻结.md`、**`docs/09-详设-C01-复盘官.md`（全文，13 项，唯一规格来源）**
 > 依赖：CARD-000 完成 ｜ 可与 CARD-B01 并行
 
@@ -87,6 +92,7 @@ agent/tools.go
 db/migrations/0005_cando_review.sql
 server/cando.go
 web/src/app/(main)/function/tasks/detail/_tabs/cando-tab.tsx
+# ↑ 已删除（2026-10-23），此行保留仅作历史
 ```
 
 ## ⑧ 验收

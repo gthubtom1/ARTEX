@@ -988,6 +988,7 @@ export interface Settings {
   review_cond?: boolean; // 审查官条件触发（默认 true）
   review_tier?: "observe" | "lowrisk" | "auto"; // 三档权限（默认 lowrisk）
   review_interval_min?: number; // 定时触发间隔（默认 10 分钟）
+  review_cooldown_min?: number; // 两次介入最短间隔（默认 5 分钟，0 = 不限制）
   // 拦截自动裁决：off=全部人工/模型审批；reviewer=规则自动放行/拒绝（拿不准才挂起）；allow_all=全部放行。
   intercept_auto_decide?: "off" | "reviewer" | "allow_all";
   // ── 以下由 settingsPayload() 回显，前端页面直接读（缺了就得每页写交叉类型绕过）──

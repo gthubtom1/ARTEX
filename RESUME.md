@@ -5,11 +5,31 @@
 > - `docs/01-零基础实战判定.md` —— 现在能打赢什么/打不赢什么 + 为什么
 > - **`docs/02-P8执行手册.md` —— 施工图**（P8-0～P8-9，每条到文件/函数/表/伪代码/验收判据；含接力协议、执行顺序、回归清单、进度账）
 >
-> 其余 22 份设计文档已降级为历史资料，**不要再从头读一遍**。
+> 其余设计文档已降级为历史资料（份数以 `docs/README.md` 索引为准），**不要从头读一遍**。
 >
 > 零基础使用/操作流程（点哪里、说什么话、四种目标分支）：见根目录 **`使用教程.md`**。
 
 > 换会话/换模型/上下文压缩后用这一页续接。**不需要旧对话 ID**——进度全在磁盘上。
+
+## 2026-10-23 卡片线（B01/C01/D01/E01）—— 最新一页
+
+> 这一页比下面的 P8 状态新。**接手先看这里，再看 P8。**
+
+| 卡 | 做了什么 | 现在在哪看 |
+|---|---|---|
+| A01 | 报告改用「独立漏洞」计数 | `/api/report` 摘要行 |
+| 000 | `0005_cando_review.sql` 四表 + 路由占位 + api | —（TABS 那一行已回退） |
+| **B01** | 删掉「能做到什么」tab；改为**会话右侧「战果清单」**（done/run/tried 三态、可拖拽详情、复制下一步指令、AI explain + suggest） | 任务详情 → 会话 → 右栏「战果」胶囊 |
+| **C01** | **审查官**全链路：条件/定时触发、三档权限、自检五问、8 条防抖、90s ack、10 分钟观察窗 outcome、`propose_intent`、KB 经验 + 死路台账、提示词版本化重播、错误按 `intent_id` 归属 | 任务详情 → 会话 → 右栏「审查官」胶囊 |
+| D01 | 生产端钩子 H1/H3/H4/H5（H2/H6 跳过） | `db/hooks.go` |
+| E01 | L1 提示 + L2 工具改道 + L3 度量版 + 命中率 16 表**接口** | `guard/guard.go`、`GET /api/system/hitrate` |
+| 另 | 任务模板 5 个种子、常用语（三个输入框）、会话头部模型胶囊改可切下拉 | `db/seed_templates.go`、`components/quick-phrases.tsx`、`sessions-tab.tsx` |
+
+**状态一律以 `docs/12-功能台账.md` 为准**；交互协议看 `docs/13`/`14`/`15`；入口/并行切分看 `docs/00b-卡片线-进度与任务卡.md`。
+
+已知未做：战果清单的 `todo/na` 两态 + “标为不适用”；命中率看板**没有页面**；`docs/08-详设` 已作废。
+
+---
 
 ## P8 状态（2026-10-22，v0.6.0-p8）
 
@@ -32,7 +52,7 @@ P8-9  internal/llmmodel 三档 + /api/llm/tier-suggest
 P8-2  内置默认人设 + 每请求现取 + 主对话/对话页全覆盖
 ```
 
-**必须由人补的一次性验证**（本机没有 PostgreSQL / docker，代码写完了但跑不了）：
+**必须由人补的一次性验证**（写这份时的状态；多数已于 2026-10-22/23 在真 PG18 + 真靶场上验过，仍缺的看 `docs/02` §9 的最后两格）：
 
 | 要验什么 | 怎么验 |
 |---|---|
@@ -180,14 +200,16 @@ server/p2_api.go     GET /api/capabilities|owned|owned/export|progress|p2/audit
 
 ```
 db/migrations/0001_p0_schema.sql   13 张表（幂等）+ db/migrations.go（ledger runner）
-internal/settings audit errclass idem snapshot dbiface netguard env adapter oast provision governor relay
+internal/settings audit errclass idem snapshot dbiface netguard env adapter oast provision relay
+（`internal/governor` 已 `git rm`，别再去引用）
 agent/relay_hook.go（MEMORY 接力）  agent/assembly.go（幂等+快照包装）
 guard/guard.go（审计 sink + 工具存在性钩子）
 server/server.go（wireP0：settings/audit/idem/snapshot/netguard/env）
 server/engine.go（errclass 分类日志；出口校验的 fail-closed 已被 P9 移除，改为启动前自检 + 只告警）
 fixtures/docker-compose.yml        靶场（DVWA/JuiceShop/VulHub，全绑 127.0.0.1）
 scripts/accept_p0.sh               五项验收
-docs/最终方案-v1.md                唯一总纲（冲突以它为准）
+docs/00-总纲v2-唯一事实源.md      唯一事实源（机制状态 / 决定 / 作废清单，冲突以它为准）
+docs/最终方案-v1.md                历史总纲（已收编，仅留一页摘要）
 docs/进度台账.md                   活文档：完成情况 + 设计决定 + 待验证项
 ```
 
@@ -202,7 +224,8 @@ docs/进度台账.md                   活文档：完成情况 + 设计决定 +
 7. `audit_log` 无外键、只追加。
 8. 幂等键 = `keyFor(task,intent,step,tool,input)`；重复写回返回"已存在"而不是报错。
 
-## 唯一需要人做的一次性动作
+## 环境前置（不是“只做一次”，是每次换环境都要满足）
 
 起 PostgreSQL，把 `ARTEX_PG_DSN` 指过去（例：`postgres://artex:pass@127.0.0.1:5432/artex?sslmode=disable`），
-然后 `bash scripts/accept_p0.sh` 应输出"通过 5 / 失败 0"。迁移会在应用首次启动时自动执行。
+然后 `bash scripts/accept_p0.sh` 应输出"通过 5 / 失败 0"。迁移会在应用首次启动时自动执行（目前 0001–0010）。
+另外宿主层必须能出网；任务不再因出口失败 `paused`（P9 后只自检，见 `docs/00-总纲v2` §7 第 4 项）。

@@ -263,7 +263,7 @@ psql "<dsn>" -c 'select 1'           # 没有 psql 就跳过，靠 ③ 判断
 curl -fsS http://127.0.0.1:8787/api/health   # 期望 2xx
 
 # ③ 迁移真的跑了（Docker 路线看容器日志）
-docker compose logs artex | grep "migration applied"   # 期望 0001..0004 四行
+docker compose logs artex | grep "migration applied"   # 期望 0001..0010 共 10 行
 
 # ④ 前端已内嵌（不是 404）
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8787/     # 期望 200

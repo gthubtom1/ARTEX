@@ -1,5 +1,8 @@
 # CARD-000 骨架（迁移 + 路由占位 + 前端接口 + TABS 一行）
 
+> ⚠️ **已完成（2026-10-23）；其中「TABS 加一行 cando」已被回退**：任务详情现在**没有** `能做到什么` tab，
+> 入口改为会话右栏的「战果」面板。本卡仅作历史记录，不要再照着加 tab。
+
 > 先读：`docs/06-判定标准-冻结.md`、`docs/07-开发流水线.md` §2
 > 依赖：无 ｜ 独占共享文件，**必须先于 B01/C01 完成**
 
@@ -20,7 +23,7 @@ B01 与 C01 都要改 `server/server.go`（路由注册）和 `db/migrations`。
 - 新增：`db/migrations/0005_cando_review.sql`
 - 修改：`server/server.go`（只加路由注册 + 每个 handler 返回 501 占位）
 - 修改：`web/src/lib/api.ts`（加 `cando(taskId)` / `reviewLatest(taskId)` / `reviewRun(taskId)` 等 6 个函数，指向上面路由）
-- 修改：`web/src/app/(main)/function/tasks/detail/page.tsx`（`const TABS` 加一行 `{ value: "cando", label: "能做到什么" }`，插在「发现」之后）
+- 修改：`web/src/app/(main)/function/tasks/detail/page.tsx`（`const TABS` 加一行 `{ value: "cando", label: "能做到什么" }`，插在「发现」之后）—— ⚠️ **已回退（2026-10-23）：该行已删除，当前 TABS 共 11 项）**
 
 ## ⑤ 怎么改
 迁移文件：把 `docs/08` §5 的 `cando_annotations` + `docs/09` §5 的 `review_notes` / `review_runs` / `review_feedback` 三段 DDL 原样拼入（全部 `CREATE TABLE IF NOT EXISTS` + 索引 `IF NOT EXISTS`）。
@@ -48,7 +51,7 @@ server/cando.go
 server/review.go
 web/src/lib/api.ts
 web/src/app/(main)/function/tasks/detail/page.tsx
-docs/00-二开优化-唯一事实源.md
+docs/00b-卡片线-进度与任务卡.md
 docs/06-任务卡/CARD-000.md
 docs/06-任务卡/CARD-A01.md
 ```

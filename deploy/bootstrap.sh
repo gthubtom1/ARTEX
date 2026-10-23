@@ -13,10 +13,13 @@
 #   6. 装测绘（默认）并自动接线
 #   7. 体检，输出 PASS/FAIL 与下一步要填的两把 Key
 #
-# 退出码：0 成功 / 1 环境不支持 / 10 需要重新登录后才能免 sudo
+# 退出码：0 成功（体检可能因测绘首次初始化而暂时 FAIL，按提示重跑 wire.sh）/ 1 环境不支持
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 ROOT="$(pwd)"
+# 复用 force_kv 等 .env 工具（lib.sh 也会再 cd 一次，无副作用）
+# shellcheck source=deploy/lib.sh
+source deploy/lib.sh
 
 WITH_ASM=1
 for a in "$@"; do
@@ -43,6 +46,13 @@ if [ "$(id -u)" -ne 0 ]; then
   exec sudo -E bash "$0" "$@"
 fi
 
+if [ "$WITH_ASM" = "1" ] && [ -r /proc/meminfo ]; then
+  MEM_MB=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 0)
+  if [ "${MEM_MB:-0}" -lt 7500 ]; then
+    warn "内存约 ${MEM_MB}MB：Mongo + 扫描节点可能吃紧；建议改跑 --no-asm 或加 swap"
+  fi
+fi
+
 if command -v apt-get >/dev/null; then PM=apt;
 elif command -v dnf >/dev/null; then PM=dnf;
 elif command -v pacman >/dev/null; then PM=pacman;
@@ -67,10 +77,16 @@ if [ "${#need[@]}" -gt 0 ] || [ "$have_compose" = "0" ]; then
         apt-get install -y -qq docker-compose 2>/dev/null || {
           warn "apt 里没有 compose，装官方插件"
           mkdir -p /usr/local/lib/docker/cli-plugins
-          apt-get install -y -qq docker-compose-plugin 2>/dev/null || \
-          curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
-            -o /usr/local/lib/docker/cli-plugins/docker-compose || die "compose 下载失败：检查网络"
-          chmod +x /usr/local/lib/docker/cli-plugins/docker-compose || die "chmod 失败"
+          apt-get install -y -qq docker-compose-plugin 2>/dev/null || {
+            # Docker 官方 release 资产名是小写 OS + uname 架构（docker-compose-linux-x86_64）。
+            COMPOSE_OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+            COMPOSE_ARCH="$(uname -m)"
+            COMPOSE_TMP="$(mktemp)"
+            curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-${COMPOSE_OS}-${COMPOSE_ARCH}" \
+              -o "$COMPOSE_TMP" || die "compose 下载失败：检查网络"
+            chmod +x "$COMPOSE_TMP" || die "chmod 失败"
+            mv "$COMPOSE_TMP" /usr/local/lib/docker/cli-plugins/docker-compose || die "安装 compose 失败"
+          }
         }
       fi
       ;;
@@ -121,10 +137,16 @@ run_start() {
 # ---- 4. 交棒 ----
 if [ "$RUN_AS_ROOT" = "1" ]; then
   run_start
+  # bootstrap --no-asm 是安装选择：把持久开关也置 0，避免下次普通 start 又把测绘拉起来。
+  if [ "$WITH_ASM" = "0" ] && [ -f .env ]; then force_kv ASM_ENABLED 0; fi
   chown -R "$TARGET_USER":"$TARGET_USER" data .env 2>/dev/null || true
   ok "数据目录归属已改回 $TARGET_USER"
 else
   run_start
+  if [ "$WITH_ASM" = "0" ] && [ -f .env ]; then
+    force_kv ASM_ENABLED 0
+    chown "$TARGET_USER":"$TARGET_USER" .env 2>/dev/null || true
+  fi
 fi
 
 # ---- 5. 收尾 ----
@@ -147,9 +169,12 @@ cat <<'EOF'
   体检：bash deploy/status.sh     停止：bash deploy/stop.sh
 EOF
 
+echo
+log "体检（测绘首次初始化时可能暂时 FAIL，属正常）"
+bash deploy/status.sh || warn "体检未全通过，按上面提示处理后可重跑：bash deploy/status.sh"
+
 if [ "$RUN_AS_ROOT" = "1" ] && [ "$TARGET_USER" != "root" ]; then
   echo
   warn "建议重启一次（或注销重登），之后 docker 就不用 sudo 了"
-  exit 0
 fi
 exit 0

@@ -54,6 +54,7 @@ export default function SystemSettingsPage() {
   const [reviewCond, setReviewCond] = React.useState(true);
   const [reviewTier, setReviewTier] = React.useState("lowrisk");
   const [reviewInterval, setReviewInterval] = React.useState("10");
+  const [reviewCooldown, setReviewCooldown] = React.useState("5");
   const [autoDecide, setAutoDecide] = React.useState<"off" | "reviewer" | "allow_all">("off");
   // 纯前端偏好：不走 /api/settings，直接读写 localStorage。
   const sendMode = useChatSendMode();
@@ -79,6 +80,7 @@ export default function SystemSettingsPage() {
     setReviewCond(s.review_cond !== false);
     setReviewTier((s.review_tier as string) ?? "lowrisk");
     setReviewInterval(String(s.review_interval_min ?? 10));
+    setReviewCooldown(String(s.review_cooldown_min ?? 5));
     setAutoDecide((s.intercept_auto_decide as "off" | "reviewer" | "allow_all") ?? "off");
   }, []);
 
@@ -569,7 +571,7 @@ export default function SystemSettingsPage() {
                 只看＝只出结论不动任务；低风险自动＝只重开「被自己接口打断的」、只标死「目标明确拒绝≥3次的」；
                 全自动＝同上但配额更高。三档都不碰目标/证据/收工（硬约束）。
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Label htmlFor="review-interval" className="text-xs font-normal text-muted-foreground">
                   定时触发间隔（分钟）
                 </Label>
@@ -580,6 +582,17 @@ export default function SystemSettingsPage() {
                   disabled={!loaded}
                   onChange={(e) => setReviewInterval(e.target.value)}
                 />
+                <Label htmlFor="review-cooldown" className="text-xs font-normal text-muted-foreground">
+                  冷却（分钟）
+                </Label>
+                <input
+                  id="review-cooldown"
+                  className="w-16 rounded border bg-background px-2 py-0.5 text-xs"
+                  value={reviewCooldown}
+                  disabled={!loaded}
+                  onChange={(e) => setReviewCooldown(e.target.value)}
+                />
+                <span className="text-muted-foreground text-xs">两次介入最短间隔，默认 5</span>
                 <Button
                   size="sm"
                   variant="outline"
@@ -590,11 +603,16 @@ export default function SystemSettingsPage() {
                       toast.error("间隔需是 1..720 的整数分钟");
                       return;
                     }
+                    const c = Number(reviewCooldown);
+                    if (!Number.isInteger(c) || c < 0 || c > 120) {
+                      toast.error("冷却需是 0..120 的整数分钟");
+                      return;
+                    }
                     api
-                      .setSettings({ review_interval_min: n })
+                      .setSettings({ review_interval_min: n, review_cooldown_min: c })
                       .then((r) => {
                         apply(r);
-                        toast.success(`审查官定时间隔已设为 ${n} 分钟`);
+                        toast.success(`审查官定时间隔已设为 ${n} 分钟，冷却 ${c} 分钟`);
                       })
                       .catch((e) => toast.error(`保存失败：${(e as Error).message}`));
                   }}

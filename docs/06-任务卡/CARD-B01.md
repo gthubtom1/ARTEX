@@ -1,10 +1,18 @@
 # CARD-B01「能做到什么」tab（画布）
 
-> 先读：`docs/06-判定标准-冻结.md`、**`docs/08-详设-B01-能做到什么.md`（全文，13 项，是唯一规格来源）**
+> ⚠️ **本卡已交付，但交付形态与本卡描述不一致；卡片正文作废。**
+> 「任务详情新 tab + 画布」（`_tabs/cando-tab.tsx`）**已删除**，实际落地为**会话右侧第三个面板「战果」**
+> （`_tabs/loot-panel.tsx` + `server/loot.go`/`loot_ai.go`，迁移 `0007_loot_explain.sql`）。
+> 现状与缺口看 `docs/12-功能台账.md` §二；`docs/08-详设` 已标作废。
+> 卡内白名单里的 `cando-tab.tsx` 已不存在；`sessions-tab.tsx` 也不再是禁止修改文件（三个面板互斥就在它里面）。
+
+> 先读：`docs/06-判定标准-冻结.md`、**`docs/12-功能台账.md` §二（现状与缺口，唯一依据）**；
+> `docs/08-详设-B01-能做到什么.md` 已标作废，只可当“字段从哪张表来”的参考，**不要按它的界面实现**。
 > 依赖：CARD-000 完成 ｜ 可与 CARD-C01 并行
 
 ## ① 目标
-在任务详情新增第 12 个 tab「能做到什么」：画布展示 入口→能做到→拿到了什么→下一步 / 卡住了 / 已排除，四色体检 + 已拿下标记 + 决策选项 + 复制/下发指令 + 按需 AI 细化（按钮触发，后台跑，结果回填）。
+
+~~在任务详情新增第 12 个 tab「能做到什么」~~ → **实际交付**：会话右侧同一个方框里的第三个面板「战果」（战果清单表格，done/run/tried 三态 + 详情层 + 复制下一步指令 + AI explain/suggest）。
 
 ## ② 为什么
 `发现` 只回答"有几条洞"；`能力菜单` 是跨任务、按能力分组的商业裁决，结构上拿不到 `exploration_nodes`，画不出链路；`探索链路` 是"它做了什么"。三者都不回答"我手里有什么 + 下一步派什么活"。
@@ -18,10 +26,11 @@
 6. 所有规格细节（状态机、字段映射、失败态、成本、验收）以 `docs/08` 为准，**本卡不重复**。
 
 ## ④ 改哪
-- 新增：`server/cando.go`（GET cando / POST annotate / GET annotate）
-- 新增：`web/src/app/(main)/function/tasks/detail/_tabs/cando-tab.tsx`
-- 修改：`server/cando.go`（CARD-000 的 3 条 501 占位换成真实 handler，并加 `/cando/send`）
-- 修改：`web/src/app/(main)/function/tasks/detail/page.tsx`（import + `<TabsContent value="cando">` 挂载）
+- 新增：`server/cando.go`（GET cando / POST annotate / GET annotate；后续又加了 `/cando/send`）
+- 新增：`server/loot.go` + `server/loot_ai.go`（战果清单 / `/loot/explain` / `/loot/suggest`）+ 单测
+- 新增：`web/src/app/(main)/function/tasks/detail/_tabs/loot-panel.tsx`（**当前真实入口**）
+- ~~新增 `_tabs/cando-tab.tsx`~~ → 已删除，不要再建
+- 修改：`web/src/app/(main)/function/tasks/detail/_tabs/sessions-tab.tsx`（胶囊 + 三面板互斥切换）
 
 ## ⑤ 怎么改
 按 `docs/08`：
@@ -41,7 +50,7 @@ server/loot_prompt_test.go
 server/server.go
 db/migrations/0007_loot_explain.sql
 web/src/app/(main)/function/tasks/detail/_tabs/loot-panel.tsx
-web/src/app/(main)/function/tasks/detail/_tabs/cando-tab.tsx
+# web/src/app/(main)/function/tasks/detail/_tabs/cando-tab.tsx   ← 已删除（2026-10-23），不要再建
 web/src/app/(main)/function/tasks/detail/page.tsx
 web/src/lib/api.ts
 docs/08-详设-B01-能做到什么.md

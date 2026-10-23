@@ -34,10 +34,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates ripgrep curl wget vim git jq unzip \
       dnsutils iputils-ping netcat-openbsd inetutils-telnet whois nmap \
     && rm -rf /var/lib/apt/lists/*
+# 与 Dockerfile（预编译发布镜像）保持一致的运行时能力：内置 browser MCP 用
+# `npx @playwright/mcp` 启动，缺 Node/Chromium 时该功能会静默不可用。
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+RUN npm install -g @playwright/mcp@latest @playwright/cli@latest playwright@latest \
+    && playwright-cli --help \
+    && playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=gobuild /out/artex /app/artex
 COPY start.sh /app/start.sh
 RUN chmod +x /app/artex /app/start.sh
+# JWT 签名密钥写在可执行文件旁（/app/jwt.key）。指向 data 卷，容器重建后
+# 已登录会话才不会全部失效。
+RUN ln -sfn /app/data/jwt.key /app/jwt.key
 COPY skills/ /app/skills/
 VOLUME ["/app/data"]
 EXPOSE 8787 8788
