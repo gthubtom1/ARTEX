@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 set "REPO=gthubtom1/ARTEX"
 set "EXE=artex.exe"
-rem 固定版本：set ARTEX_TAG=v0.7.4-p9 ；不设就用「最新 Release」的稳定名字资产
+rem 固定版本：set ARTEX_TAG=v0.7.4-p9 ；不设就取「最新 Release」的稳定资产名
 if defined ARTEX_TAG set "TAG=%ARTEX_TAG%"
 
 echo ============================================
@@ -36,11 +36,11 @@ if defined TAG (
   goto :no_bin
 )
 
-rem ③ 没指定版本：先试稳定名字（每个 Release 都带这个资产名），失败再解析最新 tag
+rem ③ 没指定版本：先试稳定资产名（每个 Release 都发这个名），失败再解析最新 tag
 echo [*] 下载最新 Release 的 Windows 包 ...
 set "ZIP=artex-windows-amd64.zip"
 call :fetch "https://github.com/%REPO%/releases/latest/download/artex-windows-amd64.zip"
-if exist "artex-windows-amd64.zip" goto :extract
+if exist "%ZIP%" goto :extract
 
 echo [*] 稳定名字取不到，改按最新 tag 取 ...
 set "LOC="
@@ -99,22 +99,25 @@ where go >nul 2>&1
 if errorlevel 1 goto :no_bin_help
 where node >nul 2>&1
 if errorlevel 1 goto :no_bin_help
-where bash >nul 2>&1
-if errorlevel 1 goto :no_bin_help
-if not exist "scripts@BS@package_local.sh" goto :no_bin_help
+set "BASH="
+where bash >nul 2>&1 && set "BASH=bash"
+if not defined BASH if exist "%ProgramFiles%\Git\bin\bash.exe" set "BASH=%ProgramFiles%\Git\bin\bash.exe"
+if not defined BASH if exist "%ProgramFiles(x86)%\Git\bin\bash.exe" set "BASH=%ProgramFiles(x86)%\Git\bin\bash.exe"
+if not defined BASH if exist "%LOCALAPPDATA%\Programs\Git\bin\bash.exe" set "BASH=%LOCALAPPDATA%\Programs\Git\bin\bash.exe"
+if not defined BASH goto :no_bin_help
+if not exist "scripts\package_local.sh" goto :no_bin_help
 echo.
 echo [*] 下载不通，但本机有 Go+Node：改为本地构建（首次约 5-10 分钟）...
-bash scripts@BS@package_local.sh v0.7.4-p9
-if exist "dist@BS@artex.exe" copy /y "dist@BS@artex.exe" "%EXE%" >nul
+"%BASH%" scripts\package_local.sh v0.7.4-p9
+if exist "dist\artex.exe" copy /y "dist\artex.exe" "%EXE%" >nul
 if exist "%EXE%" (echo [+] 本地构建完成 & goto :have_bin)
 
 :no_bin_help
 echo [x] 没拿到 artex.exe。
 echo     1) 检查网络能否访问 github.com 与 release-assets.githubusercontent.com（或设代理）
 echo     2) 手动到 Releases 页下载 artex-windows-amd64.zip（或 artex-*-windows-amd64.zip），解压后把 artex.exe 放到本目录
-echo     3) 从源码构建（需要 Go + Node）：先装 Git for Windows，再在 Git Bash 里执行
-echo          cd web ^&^& npm ci ^&^& NEXT_EXPORT=1 npx next build ^&^& cd ..
-echo          go build -tags embedui -o artex.exe ./cmd/artex
+echo     3) 从源码构建（需要 Go + Node + Git for Windows），或在 Git Bash 里执行：
+echo          bash scripts\package_local.sh v0.7.4-p9
 pause & exit /b 1
 
 :start
@@ -126,8 +129,7 @@ call start.bat
 goto :eof
 
 :fetch
-rem 先 curl，失败再用 PowerShell（curl.exe 在 Win10 1803+ 才有）
-curl.exe -L --fail -o "%~2" "%~1" 2>nul
+curl.exe -L --fail --connect-timeout 15 --max-time 300 -o "%~2" "%~1" 2>nul
 if exist "%~2" goto :eof
 powershell -NoProfile -Command "try{Invoke-WebRequest -UseBasicParsing '%~1' -OutFile '%~2'}catch{exit 1}" 2>nul
 goto :eof
