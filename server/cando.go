@@ -15,6 +15,7 @@ import (
 
 	"github.com/Autumn-27/artex/db"
 	"github.com/Autumn-27/artex/internal/capability"
+	"github.com/Autumn-27/artex/llmrec"
 )
 
 // 「能做到什么」地图（CARD-B01）。
@@ -526,7 +527,7 @@ func (s *Server) candoAnnotate(w http.ResponseWriter, r *http.Request) {
 
 	go func(tk *Task, taskID int64, nodeKey, evHash string) {
 		defer mu.Unlock()
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(llmrec.WithWorker(context.Background(), "cando"), 60*time.Second)
 		defer cancel()
 		user := fmt.Sprintf("目标：%s\n要分析的节点：%s\n任务描述：%s\n请按规矩写 3–5 句。", tk.Goal, nodeKey, tk.Description)
 		rt := &taskLLMRuntime{s: s, taskID: tk.ID, agentKey: "adviser"}

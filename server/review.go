@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Autumn-27/artex/internal/review"
+	"github.com/Autumn-27/artex/llmrec"
 )
 
 // 复盘官（CARD-C01）。
@@ -107,7 +108,8 @@ func (s *Server) runReview(w http.ResponseWriter, r *http.Request, trigger, rebu
 	}
 	defer mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	// 成本归因：独立调用的 worker 标签（否则 llm_usage.worker 为空，分摊不到角色）
+	ctx, cancel := context.WithTimeout(llmrec.WithWorker(r.Context(), "adviser"), 60*time.Second)
 	defer cancel()
 
 	notes, ver, _ := review.LoadNotes(ctx, s.m.PG(), taskID)
@@ -136,6 +138,9 @@ func (s *Server) runReview(w http.ResponseWriter, r *http.Request, trigger, rebu
 		}
 	}
 	if modelName == "rule" {
+		if lerr != nil {
+			log.Printf("[review] llm failed (task=%d): %v", taskID, lerr)
+		}
 		v = review.RuleBased(snap)
 	}
 
