@@ -478,11 +478,11 @@ func (s *Server) applyReviewActionsForRun(ctx context.Context, t *Task, runID in
 			notes = append(notes, "换阶段需要你在任务设置里手动确认，已记录")
 			continue
 		case "propose_intent":
-			// 只提议：写成一条 hint 给主链路，不派生任务、不派活，并记 feedback=proposed。
+			// 只提议：写成一条 hint 给主链路 + 一条 worker="mainagent" 的活动（「会话」tab 看得见），
+			// 不派生任务、不派活，并记 feedback=proposed。走与 B 级建议同一条投递路径，
+			// 所以「同一条 run 只投递一次」的哨兵对它同样生效。
 			text := proposeIntentText(a)
-			if ok, err := s.writeReviewHint(ctx, t, text, "审查官提议了一个新方向（只提议，未派活）"); err != nil {
-				log.Printf("[review] propose_intent hint task=%s: %v", t.ID, err)
-			} else if ok {
+			if ok := s.deliverReviewHintOnce(ctx, t, runID, text, "审查官提议了一个新方向（只提议，未派活）"); ok {
 				notes = append(notes, "已把新方向写成一条提示（未派活）")
 			}
 			if runID > 0 {

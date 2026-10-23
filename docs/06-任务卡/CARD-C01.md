@@ -55,6 +55,7 @@ agent/mainagent.go
 agent/promptcatalog.go
 agent/prompt_test.go
 db/db.go
+db/seed_templates.go
 db/migrations/0006_review_loop.sql
 db/migrations/0008_review_ack.sql
 internal/review/experience_test.go

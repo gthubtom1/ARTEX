@@ -303,6 +303,9 @@ ON CONFLICT (name) DO NOTHING`,
 	if err := d.seedDefaultAssetInterceptRules(); err != nil {
 		return fmt.Errorf("seed asset intercept rules: %w", err)
 	}
+	if err := d.seedBuiltinTaskTemplates(); err != nil {
+		return fmt.Errorf("seed task templates: %w", err)
+	}
 	return nil
 }
 

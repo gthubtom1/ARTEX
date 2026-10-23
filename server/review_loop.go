@@ -162,8 +162,9 @@ func (s *Server) applyReviewAction(t *Task, a review.Action) (bool, string) {
 	return false, ""
 }
 
-// writeReviewHint 是审查官写 hint 的唯一入口：B 级建议与 propose_intent 共用。
-// AddHintOnce 会去重（同样的话不重复占提示位），并留一条 activity 供人看。
+// writeReviewHint 是审查官写 hint 的唯一落库入口：由 deliverReviewHintOnce 调用（B 级建议
+// 与 propose_intent 共用那一条投递路径）。
+// AddHintOnce 会去重（同样的话不重复占提示位），并留一条 adviser 的 activity。
 // 它写的永远只是「建议」，不执行任何动作。
 func (s *Server) writeReviewHint(ctx context.Context, t *Task, text, summary string) (bool, error) {
 	if t == nil || t.Store == nil || strings.TrimSpace(text) == "" {
@@ -184,13 +185,100 @@ func (s *Server) writeReviewHint(ctx context.Context, t *Task, text, summary str
 	return ok, nil
 }
 
-// deliverReviewAdvice 把 B 级建议投给主链路：写一条 hint（planner 会看到并把
-// "先核对现状再决定"当硬约束），并留一条 activity 供人看。它**不**直接执行任何动作。
-func (s *Server) deliverReviewAdvice(ctx context.Context, t *Task, runID int64, text string) {
-	if _, err := s.writeReviewHint(ctx, t, text,
-		"审查官：给主链路的建议已投递（先核对现状再决定，不是命令）"); err != nil {
-		log.Printf("[review] deliver advice task=%s: %v", t.ID, err)
+// reviewAdviceHeadline 取建议正文的第一句实话（跳过「建议不是命令」表头、空行与
+// 拟动作清单），用作「会话」tab 里那条主 Agent 活动的一行摘要。
+func reviewAdviceHeadline(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "审查官建议（") || strings.HasPrefix(line, "拟动作：") {
+			continue
+		}
+		return firstLine(line, 120)
 	}
+	return firstLine(text, 120)
+}
+
+// emitMainAgentAdvice 把「审查官建议」写进主 Agent 会话流（worker="mainagent"）。
+// 「会话」tab 只渲染 worker='mainagent' 的活动，只写 hint + activity(adviser) 人看不见，
+// 所以这里补一条主 Agent 可见的记录。它只是文本：不改目标、不收工、不派活。
+func (s *Server) emitMainAgentAdvice(t *Task, runID int64, text string) {
+	if s.engine == nil || t == nil || t.Store == nil {
+		return
+	}
+	// 与主 Agent 的其它回合写进同一个会话段：MainSeg=nil 会落到「原始会话」，
+	// 新建过会话之后当前 tab 里就看不到（sessions-tab 按 main:<seg> 路由）。
+	var segPtr *int
+	if seg, err := t.Store.CurrentMainSeg(); err == nil {
+		segPtr = &seg
+	}
+	detail := text + "\n\n依据：review run #" + strconv.FormatInt(runID, 10) +
+		"（结论卡里的 cites/actions 带真实 id 与状态）。" +
+		"\n请先核对现状再决定；不要把它当命令直接执行（审查官没有执行权：没改目标、没收工、没派活）。"
+	s.engine.emitActivity(t, db.Activity{
+		Worker:  "mainagent",
+		Kind:    "text",
+		MainSeg: segPtr,
+		Summary: "审查官建议（只读，不是命令）：" + reviewAdviceHeadline(text),
+		Detail:  detail,
+	})
+	t.Notify()
+}
+
+// claimReviewDelivery 是「同一条 run 只投递一次」的哨兵：ack_at 为空说明这条结论
+// 还没投递过，只有抢到（RowsAffected==1）的那一方才有权写主 Agent 活动。
+// 并发的定时评审 / ack 超时路径 / 多实例因此不会把同一句话说两遍。
+//
+// 为什么用 ack_at 而不是写一个 ack_status='delivered'：ack_status 的取值只有
+// 空串 / held / accepted / rejected / escalated（db/migrations/0006、0008），没有 delivered；
+// 而且 reviewAckSweep 只扫 ack_status 为空的行（partial index 也是按它建的），
+// 真写一个非空值会让「90 秒没人回 → 按档位处理」整体失效。所以投递只打 ack_at=now()
+// 表示「已投递」，ack_status 保持为空，升级流程照旧，但不会再投递第二次。
+func (s *Server) claimReviewDelivery(ctx context.Context, runID int64) bool {
+	if s.m == nil || s.m.pg == nil {
+		return false
+	}
+	res, err := s.m.pg.ExecContext(ctx, `UPDATE review_runs SET ack_at=now()
+		WHERE id=$1 AND ack_at IS NULL`, runID)
+	if err != nil {
+		log.Printf("[review] claim delivery run=%d: %v", runID, err)
+		return false
+	}
+	n, _ := res.RowsAffected()
+	return n == 1
+}
+
+// deliverReviewHintOnce 是审查官向主链路投递的唯一实现（B 级建议与 propose_intent 共用）：
+//  1. 写 hint（planner 侧看得到，AddHintOnce 会去重）；
+//  2. 抢哨兵，抢到才写一条 worker="mainagent" 的活动——「会话」tab 因此看得见。
+//
+// 顺序是有意的：hint 先落库，主 Agent 侧记录后写；任一失败都只是少一条活动，不会重复说两遍。
+// 返回 hint 是否真的写进去了（用于给界面回执文案）。
+func (s *Server) deliverReviewHintOnce(ctx context.Context, t *Task, runID int64, text, hintSummary string) bool {
+	if t == nil || strings.TrimSpace(text) == "" {
+		return false
+	}
+	ok, err := s.writeReviewHint(ctx, t, text, hintSummary)
+	if err != nil {
+		log.Printf("[review] deliver hint task=%s: %v", t.ID, err)
+	}
+	if runID <= 0 {
+		// 没有 run 可做哨兵（例如手工触发的建议）：照常投一次，调用方保证只调一次。
+		s.emitMainAgentAdvice(t, runID, text)
+		return ok
+	}
+	if !s.claimReviewDelivery(ctx, runID) {
+		return ok // 这条 run 已经投递过：hint 照写（去重），但不再占会话位置
+	}
+	s.emitMainAgentAdvice(t, runID, text)
+	return ok
+}
+
+// deliverReviewAdvice 把 B 级建议投给主链路：写一条 hint（planner 会看到并把
+// "先核对现状再决定"当硬约束），并在「会话」tab 留一条主 Agent 可见的活动。
+// 它**不**直接执行任何动作。
+func (s *Server) deliverReviewAdvice(ctx context.Context, t *Task, runID int64, text string) {
+	s.deliverReviewHintOnce(ctx, t, runID, text,
+		"审查官：给主链路的建议已投递（先核对现状再决定，不是命令）")
 }
 
 // finishReviewRun 把一次评审的最终形态写回 review_runs。
