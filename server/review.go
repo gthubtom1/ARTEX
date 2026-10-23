@@ -125,37 +125,23 @@ func (s *Server) runReview(w http.ResponseWriter, r *http.Request, trigger, rebu
 	if rebuttal != "" {
 		user = fmt.Sprintf("用户不同意你上次的判断，理由是：%s\n请重新判一遍；如果你改口，必须写明「旧结论 + 被哪条证据推翻」。\n\n%s", rebuttal, user)
 	}
-	// 必须用复盘官自己的提示词（要求 JSON 输出）。Agent 页的「顾问」提示词是给 runtime
-	// adviser 用的，它不要求 JSON；用它会让评审输出散文，解析必然失败（已踩）。
-	sys := review.SystemPrompt
-
-	var v review.Verdict
+	// 分工：结构化动作（actions/cites）由规则引擎给——确定性、不编造；
+	// 模型只负责把现状说人话。这样既不会因 JSON 被截断而丢掉整份结论，
+	// 也不会让模型凭空造动作。
+	v := review.RuleBased(snap)
 	modelName := "rule"
 	rt := &taskLLMRuntime{s: s, taskID: t.ID, agentKey: "adviser"}
-	raw, lerr := collectText(ctx, rt, true, sys, user, 8000)
+	raw, lerr := collectText(ctx, rt, true, review.ProsePrompt, user, 1200)
 	if lerr == nil {
-		if parsed, perr := review.Parse(raw); perr == nil {
-			v = parsed
+		if txt := cleanReviewText(raw); len([]rune(txt)) >= 12 {
+			v.Body = txt
+			v.Confidence = "medium"
 			modelName = "adviser"
-		} else if salv, ok := review.ParseLenient(raw); ok {
-			v = salv
-			modelName = "adviser"
-			log.Printf("[review] json 不完整，已抢救正文（%d 字）", len(salv.Body))
-		} else if txt := cleanReviewText(raw); len([]rune(txt)) >= 12 {
-			// 模型没按 JSON 输出时，直接把它写的正文当结论用：
-			// 对委托人来说“看得懂的一段话”比“格式正确的空”更有价值。
-			v = review.Verdict{Verdict: "continue", Body: txt, Confidence: "low"}
-			modelName = "adviser"
-			log.Printf("[review] 非 JSON 输出，按正文采用（%d 字）", len([]rune(txt)))
 		} else {
-			log.Printf("[review] 输出无法解析: %v", perr)
+			log.Printf("[review] 模型正文太短，用规则版（%d 字）", len([]rune(raw)))
 		}
-	}
-	if modelName == "rule" {
-		if lerr != nil {
-			log.Printf("[review] llm failed (task=%d): %v", taskID, lerr)
-		}
-		v = review.RuleBased(snap)
+	} else {
+		log.Printf("[review] llm failed (task=%d): %v", taskID, lerr)
 	}
 
 	citesJSON, _ := json.Marshal(v.Cites)

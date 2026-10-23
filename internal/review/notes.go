@@ -151,6 +151,17 @@ func ParseLenient(raw string) (Verdict, bool) {
 	return Verdict{Verdict: "continue", Body: body, Confidence: "low"}, true
 }
 
+// ProsePrompt 是「只要一段人话」的变体：结构化动作由规则引擎给，
+// 模型只负责把现状说人话（避免小模型输出长 JSON 被截断）。
+const ProsePrompt = `你是这次渗透任务请来的「外部评估者」。你不参与执行，不跑命令。
+读下面的结构化事实，用完全不懂技术的委托人能听懂的话，写 3–6 句：
+手里已经有什么、还差什么、下一步值不值得做、哪条方向应该放下。
+规矩：
+1. 只信事实，没写的写"还没确认"；
+2. 不出现英文术语、命令、模型名；
+3. 不写数量细节（只说"有用户密码"这种程度）；
+4. 直接输出这段话本身，不要 JSON、不要 Markdown、不要分点标题。`
+
 // RuleBased 是模型不可用时的确定性兜底（不烧 token、不编造）。
 func RuleBased(s *Snapshot) Verdict {
 	var selfFault, dead []int64
@@ -175,6 +186,9 @@ func RuleBased(s *Snapshot) Verdict {
 		b.WriteString("暂时没有明显走偏的迹象。")
 	}
 	v := Verdict{Verdict: "continue", Body: b.String(), Confidence: "low"}
+	// 笔记：规则版也能积累（否则 review_notes 永远是空表）。
+	v.Notes = fmt.Sprintf("目标：%s\n方向：%d 条 ｜ 漏洞：%d 条\n死路（目标拒绝）：%d\n我方故障（可重跑）：%d\n判断基线：连续3轮无新fact=该换；同手法4次同结果=死路",
+		truncRunes(s.Goal, 60), len(s.Intents), len(s.Findings), len(dead), len(selfFault))
 	for _, id := range dead {
 		v.Actions = append(v.Actions, Action{Kind: "kill_intent", Intent: id, Why: "目标侧明确拒绝"})
 		v.Cites = append(v.Cites, Cite{Kind: "intent", ID: id})
@@ -184,4 +198,13 @@ func RuleBased(s *Snapshot) Verdict {
 		v.Cites = append(v.Cites, Cite{Kind: "intent", ID: id})
 	}
 	return v
+}
+
+func truncRunes(s string, n int) string {
+	s = strings.TrimSpace(s)
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }
