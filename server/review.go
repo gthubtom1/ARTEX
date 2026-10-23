@@ -139,6 +139,12 @@ func (s *Server) runReview(w http.ResponseWriter, r *http.Request, trigger, rebu
 			v = salv
 			modelName = "adviser"
 			log.Printf("[review] json 不完整，已抢救正文（%d 字）", len(salv.Body))
+		} else if txt := cleanReviewText(raw); len([]rune(txt)) >= 12 {
+			// 模型没按 JSON 输出时，直接把它写的正文当结论用：
+			// 对委托人来说“看得懂的一段话”比“格式正确的空”更有价值。
+			v = review.Verdict{Verdict: "continue", Body: txt, Confidence: "low"}
+			modelName = "adviser"
+			log.Printf("[review] 非 JSON 输出，按正文采用（%d 字）", len([]rune(txt)))
 		} else {
 			log.Printf("[review] 输出无法解析: %v", perr)
 		}
@@ -299,4 +305,16 @@ func (s *Server) reviewNotes(w http.ResponseWriter, r *http.Request) {
 	taskID, _ := strconv.ParseInt(t.ID, 10, 64)
 	body, ver, _ := review.LoadNotes(r.Context(), s.m.PG(), taskID)
 	writeJSON(w, http.StatusOK, map[string]any{"version": ver, "body": body})
+}
+
+// cleanReviewText 去掉代码围栏与 JSON 残渣，留下可读正文。
+func cleanReviewText(raw string) string {
+	t := strings.TrimSpace(raw)
+	if strings.HasPrefix(t, "{") && !strings.Contains(t, "body") {
+		return ""
+	}
+	t = strings.TrimPrefix(t, "```json")
+	t = strings.TrimPrefix(t, "```")
+	t = strings.TrimSuffix(t, "```")
+	return strings.TrimSpace(t)
 }
