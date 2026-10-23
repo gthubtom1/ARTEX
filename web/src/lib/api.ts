@@ -1725,6 +1725,7 @@ export interface CandoNode {
   items?: CandoItem[];
   options?: CandoOption[];
   cites?: number[];
+  prompt?: string;
 }
 
 export interface CandoLane {
@@ -1801,3 +1802,10 @@ export const reviewapi = {
   notes: (taskId: string) =>
     get<{ version: number; body: string }>(`/tasks/${encodeURIComponent(taskId)}/review/notes`),
 };
+
+// 用户点「直接发给它」：写成 hint 并唤醒 planner（危险动作后端会拒绝）。
+export const candoSend = (taskId: string, text: string, nodeKey: string) =>
+  post<{ ok: boolean; id: number }>(`/tasks/${encodeURIComponent(taskId)}/cando/send`, {
+    text,
+    node_key: nodeKey,
+  });

@@ -48,6 +48,7 @@ import { GraphTab } from "./_tabs/graph-tab";
 import { InterceptTab } from "./_tabs/intercept-tab";
 import { OverviewTab } from "./_tabs/overview-tab";
 import { ReportTab } from "./_tabs/report-tab";
+import { CandoTab } from "./_tabs/cando-tab";
 
 import { TaskErrorBar } from "@/components/task-error-bar";
 import { RetestsTab } from "./_tabs/retests-tab";
@@ -446,6 +447,9 @@ function TaskDetailInner() {
         </TabsContent>
         <TabsContent value="findings" className="mt-0">
           <FindingsTab taskId={id} />
+        </TabsContent>
+        <TabsContent value="cando" className="mt-0">
+          <CandoTab taskId={id} />
         </TabsContent>
         <TabsContent value="retests" className="mt-0">
           <RetestsTab key={id} taskId={id} />

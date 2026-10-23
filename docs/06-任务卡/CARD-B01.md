@@ -20,7 +20,8 @@
 ## ④ 改哪
 - 新增：`server/cando.go`（GET cando / POST annotate / GET annotate）
 - 新增：`web/src/app/(main)/function/tasks/detail/_tabs/cando-tab.tsx`
-- 修改：`server/server.go`（把 CARD-000 的 501 占位换成真实 handler，仅替换那 3 条）
+- 修改：`server/cando.go`（CARD-000 的 3 条 501 占位换成真实 handler，并加 `/cando/send`）
+- 修改：`web/src/app/(main)/function/tasks/detail/page.tsx`（import + `<TabsContent value="cando">` 挂载）
 
 ## ⑤ 怎么改
 按 `docs/08`：
@@ -35,6 +36,7 @@
 server/cando.go
 server/server.go
 web/src/app/(main)/function/tasks/detail/_tabs/cando-tab.tsx
+web/src/app/(main)/function/tasks/detail/page.tsx
 web/src/lib/api.ts
 docs/06-任务卡/CARD-B01.md
 ```
