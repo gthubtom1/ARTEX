@@ -6,8 +6,11 @@ cd "$(dirname "$0")/.."
 VER="${1:-dev}"
 
 if [ ! -d web/node_modules ]; then
-  echo "[!] web/node_modules 不存在：先 cd web && NODE_ENV=development npm ci --include=dev --ignore-scripts"
-  exit 1
+  # 换机后第一次打包会走到这里：自己装依赖，不用人记命令（需要能访问 npm registry）
+  command -v npm >/dev/null 2>&1 || { echo "[!] 缺 npm（Node.js 18+）：https://nodejs.org/ 装完重跑"; exit 1; }
+  echo "[*] web/node_modules 不存在，先装依赖（npm ci，几分钟）..."
+  ( cd web && NODE_ENV=development npm ci --include=dev --ignore-scripts ) || {
+    echo "[!] npm ci 失败：检查网络/代理，或手动执行 cd web && npm ci --include=dev"; exit 1; }
 fi
 
 echo "[*] 导出静态前端"
