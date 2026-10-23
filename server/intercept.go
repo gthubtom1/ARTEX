@@ -230,10 +230,13 @@ func collectText(ctx context.Context, prov llm.Provider, nonStreaming bool, syst
 		if err != nil {
 			return "", err
 		}
+		// 达到输出上限时仍保留已生成文本：调用方（如复盘官）能解析就用，
+		// 解析不了再走规则版兜底，不要在这里把内容丢掉。
+		text := strings.TrimSpace(msg.Text())
 		if stop == "max_tokens" || stop == "length" {
-			return "", fmt.Errorf("模型输出达到上限")
+			log.Printf("[llm] hit max_tokens, keep %d chars", len(text))
 		}
-		return strings.TrimSpace(msg.Text()), nil
+		return text, nil
 	}
 	var sb strings.Builder
 	for ev, err := range prov.Stream(ctx, req) {

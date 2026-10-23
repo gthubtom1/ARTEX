@@ -531,7 +531,7 @@ func (s *Server) candoAnnotate(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		user := fmt.Sprintf("目标：%s\n要分析的节点：%s\n任务描述：%s\n请按规矩写 3–5 句。", tk.Goal, nodeKey, tk.Description)
 		rt := &taskLLMRuntime{s: s, taskID: tk.ID, agentKey: "adviser"}
-		text, err := collectText(ctx, rt, true, candoSystemPrompt, user, 700)
+		text, err := collectText(ctx, rt, true, candoSystemPrompt, user, 1200)
 		if err != nil {
 			_, _ = s.m.pg.Exec(`UPDATE cando_annotations SET status='failed', error=$3, finished_at=now()
 				WHERE task_id=$1 AND node_key=$2 AND evidence_hash=$4`, taskID, nodeKey, err.Error(), evHash)
