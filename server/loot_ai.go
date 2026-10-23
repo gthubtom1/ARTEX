@@ -89,6 +89,13 @@ func (s *Server) lootExplain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 人标的行（还没试 / 不适用）没有证据可解释，不必花 token 调模型：
+	// 直接回确定性人话，前端会把它当作普通文本显示。
+	if row.Status == "todo" || row.Status == "na" {
+		writeJSON(w, http.StatusOK, map[string]any{"text": row.Plain, "cached": true, "model": "rule"})
+		return
+	}
+
 	hash := row.evidenceHash
 	if hash == "" {
 		hash = lootRowHash(row.Key, *row, nil)
@@ -159,6 +166,10 @@ func lootStatusCN(status string) string {
 		return "试过没成"
 	case "run":
 		return "正在试"
+	case "todo":
+		return "还没试（用户标的）"
+	case "na":
+		return "不适用（用户标的）"
 	default:
 		return "还没试"
 	}

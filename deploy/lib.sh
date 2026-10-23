@@ -84,8 +84,13 @@ ensure_asm_env() {
   set_kv ASM_ADMIN_PASSWORD  "ScopeSentry"
   # 上游 ScopeSentry 与 ScopeSentry-Scan 的发版节奏不同（扫描端通常落后），
   # 因此两个镜像各用各的 tag；锁版本见 deploy/README.md。
+  # 两个都是固定 tag，不用 latest；旧 .env 里遗留的 ASM_SCAN_TAG=latest 视同未设置。
   set_kv ASM_TAG             "1.9.4"
-  set_kv ASM_SCAN_TAG        "latest"
+  if [ "$(env_get ASM_SCAN_TAG)" = "latest" ]; then
+    force_kv ASM_SCAN_TAG "1.9.1"
+    warn "ASM_SCAN_TAG=latest 已改为固定版本 1.9.1（要跟最新请手动改回/换成 image@sha256:<digest>）"
+  fi
+  set_kv ASM_SCAN_TAG        "1.9.1"
   set_kv ASM_BIND            "127.0.0.1"
   set_kv ASM_NODE_NAME       "lab-node"
   set_kv ASM_PORT            "8082"

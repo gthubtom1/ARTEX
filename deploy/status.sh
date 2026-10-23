@@ -19,7 +19,7 @@ else
 fi
 row_inf "ASM_ENABLED" "${ASM_ENABLED:-0}"
 if asm_enabled; then
-  row_inf "ASM 镜像 tag" "web=${ASM_TAG:-1.9.4} scan=${ASM_SCAN_TAG:-latest}"
+  row_inf "ASM 镜像 tag" "web=${ASM_TAG:-1.9.4} scan=${ASM_SCAN_TAG:-1.9.1}"
 fi
 
 echo "== 容器 =="
@@ -68,11 +68,16 @@ echo "== 数据库 =="
 PGU="${POSTGRES_USER:-artex}"; PGD="${POSTGRES_DB:-artex}"
 psql_q() { dc exec -T postgres psql -U "$PGU" -d "$PGD" -tAc "$1" 2>/dev/null | tr -d '\r' || true; }
 MIG_MAX=$(psql_q "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1" | tr -d '\n')
-MIG_0010=$(psql_q "SELECT count(*) FROM schema_migrations WHERE version LIKE '0010%'" | tr -d '[:space:]')
-if [ "${MIG_0010:-0}" -ge 1 ] 2>/dev/null; then
-  row_ok "schema_migrations" "${MIG_MAX:-?}（已到 0010）"
+# 只要最新迁移的序号 >= 0011 就算就位（0011 = 战果清单人工状态表）。
+# 用前缀数字比较而不是 LIKE '0011%'，以后加 0012 不用再改这里。
+MIG_NUM="${MIG_MAX:0:4}"
+case "$MIG_NUM" in ''|*[!0-9]*) MIG_NUM=0 ;; esac
+# 10# 前缀强制按十进制解释，否则 0011 会被当成八进制 9。
+MIG_NUM=$((10#$MIG_NUM))
+if [ "$MIG_NUM" -ge 11 ]; then
+  row_ok "schema_migrations" "${MIG_MAX:-?}（已到 0011）"
 else
-  row_bad "schema_migrations" "未到 0010（当前 ${MIG_MAX:-读取失败}）"
+  row_bad "schema_migrations" "未到 0011（当前 ${MIG_MAX:-读取失败}）"
 fi
 
 echo "== 机制命中率 API =="

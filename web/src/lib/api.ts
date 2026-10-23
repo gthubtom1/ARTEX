@@ -1598,6 +1598,18 @@ export interface BenchRunRow {
   prev_run_key?: string;
 }
 
+// ───────────────────── 机制命中率（E01 度量，只读）─────────────────────
+// 后端 /api/system/hitrate?task=<id>：tables = 16 张二开表的行数，tools = 该探索里工具调用分布。
+// 任一项为 0 = 对应机制仍是空表（写了代码但没真用），排查时看这一页比跑 SQL 快。
+export interface HitrateResponse {
+  tables: Record<string, number>;
+  tools: Record<string, number>;
+}
+
+export const hitrateapi = {
+  get: (taskId: string) => get<HitrateResponse>(`/system/hitrate?task=${encodeURIComponent(taskId)}`),
+};
+
 export const benchapi = {
   runs: () => get<{ runs: BenchRunRow[]; results_dir: string }>("/bench/runs"),
   run: (key: string) =>
@@ -1849,7 +1861,9 @@ export const candoSend = (taskId: string, text: string, nodeKey: string) =>
 export interface LootRow {
   key: string;
   label: string;
-  status: "done" | "run" | "tried" | "blank";
+  // todo / na 是人工标记（B-07）：没有证据时才由标记决定这一行显不显示。
+  // blank 只用于前端本地追加的 AI 推断行（后端不返回 blank）。
+  status: "done" | "run" | "tried" | "todo" | "na" | "blank";
   why: string;
   hint?: string;
   // 确定性模板生成的“复制粘贴即可发送”的下一步指令
@@ -1864,6 +1878,9 @@ export interface LootRow {
 export interface LootResponse {
   goal: string;
   done: number;
+  // total 只数适用的行（不适用不计入分母）
+  todo?: number;
+  na?: number;
   total: number;
   findings: number;
   rows: LootRow[];
@@ -1880,4 +1897,10 @@ export const lootapi = {
   // L2：AI 补这个站特有的项（inferred，不计入已拿到）
   suggest: (taskId: string) =>
     post<{ rows: LootRow[] }>(`/tasks/${encodeURIComponent(taskId)}/loot/suggest`, {}),
+  // 人工标记："todo"（还没试）/ "na"（不适用）/ ""（取消）。写库，刷新后仍在。
+  setState: (taskId: string, rowKey: string, state: "todo" | "na" | "") =>
+    post<{ ok: boolean; row_key: string; state: string }>(
+      `/tasks/${encodeURIComponent(taskId)}/loot/state`,
+      { row_key: rowKey, state },
+    ),
 };

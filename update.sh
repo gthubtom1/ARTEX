@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# ARTEX 更新脚本：① Docker 更新（拉新镜像重建）  ② 本地编译更新（重建二进制）
+# ARTEX 更新脚本：① Docker 更新（本地构建或拉远程镜像重建）  ② 本地编译更新（重建二进制）
 # 与 install.sh 对应：install 负责首次落地，update 负责升级到新版本。
+#
+# ⚠️ 新装机请优先用 `deploy/bootstrap.sh`；本脚本保留给老用户与离线/受限场景。
+# 镜像路线：ARTEX_IMAGE 未设或 =artex-fork（默认，本地构建，无 registry）→ docker compose build；
+#          显式设了远程 registry 镜像 → docker compose pull。
 # DB 迁移无需手动执行——artex 每次启动都会幂等重跑 schema.sql（含 ADD COLUMN/CREATE
 # INDEX IF NOT EXISTS），所以“重启即迁移”。数据（pgdata 卷、./data、./skills）不受影响。
 set -euo pipefail
@@ -11,6 +15,10 @@ ok(){   printf '\033[32m[+]\033[0m %s\n' "$*"; }
 warn(){ printf '\033[33m[!]\033[0m %s\n' "$*"; }
 die(){  printf '\033[31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
 ask(){  local p="$1" d="${2:-}" a; read -rp "$p${d:+ [$d]}: " a; echo "${a:-$d}"; }
+# 读 .env 里的值（不 source，避免用户自定义值里的空格/特殊字符被执行）
+env_get(){ grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r' || true; }
+# 默认镜像 artex-fork 是本仓库本地构建的（没有 registry）→ 只能 build，pull 必失败。
+is_local_image(){ [ -z "${1:-}" ] || [ "$1" = "artex-fork" ]; }
 
 # ── 可选：同步仓库到最新代码（compose/脚本/本地编译源码都靠它更新）───────
 sync_repo(){
@@ -27,22 +35,33 @@ update_docker(){
     || die "未检测到 docker / docker compose，请先用 ./install.sh 安装部署"
   [ -f .env ] || die "未找到 .env，请先运行 ./install.sh 完成首次部署"
 
-  # 可选：升级到指定版本 tag（不填则沿用 .env 中的 ARTEX_TAG，缺省为 latest）
-  local tag; tag="$(ask '目标镜像 tag（回车沿用 .env / latest）' '')"
-  if [ -n "$tag" ]; then
-    if grep -q '^ARTEX_TAG=' .env; then
-      sed -i.bak "s|^ARTEX_TAG=.*|ARTEX_TAG=${tag}|" .env && rm -f .env.bak
-    else
-      printf '\nARTEX_TAG=%s\n' "$tag" >> .env
+  local img tag
+  img="${ARTEX_IMAGE:-$(env_get ARTEX_IMAGE)}"; img="${img:-artex-fork}"
+  tag="${ARTEX_TAG:-$(env_get ARTEX_TAG)}"; tag="${tag:-local}"
+
+  if is_local_image "$img"; then
+    # 本地构建路线：没有 registry，pull 必失败；重新 build 就是升级。
+    info "镜像路线：本地构建 ${img}:${tag}（无 registry，不执行 pull）"
+    docker compose build artex
+  else
+    # 可选：升级到指定版本 tag（只有远程镜像才有意义）
+    local newtag; newtag="$(ask '目标镜像 tag（回车沿用 .env）' '')"
+    if [ -n "$newtag" ]; then
+      if grep -q '^ARTEX_TAG=' .env; then
+        sed -i.bak "s|^ARTEX_TAG=.*|ARTEX_TAG=${newtag}|" .env && rm -f .env.bak
+      else
+        printf '\nARTEX_TAG=%s\n' "$newtag" >> .env
+      fi
+      tag="$newtag"
+      ok "已将 ARTEX_TAG 设为 ${tag}"
     fi
-    ok "已将 ARTEX_TAG 设为 ${tag}"
+    info "拉取新镜像（仅 artex，${img}:${tag}）…"
+    docker compose pull artex
   fi
 
   # 只动 artex：postgres 是固定的 16-alpine，不需要跟着升级（拉它纯属浪费带宽，
   # 且大版本变动还会有兼容风险）。artex 声明了 depends_on postgres，所以带服务名
   # up 时若 pg 没起会自动拉起，已在跑的则原样保留、不重建。
-  info "拉取新镜像（仅 artex）…"
-  docker compose pull artex
   info "重建并启动（artex 重启时自动迁移 schema）…"
   docker compose up -d artex
   ok "更新完成 → http://localhost:8787"
@@ -72,7 +91,7 @@ update_local(){
 
 echo "=============================="
 echo "  ARTEX 更新"
-echo "  1) Docker 更新（拉新镜像重建）"
+echo "  1) Docker 更新（本地构建 / 拉远程镜像重建）"
 echo "  2) 本地更新（go 重新编译）"
 echo "=============================="
 case "$(ask '选择' 1)" in

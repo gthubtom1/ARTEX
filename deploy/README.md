@@ -43,8 +43,14 @@ ScopeSentry 是一个**外部项目**，不是本仓库的代码：
 
 **版本锁定**：两个上游仓库发版不同步（Web 通常领先扫描节点），所以 `.env` 里分成两个
 tag：`ASM_TAG`（Web）与 `ASM_SCAN_TAG`（扫描节点）。默认 `ASM_TAG=1.9.4`、
-`ASM_SCAN_TAG=latest`；扫描节点确认有对应版本 tag 后再改。要彻底锁死可换成
-`image@sha256:<digest>`（`docker image inspect` 可查）。
+`ASM_SCAN_TAG=1.9.1`（固定 tag，不用 `latest`；1.9.1 未核实镜像存在，若不存在就用
+`ASM_SCAN_TAG` 覆盖成已发布的固定版本）。要完全可复现（tag 仍可能被上游重推）请用
+`image@sha256:<digest>`，digest 获取：
+
+```bash
+docker buildx imagetools inspect autumn27/scopesentry:1.9.4
+docker buildx imagetools inspect autumn27/scopesentry-scan:1.9.1
+```
 
 端口：容器内固定 8082 / 27017 / 6379；宿主默认只绑 `127.0.0.1`（`ASM_BIND`）。
 `wire.sh` 用的是容器网络地址 `http://scope-sentry:8082/mcp`，不经过宿主端口。
@@ -76,10 +82,22 @@ POST http://127.0.0.1:8082/api/apikey/delete       删除本轮之前的 artex-l
 ## 体检判据
 
 `status.sh` 的 PASS 需要同时满足：`.env` 权限 600、ARTEX `/api/health`、登录、
-`schema_migrations` 已到 `0010`、`/api/system/hitrate` 可访问（有任务时 200，无任务时
-探到 handler 的 JSON 404 `task not found`）。启用测绘时还要：8082 可达、MCP 数据源
+`schema_migrations` 已到 `0011`（读最新迁移号比较，不写死具体号）、`/api/system/hitrate` 可访问
+（有任务时 200，无任务时探到 handler 的 JSON 404 `task not found`）。启用测绘时还要：8082 可达、MCP 数据源
 `enabled` 且工具数 > 0、Mongo/Redis 密码不是默认值。ScopeSentry 首次初始化要
 3–10 分钟，此时 FAIL 属正常，重跑 `status.sh` 即可。
+
+## 验证（没有 docker 的机器也能先筛一遍）
+
+```bash
+bash scripts/stub-bootstrap.sh        # 期望 STUB_RESULT PASS
+```
+
+它把 docker / curl / jq / uname / id / stat 全部 stub 掉，在临时目录里跑两遍
+（`--with-asm` 与 `--no-asm`），检查：退出码、`STATUS PASS`、`wire.sh` 接通、
+`ASM_ENABLED` 落盘与幂等、compose 是否收到 `--profile asm`、**全程有没有 pull**。
+它不证明容器真的起来，只证明脚本分支和参数传递没写错；真机验收仍是上面那条
+`sudo bash deploy/bootstrap.sh --with-asm` + `bash deploy/status.sh`。
 
 ## 目录
 

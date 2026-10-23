@@ -38,7 +38,7 @@ die() { printf '\033[1;31m[x] %s\033[0m\n' "$*"; exit 1; }
 
 # ---- 0. 身份与系统 ----
 [ "$(uname -s)" = "Linux" ] || die "只支持 Linux（Kali / Debian / Ubuntu）。Windows 用 WSL2 里的 Linux，或 .\\deploy\\start.ps1"
-TARGET_USER="${SUDO_USER:-$USER}"
+TARGET_USER="${SUDO_USER:-${USER:-$(id -un 2>/dev/null || echo root)}}"
 [ "$TARGET_USER" = "root" ] && warn "以 root 运行：数据目录会归 root，之后用普通用户跑要 chown"
 
 if [ "$(id -u)" -ne 0 ]; then

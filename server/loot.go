@@ -30,7 +30,7 @@ type lootObject struct {
 type lootRow struct {
 	Key        string          `json:"key"`
 	Label      string          `json:"label"`
-	Status     string          `json:"status"` // done|tried|blank
+	Status     string          `json:"status"` // done|run|tried|todo|na
 	Why        string          `json:"why"`
 	Plain      string          `json:"plain,omitempty"`
 	Objects    []lootObject    `json:"objects,omitempty"`
@@ -75,6 +75,7 @@ func (s *Server) registerLootRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks/{id}/loot", s.taskLoot)
 	mux.HandleFunc("POST /api/tasks/{id}/loot/explain", s.lootExplain)
 	mux.HandleFunc("POST /api/tasks/{id}/loot/suggest", s.lootSuggest)
+	mux.HandleFunc("POST /api/tasks/{id}/loot/state", s.lootSetState)
 }
 
 func (s *Server) taskLoot(w http.ResponseWriter, r *http.Request) {
@@ -86,19 +87,102 @@ func (s *Server) taskLoot(w http.ResponseWriter, r *http.Request) {
 	fs := s.lootFindings(t)
 	rows := s.lootRowsForTask(r.Context(), t, fs)
 
-	done := 0
+	// total 只数"适用的行"：`不适用` 是用户主动排除的，不能把分母做大。
+	done, todo, na := 0, 0, 0
 	for _, row := range rows {
-		if row.Status == "done" {
+		switch row.Status {
+		case "done":
 			done++
+		case "todo":
+			todo++
+		case "na":
+			na++
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"goal":     t.Goal,
 		"done":     done,
-		"total":    len(rows),
+		"todo":     todo,
+		"na":       na,
+		"total":    len(rows) - na,
 		"rows":     rows,
 		"findings": len(fs),
 	})
+}
+
+// lootStateRe 限定人工标记的 row_key：内置行是小写 key，AI 推断行是 slug。
+var lootStateRe = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
+
+// lootSetState 记住"这行还没试"（todo）或"这行跟我这个站无关"（na）。
+// state 传空串 = 取消标记（回到规则算出来的状态）。
+//
+// 只写 loot_row_states，不改 findings/capabilities：证据永远优先于人的标记
+// （有证据的行即使标了 na 仍然显示 done），见 0011 迁移的注释。
+func (s *Server) lootSetState(w http.ResponseWriter, r *http.Request) {
+	t, ok := s.m.Task(r.PathValue("id"))
+	if !ok || t == nil {
+		writeErr(w, http.StatusNotFound, "task not found")
+		return
+	}
+	if s.m == nil || s.m.pg == nil {
+		writeErr(w, http.StatusServiceUnavailable, "数据库不可用")
+		return
+	}
+	var body struct {
+		RowKey string `json:"row_key"`
+		State  string `json:"state"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "row_key / state 必填")
+		return
+	}
+	rowKey := strings.TrimSpace(body.RowKey)
+	state := strings.TrimSpace(body.State)
+	if !lootStateRe.MatchString(rowKey) {
+		writeErr(w, http.StatusBadRequest, "row_key 不合法")
+		return
+	}
+	if state != "" && state != "todo" && state != "na" {
+		writeErr(w, http.StatusBadRequest, "state 只能是 todo / na / 空")
+		return
+	}
+	taskID, _ := strconv.ParseInt(t.ID, 10, 64)
+	if state == "" {
+		if _, err := s.m.pg.Exec(`DELETE FROM loot_row_states WHERE task_id=$1 AND row_key=$2`, taskID, rowKey); err != nil {
+			writeErr(w, http.StatusInternalServerError, "取消标记失败")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "row_key": rowKey, "state": ""})
+		return
+	}
+	if _, err := s.m.pg.Exec(`INSERT INTO loot_row_states(task_id,row_key,state,updated_at)
+		VALUES($1,$2,$3,now())
+		ON CONFLICT (task_id,row_key) DO UPDATE SET state=EXCLUDED.state, updated_at=now()`,
+		taskID, rowKey, state); err != nil {
+		writeErr(w, http.StatusInternalServerError, "标记失败")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "row_key": rowKey, "state": state})
+}
+
+// lootRowStates 一次取全任务的人工标记；失败就当没有标记（读不到不阻塞战果表）。
+func (s *Server) lootRowStates(ctx context.Context, taskID int64) map[string]string {
+	out := map[string]string{}
+	if s.m == nil || s.m.pg == nil || taskID == 0 {
+		return out
+	}
+	rows, err := s.m.pg.QueryContext(ctx, `SELECT row_key,state FROM loot_row_states WHERE task_id=$1`, taskID)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k, v string
+		if rows.Scan(&k, &v) == nil {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // lootFindings 读任务里确认的漏洞，并保留可用于抽取的 evidence 文本。
@@ -139,6 +223,9 @@ func (s *Server) lootRowsForTask(ctx context.Context, t *Task, fs []lootFinding)
 	// 在跑的意图（用来标"正在试"）
 	running := s.candoRunningIntents(taskID)
 
+	// 人工标记（todo / na）：只在没有证据时才决定这一行显不显示。
+	states := s.lootRowStates(ctx, taskID)
+
 	rows := make([]lootRow, 0, len(lootRows))
 	for _, def := range lootRows {
 		row := lootRow{Key: def.key, Label: def.label, Status: "blank"}
@@ -174,7 +261,10 @@ func (s *Server) lootRowsForTask(ctx context.Context, t *Task, fs []lootFinding)
 			}
 		}
 		if row.Status == "blank" {
-			continue
+			// 规则没有证据 → 看人有没有标记过。没有标记就不显示（保持原语义）。
+			if !lootApplyState(&row, states[def.key]) {
+				continue
+			}
 		}
 
 		if len(row.Evidence) > 3 {
@@ -183,23 +273,65 @@ func (s *Server) lootRowsForTask(ctx context.Context, t *Task, fs []lootFinding)
 		row.Objects = extractLootObjects(matched)
 		row.ProofState = lootProofState(row.Status, matched)
 		row.Plain = lootPlain(def.key, def.label, row.Why, row.Objects, row.Status)
-		row.NextPrompt = lootNextPrompt(def.key, row.Objects, row.Hint, t.Goal)
+		if row.Status == "na" {
+			// 不适用 = 用户主动排除，没有"下一步"，也不该被复制成派单指令。
+			row.NextPrompt = ""
+		} else if row.Status == "todo" {
+			row.NextPrompt = lootTryPrompt(def.key, def.label, t.Goal)
+		} else {
+			row.NextPrompt = lootNextPrompt(def.key, row.Objects, row.Hint, t.Goal)
+		}
 		row.evidenceHash = lootRowHash(def.key, row, matched)
 		rows = append(rows, row)
 	}
+	// 排序：已拿到 → 正在试 → 试过未成 → 还没试 → 不适用（na 沉底，别占视线）。
+	lootRank := func(s string) int {
+		switch s {
+		case "done":
+			return 0
+		case "run":
+			return 1
+		case "tried":
+			return 2
+		case "todo":
+			return 3
+		default:
+			return 4
+		}
+	}
 	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].Status != rows[j].Status {
-			return rows[i].Status == "done"
+		if ri, rj := lootRank(rows[i].Status), lootRank(rows[j].Status); ri != rj {
+			return ri < rj
 		}
 		return rows[i].Key < rows[j].Key
 	})
 	return rows
 }
 
+// lootApplyState 把人工标记套到一行"规则没算出任何证据"的行上。
+// 返回 false = 这行不显示（没标记）。证据优先的规则在调用侧保证：
+// 只有 Status 还是 blank 的行才会走到这里，已拿到/正在试/试过未成的行不受标记影响。
+func lootApplyState(row *lootRow, state string) bool {
+	switch state {
+	case "na":
+		row.Status = "na"
+		row.Why = "这个站不适用（你标的）"
+		return true
+	case "todo":
+		row.Status = "todo"
+		row.Why = "还没试（你标的）"
+		return true
+	}
+	return false
+}
+
 // lootProofState 只做确定性判定：证据里出现"真的导出了"的字样才算 real。
 func lootProofState(status string, matched []lootFinding) string {
 	if status == "tried" {
 		return "tried"
+	}
+	if status == "todo" || status == "na" {
+		return ""
 	}
 	if len(matched) == 0 {
 		return ""
@@ -218,6 +350,12 @@ func lootPlain(key, label, why string, objects []lootObject, status string) stri
 	}
 	if status == "run" {
 		return "正在试：" + label
+	}
+	if status == "todo" {
+		return "还没试：「" + label + "」这一项你标了要做，还没有证据"
+	}
+	if status == "na" {
+		return "不适用：这个站没有「" + label + "」这类东西（你标的）"
 	}
 	names := lootObjectCNList(objects, 2)
 	switch key {
@@ -297,6 +435,32 @@ func lootNextPrompt(key string, objects []lootObject, hint, goal string) string 
 		return "确认同网段还有哪些可达资产，只做只读探测，列出候选后停。只打 " + host + "。"
 	default:
 		return "沿这条已确认的方向再取一个最小样本作为证据。只打 " + host + "，20 分钟内给我结论。"
+	}
+}
+
+// lootTryPrompt 是「还没试」行的下一步：与 lootNextPrompt 的区别是
+// **不假设已经有入口**，所以从"先找到入口"开始写，仍然可整句粘贴。
+func lootTryPrompt(key, label, goal string) string {
+	host := lootGoalHost(goal)
+	switch key {
+	case "admin":
+		return "先找它的后台入口（目录/指纹/robots），再试默认口令与弱口令；能进去就取 1 条样本作为证据，不要改任何数据。只打 " + host + "，20 分钟内给我结论。"
+	case "db":
+		return "先找注入点（GET/POST 参数、Cookie、搜索框），用布尔/报错两种手法各验一次；能读出库名就停并报告。只打 " + host + "，20 分钟内给我结论。"
+	case "data":
+		return "先找能返回业务数据的接口（列表/详情/导出），确认未授权或可越权后各取 3 条样本证明能读到（只读，不要整表导出）。只打 " + host + "，20 分钟内给我结论。"
+	case "fileread":
+		return "先找文件读取参数（download/file/path/模板），用相对路径读一个无害文件（如 robots.txt）确认，再读配置文件取证，不要写文件。只打 " + host + "，20 分钟内给我结论。"
+	case "filewrite":
+		return "先找上传点与写入参数，落一个最小验证文件并立即删掉；换目录/换扩展名各试一次。只打 " + host + "，20 分钟内给我结论。"
+	case "rce":
+		return "先找命令/代码执行的可能入口（上传后解析、模板、反序列化），用最小回显（id）证明，不要留后门。只打 " + host + "，20 分钟内给我结论。"
+	case "cred":
+		return "先从配置泄露/源码/日志/备份里找凭据，拿到后只做只读验证（登录或连库 SELECT 1），成功就停。只打 " + host + "，20 分钟内给我结论。"
+	case "lateral":
+		return "先确认这台机器上有什么（网段/凭据/代理），只做只读探测并列出可达候选，不要横向登录。只打 " + host + "，20 分钟内给我结论。"
+	default:
+		return "试一下「" + label + "」这一项：只做最小验证，取到 1 条样本就停；20 分钟内没有结果就判死并写负结论。只打 " + host + "。"
 	}
 }
 

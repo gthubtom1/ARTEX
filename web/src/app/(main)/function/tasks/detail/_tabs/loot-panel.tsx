@@ -16,6 +16,9 @@ const ST: Record<LootRow["status"], { label: string; cls: string }> = {
   done: { label: "✓ 已拿到", cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
   run: { label: "正在试", cls: "bg-blue-500/15 text-blue-600 dark:text-blue-400" },
   tried: { label: "试过未成", cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
+  // todo = 你标的「还没试」；na = 你标的「不适用」（不计入分母）
+  todo: { label: "还没试", cls: "bg-slate-500/10 text-slate-600" },
+  na: { label: "不适用", cls: "bg-slate-500/10 text-slate-400 line-through" },
   blank: { label: "待确认", cls: "bg-slate-500/10 text-slate-500" },
 };
 
@@ -84,6 +87,8 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
   // AI 补这个站特有的项：只追加到列表末尾，status=blank，不计入 done/total
   const [extra, setExtra] = React.useState<LootRow[]>([]);
   const [suggestBusy, setSuggestBusy] = React.useState(false);
+  // 人工标记（还没试 / 不适用）进行中的 key+state，用于禁用按钮
+  const [stateBusy, setStateBusy] = React.useState<string | null>(null);
 
   const rootRef = React.useRef<HTMLDivElement>(null);
   const detailRef = React.useRef<HTMLDivElement>(null);
@@ -221,6 +226,26 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
     }
   }
 
+  // 人工标记：写库后重新拉一次，状态永远由后端算（不在前端改 status）
+  async function markState(r: LootRow, next: "todo" | "na" | "") {
+    setStateBusy(`${r.key}:${next || "clear"}`);
+    try {
+      await lootapi.setState(taskId, r.key, next);
+      load();
+      setMsg(
+        next === "na"
+          ? `已把「${r.label}」标为不适用（不计入分母，刷新后仍在）`
+          : next === "todo"
+            ? `已把「${r.label}」标为还没试（刷新后仍在）`
+            : `已取消「${r.label}」的标记`,
+      );
+    } catch {
+      setMsg("标记没写成，稍后再试");
+    } finally {
+      setStateBusy(null);
+    }
+  }
+
   const evidence = row?.evidence ?? [];
   const plainText = row?.plain || (row ? ST[row.status].label : "");
   // 下一步：优先用后端确定性模板生成的 next_prompt（可直接粘贴到主会话）
@@ -352,7 +377,17 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
               {aiKeys.has(row.key) ? "AI 推断·待确认" : ST[row.status].label}
             </span>
             <span className="ml-auto text-[10px] text-muted-foreground">
-              {row.status === "done" ? "这一行已确认" : row.status === "run" ? "worker 正在试" : row.status === "tried" ? "试过，没成" : "AI 推断，待确认"}
+              {row.status === "done"
+                ? "这一行已确认"
+                : row.status === "run"
+                  ? "worker 正在试"
+                  : row.status === "tried"
+                    ? "试过，没成"
+                    : row.status === "na"
+                      ? "你标的：不适用"
+                      : row.status === "todo"
+                        ? "你标的：还没试"
+                        : "AI 推断，待确认"}
             </span>
           </div>
 
@@ -438,6 +473,34 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                 <div className="text-[11.5px] text-muted-foreground">暂无建议</div>
               )}
             </section>
+            {/* 人工标记：把这一行标成「还没试」或「不适用」，写库，刷新后仍在 */}
+            {!aiKeys.has(row.key) && (
+              <section className="mb-1 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground">这一项：</span>
+                <button
+                  className={cn(
+                    "rounded border px-1.5 py-0.5 text-[10.5px] hover:bg-accent disabled:opacity-45",
+                    row.status === "todo" && "border-slate-400 bg-slate-500/10",
+                  )}
+                  onClick={() => markState(row, row.status === "todo" ? "" : "todo")}
+                  disabled={stateBusy !== null}
+                  title="标成「还没试」：这一行会一直显示，提醒你还有这一项没动"
+                >
+                  {stateBusy === `${row.key}:todo` ? "…" : row.status === "todo" ? "取消「还没试」" : "标为还没试"}
+                </button>
+                <button
+                  className={cn(
+                    "rounded border px-1.5 py-0.5 text-[10.5px] hover:bg-accent disabled:opacity-45",
+                    row.status === "na" && "border-slate-400 bg-slate-500/10",
+                  )}
+                  onClick={() => markState(row, row.status === "na" ? "" : "na")}
+                  disabled={stateBusy !== null}
+                  title="标成「不适用」：这个站没有这一类东西，不再计入分母"
+                >
+                  {stateBusy === `${row.key}:na` ? "…" : row.status === "na" ? "取消「不适用」" : "标为不适用"}
+                </button>
+              </section>
+            )}
           </div>
 
           {/* 三个动作：复制指令 / 看证据 / AI 说清楚 */}

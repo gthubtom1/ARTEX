@@ -116,6 +116,7 @@ export const sidebarItems: NavGroup[] = [
       { id: "network", title: "网络", url: "/system/network", icon: Wifi },
       { id: "replay", title: "回放", url: "/system/replay", icon: Activity },
       { id: "bench", title: "基准", url: "/system/bench", icon: Gauge },
+      { id: "hitrate", title: "命中率", url: "/system/hitrate", icon: ListChecks },
       { id: "verifier", title: "复核", url: "/system/verifier", icon: ShieldCheck },
       { id: "logs", title: "日志", url: "/system/logs", icon: ScrollText },
       { id: "injection", title: "注入层", url: "/system/injection", icon: ShieldAlert },

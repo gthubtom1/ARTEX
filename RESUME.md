@@ -27,7 +27,14 @@
 
 **状态一律以 `docs/12-功能台账.md` 为准**；交互协议看 `docs/13`/`14`/`15`；入口/并行切分看 `docs/00b-卡片线-进度与任务卡.md`。
 
-已知未做：战果清单的 `todo/na` 两态 + “标为不适用”；命中率看板**没有页面**；`docs/08-详设` 已作废。
+2026-10-23 收口（B-05/06/07/08/09/B-10 stub 全做完）：
+
+- 战果清单五态齐：`todo`（还没试）/ `na`（不适用）由人标，写 `loot_row_states`（`0011`），`POST /api/tasks/{id}/loot/state`；证据优先，`na` 不计入分母。
+- 命中率看板有页面了：侧边栏 **系统 → 命中率**（`/system/hitrate`），16 表 0 行高亮 + 工具分布。
+- 两套系统的**批量接口**：`triage/score.py`（打分/聚簇）+ `triage/dispatch.sh`（按 quickstart 派单），说明在 `triage/README.md`。
+- `install.sh` / `update.sh` 按镜像来源分流（本地 build / 远程 pull），ASM 扫描节点锁 `1.9.1`。
+- `scripts/stub-bootstrap.sh` 在没有 docker 的机器上把 bootstrap 全流程跑一遍（`STUB_RESULT PASS`）；它抓出并修掉了两个真 bug：`USER` 未定义时 `set -u` 直接崩、`status.sh` 迁移判据写死 `0010`。
+- `docs/08-详设` 已作废。
 
 ---
 

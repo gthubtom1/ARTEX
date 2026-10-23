@@ -91,6 +91,21 @@ ARTEX 的 MCP 数据源（`http://scope-sentry:8082/mcp`），**不需要改任�
 
 细节：`docs/资产体系-按原项目设计.md`、`deploy/README.md`。
 
+### 批量：从测绘结果到任务（`triage/`）
+
+测绘铺出几千条资产，ARTEX 一次只该打一个目标——中间那一步在 `triage/`：
+
+```bash
+python3 triage/score.py --recon recon.jsonl --hits hits.jsonl --top 20 --out-prefix triage/out/w1
+# 看 triage/out/w1.md 挑完，再批量派单（并发 2，已派过的自动跳过）
+TARGET_TIER=legacy TIMEOUT_MIN=30 bash triage/dispatch.sh triage/out/w1.jsonl 2
+```
+
+打分维度：高价值指纹 / 已知 CVE 命中 / 敏感路径 / 状态码 / 登录面，CDN 与蜜罐扣分；
+同 favicon 或同指纹聚成一簇只留最高分一条（省 90% 的 AI 成本）。
+输入就是 `httpx -json` / `nuclei -jsonl` 的原始产物，不绑定 ScopeSentry——换成 ARL 或自建管线照样用。
+细节：`triage/README.md`。
+
 ---
 > 应用内**不再有代理/Clash 配置**——出网由宿主层负责（VPS 直连或虚拟机 TUN）。
 
@@ -207,7 +222,11 @@ Demo 只运行 `web/` 前端，构建时启用 `NEXT_PUBLIC_MOCK=1`，不需要 
 > 上游没有本仓库的迁移（现在到 `0010`）与二开代码，装上去会缺表、缺页面。
 > Windows / 无 Docker / VPS 三条路线先读 [`INSTALL-AI.md`](INSTALL-AI.md) 或直接用 `bash scripts/deploy_vps.sh`。
 
-### 方式一：一键安装脚本（推荐）
+### 方式一：一键安装脚本（老用户 / 离线场景）
+
+> 新装机优先用 `sudo bash deploy/bootstrap.sh`（一条命令：装依赖 → 起 docker → 生成 .env →
+> 构建启动 → 设密码 → 可选资产测绘 → 体检，见 [`deploy/README.md`](deploy/README.md)）。
+> `install.sh` / `update.sh` 保留给老用户与离线/受限场景。
 
 ```bash
 git clone https://github.com/RuoJi6/ARTEX.git
@@ -217,10 +236,10 @@ cd ARTEX
 
 脚本会：检测 / 自动安装 Docker → 让你选 **① 全部 Docker** 或 **② 本地编译运行**：
 
-- **① 全部 Docker**：填一个 Postgres 密码（可回车随机）→ 自动写 `.env` → `docker compose up -d`。
+- **① 全部 Docker**：填一个 Postgres 密码（可回车随机）→ 写 `.env`（含随机 `ARTEX_PASSWORD` / `ARTEX_CRED_KEY`）→ 默认 `ARTEX_IMAGE=artex-fork` 走**本地构建** `docker compose build`（没有 registry，不 pull）→ `docker compose up -d` → 就绪后调 `/api/auth/init` 设登录密码。只有显式设了远程 registry 镜像（如 `ARTEX_IMAGE=ghcr.io/you/artex`）才走 `docker compose pull`。
 - **② 本地运行**：选数据库（连已有 / 用 Docker 起一个）→ 生成 `config.json` → `go` 编译内嵌单二进制 → 启动。
 
-装好后打开 **http://localhost:8787**（首次进入 `/setup` 设置管理员密码）。
+装好后打开 **http://localhost:8787**（用户 `ARTEX`，密码在 `.env` 的 `ARTEX_PASSWORD`；也可在 `/setup` 手动设置）。
 
 ### 方式二：Docker Compose（手动）
 
@@ -228,13 +247,13 @@ cd ARTEX
 git clone https://github.com/RuoJi6/ARTEX.git
 cd ARTEX
 cp .env.example .env          # 填 POSTGRES_PASSWORD、可选 ANTHROPIC_API_KEY
-docker compose up -d          # 拉取 ruoji6/artex 镜像 + postgres
+docker compose up -d --build  # 默认本地构建 artex-fork:local，并拉 postgres
 # → http://localhost:8787
 ```
 
 镜像已含常用工具（ripgrep/curl/vim/npm/nmap…）；`./skills` 与 `./data` 以绑定挂载持久化。
 
-`.env` 中默认 `ARTEX_IMAGE=ruoji6/artex`，`ARTEX_TAG=latest` 使用最新镜像，也可固定为 `v0.3.17`（完整镜像地址 `ruoji6/artex:v0.3.17`）。镜像支持 `linux/amd64` 和 `linux/arm64`，Docker 会自动选择与宿主机匹配的架构，ARM64 Kali 无需自行编译。初次部署请修改 `POSTGRES_PASSWORD`；运行服务无需配置 Docker Hub 发布 Token。
+`.env` 中默认 `ARTEX_IMAGE=artex-fork`、`ARTEX_TAG=local`（本仓库本地构建，无 registry，所以不要 `docker compose pull`）。要用现成镜像就改成**你 fork 发布的**远程镜像名/tag（上游 `ruoji6/artex` 不含二开能力）。镜像支持 `linux/amd64` 和 `linux/arm64`，Docker 会自动选择与宿主机匹配的架构，ARM64 Kali 无需自行编译。初次部署请修改 `POSTGRES_PASSWORD`；运行服务无需配置 Docker Hub 发布 Token。
 
 远程 MCP 可在系统设置中选择 `http`（Streamable HTTP）或 `sse`（旧版 SSE）。
 旧版 SSE 服务通常使用 `GET /sse` 建立事件流，再通过服务返回的
@@ -299,7 +318,7 @@ ARTEX_TARGETS=linux/amd64,windows/amd64 ./build.sh --release
 - **随时可回退**：上一版本保留为 `artex.old`，卡片上有「回滚到上一版本」。注意数据库结构不会回退。
 - **更新会中断正在运行的任务**——更新即重启，请在空闲时进行。
 - **开发构建不给更新**：版本号是 `dev` 或 `git describe` 带后缀时禁用，避免正式版覆盖掉本地调试的二进制。
-- **Docker 下只换程序、不换镜像**：镜像里的 playwright / nmap 等工具链不会跟着升级，且 `docker compose up -d` 重建容器后会退回镜像自带的版本。要连镜像一起升级仍请用 `docker compose pull artex && docker compose up -d artex`。
+- **Docker 下只换程序、不换镜像**：镜像里的 playwright / nmap 等工具链不会跟着升级，且 `docker compose up -d` 重建容器后会退回镜像自带的版本。要连镜像一起升级：默认本地构建用 `docker compose build artex && docker compose up -d artex`；远程镜像用 `docker compose pull artex && docker compose up -d artex`。
 - **更新代理（可选）**与其他代理设置使用相同的「地址输入框 + 保存」方式。填写独立更新代理后保存，例如 `http://127.0.0.1:7897`；支持 `http://`、`https://`、`socks5://`、`socks5h://` 及用户名密码认证。清空并保存即为直连，不受全局代理或 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量影响。保存后自动重新检查，检查版本、校验和下载和发布包下载使用同一个出口。更新只从 GitHub 域名下载并强制 HTTPS。
 - 代理地址由 **ARTEX 服务端**访问。Docker 内的 `127.0.0.1` 指容器自身；代理运行在宿主机时，应使用容器可达地址（Docker Desktop 通常为 `http://host.docker.internal:7897`），并允许容器访问代理端口。
 
@@ -363,7 +382,7 @@ cd ARTEX
 
 脚本先可选 `git pull` 拉取最新代码，再让你选 **① Docker 更新** 或 **② 本地编译更新**（与 `install.sh` 对应）：
 
-- **① Docker**：可指定目标镜像 tag（回车沿用 `.env` 的 `ARTEX_TAG`，缺省 `latest`）→ `docker compose pull` → `docker compose up -d`（换新镜像重启即自动迁移）。
+- **① Docker**：默认本地构建（`ARTEX_IMAGE=artex-fork`）→ `docker compose build artex` → `docker compose up -d artex`（重启即自动迁移）；只有显式设了远程 registry 镜像时才问目标 tag → `docker compose pull artex` → 重建。
 - **② 本地**：重建前端静态产物 → 重新编译 `./artex`（完成后重启进程生效）。
 
 ### 方式三：Docker Compose（手动）
@@ -371,9 +390,11 @@ cd ARTEX
 ```bash
 cd ARTEX
 git pull                       # 更新 compose / 脚本（可选）
-# 指定版本：在 .env 设 ARTEX_TAG=v0.3.17；不设则用 latest
-docker compose pull artex
+# 默认本地构建：
+docker compose build artex
 docker compose up -d artex     # 换新镜像重启 → 自动迁移 schema
+# 远程镜像（.env 里 ARTEX_IMAGE 指到你 fork 的仓库）：
+# docker compose pull artex && docker compose up -d artex
 docker image prune -f          # 清理旧镜像（可选）
 ```
 

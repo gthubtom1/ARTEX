@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 # ARTEX 安装脚本：① 全部 Docker  ② 本地编译运行
+#
+# ⚠️ 新装机请优先用 `deploy/bootstrap.sh`（装依赖 → 起 docker → 生成 .env → 构建/启动
+#    → 设登录密码 → 可选资产测绘 → 体检，一条命令）。本脚本保留给老用户与离线/受限场景。
+#
+# 镜像路线（① 全部 Docker）：
+#   · ARTEX_IMAGE 未设或 =artex-fork（默认，本仓库本地构建，没有 registry）→ 只 build，不 pull
+#   · 显式设了远程 registry 镜像（如 ghcr.io/you/artex）→ docker compose pull
 set -euo pipefail
 cd "$(cd "$(dirname "$0")" && pwd)"
 
@@ -10,6 +17,59 @@ die(){  printf '\033[31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
 # read 在非交互环境（管道 / CI）会直接 EOF：给默认值而不是让 set -e 把脚本打死。
 ask(){  local p="$1" d="${2:-}" a=""; read -rp "$p${d:+ [$d]}: " a || true; echo "${a:-$d}"; }
 rand(){ if command -v openssl >/dev/null 2>&1; then openssl rand -hex 16; else head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24; fi; }
+rand_hex(){ local n="${1:-32}"; if command -v openssl >/dev/null 2>&1; then openssl rand -hex "$n"; else od -An -tx1 -N "$n" /dev/urandom | tr -d ' \n'; fi; }
+
+# 读 .env 里的值（不 source，避免用户自定义值里的空格/特殊字符被执行）
+env_get(){ grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r' || true; }
+
+# set_env_kv KEY VALUE —— 仅当 KEY 为空/不存在/占位值时写入（已有值不覆盖）
+set_env_kv(){
+  local k="$1" v="$2" cur
+  cur="$(env_get "$k")"
+  if [ -n "$cur" ] && [ "$cur" != "change-me-please" ]; then return 0; fi
+  if grep -qE "^${k}=" .env 2>/dev/null; then
+    awk -v k="$k" -v v="$v" 'BEGIN{FS=OFS="="} $1==k{print k"="v; next} {print}' .env > .env.tmp \
+      && chmod 600 .env.tmp && mv .env.tmp .env
+  else
+    printf '%s=%s\n' "$k" "$v" >> .env
+  fi
+}
+
+# 默认镜像 artex-fork 是本仓库本地构建的（没有 registry）→ 只能 build，pull 必失败。
+is_local_image(){ [ -z "${1:-}" ] || [ "$1" = "artex-fork" ]; }
+
+# 等本体就绪 → 调 /api/auth/init 设登录密码（已设过返回 403，忽略）。
+# 就绪判据与 deploy/start.sh 一致：/api/auth/status 返回 200/401/403 都算服务+库已起来
+# （启用 HTTP Basic Auth 时网关会先拦成 401/403）。
+init_login_password(){
+  local port="${1:-8787}" pw payload i=0 code="" init_code=""
+  pw="$(env_get ARTEX_PASSWORD)"
+  [ -n "$pw" ] || { warn "ARTEX_PASSWORD 为空，跳过登录密码初始化"; return 0; }
+  if ! command -v curl >/dev/null 2>&1; then
+    warn "未找到 curl：跳过就绪等待与登录密码初始化（可打开 http://localhost:${port}/setup 手动设置，密码已写入 .env）"
+    return 0
+  fi
+  info "等待服务就绪…"
+  while [ "$i" -lt 120 ]; do
+    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:${port}/api/auth/status" 2>/dev/null || true)"
+    case "$code" in 200|401|403) break ;; esac
+    i=$((i+1)); sleep 3
+  done
+  case "$code" in
+    200|401|403) ;;
+    *) warn "服务未在 6 分钟内就绪（最后 HTTP ${code:-无响应}）：docker compose logs -f artex"
+       return 0 ;;
+  esac
+  # JSON 转义：密码默认是十六进制，但用户可改成任意值（含引号/反斜杠）。
+  payload="$(printf '{"password":"%s"}' "$(printf '%s' "$pw" | sed 's/\\/\\\\/g; s/"/\\"/g')")"
+  init_code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${port}/api/auth/init" \
+    -H 'Content-Type: application/json' -d "$payload" 2>/dev/null || true)"
+  case "$init_code" in
+    200) ok "登录密码已初始化（用户 ARTEX，密码见 .env 的 ARTEX_PASSWORD）" ;;
+    403) info "登录密码此前已设置，保持原密码（见 .env 的 ARTEX_PASSWORD）" ;;
+    *)   warn "设置登录密码返回 HTTP ${init_code:-无响应}；可打开 http://localhost:${port}/setup 手动设置" ;;
+  esac
+}
 
 # ── Windows（Git Bash / MSYS / Cygwin / PowerShell 外壳）────
 # 刻意不尝试装 docker：Windows 上正确的做法是 Docker Desktop，而不是脚本里
@@ -112,10 +172,34 @@ install_docker(){
   else
     info "沿用已存在的 .env"
   fi
-  info "拉取镜像并启动…"
-  docker compose pull
+  chmod 600 .env 2>/dev/null || true
+
+  # 登录密码 / 凭据密钥：只在缺失时补齐，已有值不覆盖（与 deploy/lib.sh 的 gen() 一致）。
+  set_env_kv ARTEX_PASSWORD "$(rand)"
+  set_env_kv ARTEX_CRED_KEY "$(rand_hex 32)"
+
+  # 镜像来源分流：本地构建的 artex-fork 没有 registry，pull 必然失败并让 set -e 中断。
+  local img tag port
+  img="${ARTEX_IMAGE:-$(env_get ARTEX_IMAGE)}"; img="${img:-artex-fork}"
+  tag="${ARTEX_TAG:-$(env_get ARTEX_TAG)}"; tag="${tag:-local}"
+  if is_local_image "$img"; then
+    info "镜像路线：本地构建 ${img}:${tag}（无 registry，不执行 pull）"
+    docker compose build
+  else
+    info "镜像路线：远程 registry ${img}:${tag} → docker compose pull"
+    docker compose pull
+  fi
   docker compose up -d
-  ok "启动完成 → http://localhost:8787"
+
+  # 就绪后设登录密码（老用户改过密码时 /api/auth/init 返回 403，保留原密码）。
+  port="${ARTEX_PORT:-$(env_get ARTEX_PORT)}"; port="${port:-8787}"
+  init_login_password "$port"
+  ok "启动完成 → http://localhost:${port}"
+  if [ -t 1 ]; then
+    printf '  用户 ARTEX  密码 %s\n' "$(env_get ARTEX_PASSWORD)"
+  else
+    printf '  用户 ARTEX  密码见 .env 的 ARTEX_PASSWORD\n'
+  fi
   info "查看日志：docker compose logs -f artex"
 }
 
@@ -193,6 +277,10 @@ case "${1:-}" in
   ./install.sh              交互选择（1=全部 Docker，2=本地 go 编译）
   ./install.sh --docker     跳过菜单，直接进 Docker 安装
   ./install.sh --local      跳过菜单，直接进本地编译运行
+
+  新装机建议改用 deploy/bootstrap.sh（一条命令装依赖+起服务+体检）。
+  Docker 路线的镜像来源：ARTEX_IMAGE 未设/=artex-fork → 本地 build；
+  设为远程 registry 镜像 → docker compose pull。
 
   Windows（Git Bash / PowerShell 外壳）：本脚本不会自动装 docker，
   会打印"照做就行"的指引并以 exit 2 退出（2 = 需要人工介入）。

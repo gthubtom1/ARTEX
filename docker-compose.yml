@@ -55,6 +55,10 @@ services:
   #       https://github.com/Autumn-27/ScopeSentry-Scan （扫描节点）
   # 两个仓库发版节奏不同，所以 ASM_TAG / ASM_SCAN_TAG 分开锁；
   # 不要把扫描节点的 tag 跟 Web 写死成同一个（扫描端通常落后几个版本）。
+  # 两个 tag 都必须是固定版本，不用 latest（上游重推 tag 仍可能变）；
+  # 要完全可复现请用 image@sha256:<digest>，digest 获取：
+  #   docker buildx imagetools inspect autumn27/scopesentry:1.9.4
+  #   docker buildx imagetools inspect autumn27/scopesentry-scan:1.9.1
   # 它们与本体的关系只有一条：ARTEX 通过 http://scope-sentry:8082/mcp 读资产。
   # ==========================================================================
   asm-mongo:
@@ -124,7 +128,9 @@ services:
   # 扫描节点必须 host 网络（上游要求），因此它在 Linux 宿主上跑；
   # Docker Desktop（Windows/macOS）不支持 host 网络 → 见 deploy/start.ps1 的提示。
   asm-scan:
-    image: autumn27/scopesentry-scan:${ASM_SCAN_TAG:-latest}
+    # 1.9.1 = 与 Web v1.9.4 同代的扫描节点固定 tag（未核实镜像存在；
+    # 若该 tag 不存在，用 ASM_SCAN_TAG 覆盖成已发布的版本，勿回退到 latest）。
+    image: autumn27/scopesentry-scan:${ASM_SCAN_TAG:-1.9.1}
     profiles: ["asm"]
     network_mode: host
     ulimits:
