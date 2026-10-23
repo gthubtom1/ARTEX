@@ -1386,6 +1386,8 @@ func (t *ToolSet) addFinding() actool.CoreTool {
 			t.notify()
 		}
 		t.writes.Findings++
+		// CARD-D01 钩子：漏洞入库即写证据时间线（实测该表曾 45 分钟 0 行）
+		_ = t.ts.NoteEvidence(ctx, t.taskID, "finding", fmt.Sprintf("finding:%d", recorded.FindingID), t.worker, recorded.NodeID, recorded.FindingID)
 		// Keep the first line's node-ID contract for existing reporter triggers.
 		for i := range recorded.Traffic.Bindings {
 			recorded.Traffic.Bindings[i].Snapshot.ReqHead = ""
@@ -1501,6 +1503,9 @@ func (t *ToolSet) recordFact() actool.CoreTool {
 					continue
 				}
 				ids[i] = id
+				// CARD-D01 钩子：证据时间线 + 否定结论沉成假设（失败不影响主流程）
+				_ = t.ts.NoteEvidence(ctx, t.taskID, "fact", fmt.Sprintf("fact:%d", id), t.worker, id, 0)
+				_ = t.ts.NoteAssumptionIfNegative(ctx, t.taskID, it.Summary)
 				if intelligenceEnabled() {
 					if len(it.Intelligence) > 20 {
 						errs[strconv.Itoa(i)] = "事实已保存，情报每次最多 20 条"
