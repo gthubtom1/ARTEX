@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1
+# 用于「一条命令部署」：在容器内编译前后端，宿主只要 docker（不需要 Go / Node）。
+# 与仓库根的 Dockerfile 分工：
+#   Dockerfile        发布用（吃预编译好的 dist/<arch>/artex，CI 交叉编译，多架构快）
+#   Dockerfile.build  本地/自建用（从源码编译，免装工具链）
+#
+# 用法：docker compose up -d --build
+# 单独构建：docker build -f Dockerfile.build -t artex-fork:local .
+
+# ---- stage 1: 前端静态导出 ----
+FROM node:22-bookworm AS web
+WORKDIR /src/web
+COPY web/package.json web/package-lock.json* ./
+RUN npm ci --include=dev --ignore-scripts
+COPY web/ ./
+RUN NODE_ENV=production NEXT_EXPORT=1 ./node_modules/.bin/next build
+
+# ---- stage 2: 后端编译（前端内嵌） ----
+FROM golang:1.26-bookworm AS gobuild
+WORKDIR /src
+ENV CGO_ENABLED=0
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+COPY --from=web /src/web/out ./web/out
+RUN rm -rf server/webui/dist && mkdir -p server/webui/dist \
+ && cp -a web/out/. server/webui/dist/ \
+ && go build -tags embedui -trimpath -ldflags "-s -w" -o /out/artex ./cmd/artex
+
+# ---- stage 3: 运行镜像 ----
+FROM python:3.12-slim-bookworm
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates ripgrep curl wget vim git jq unzip \
+      dnsutils iputils-ping netcat-openbsd inetutils-telnet whois nmap \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=gobuild /out/artex /app/artex
+COPY start.sh /app/start.sh
+RUN chmod +x /app/artex /app/start.sh
+COPY skills/ /app/skills/
+VOLUME ["/app/data"]
+EXPOSE 8787 8788
+ENTRYPOINT ["/app/start.sh"]
+CMD ["-addr", ":8787", "-proxy", ":8788"]

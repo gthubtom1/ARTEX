@@ -15,13 +15,14 @@ services:
     restart: unless-stopped
 
   artex:
-    # ⚠️ 2026-10-23：原来默认 `ruoji6/artex:latest` 是**上游作者的镜像**（不含本 fork 的
-    # 能力卡/三门/台账/注入层，数据库迁移也对不上）。改为默认本地构建：
-    #   先 bash scripts/package_linux.sh   → 产出 dist/amd64/artex
-    #   再 docker compose up -d --build
-    # 想用现成镜像就显式设 ARTEX_IMAGE（必须是本 fork 发布的镜像）。
-    build: .
-    image: ${ARTEX_IMAGE:-artex-local}:${ARTEX_TAG:-local}
+    # 默认从源码在容器内构建（宿主不需要 Go/Node）：
+    #   docker compose up -d --build
+    # 想用预编译路线（快）：先 bash scripts/package_linux.sh 产出 dist/amd64/artex，
+    # 再把下面的 dockerfile 改成 Dockerfile。
+    build:
+      context: .
+      dockerfile: ${ARTEX_DOCKERFILE:-Dockerfile.build}
+    image: ${ARTEX_IMAGE:-artex-fork}:${ARTEX_TAG:-local}
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,6 +34,7 @@ services:
       ARTEX_LLM_MODEL: ${ARTEX_LLM_MODEL:-}
       ARTEX_LLM_BASE_URL: ${ARTEX_LLM_BASE_URL:-}
       ARTEX_LLM_PROXY: ${ARTEX_LLM_PROXY:-}
+      ARTEX_CRED_KEY: ${ARTEX_CRED_KEY:-}
     ports:
       - "8787:8787"
       - "127.0.0.1:8788:8788"
@@ -43,6 +45,104 @@ services:
       # 把项目根目录的 skills 挂进容器（覆盖镜像内置的 /app/skills）；
       # 改 skill 无需重建镜像，容器读的就是宿主机这份。
       - ./skills:/app/skills
+    restart: unless-stopped
+
+  # ==========================================================================
+  # 以下为「资产测绘」可选组件（ScopeSentry）。默认不启动。
+  #   加装：bash deploy/enable-asm.sh        （等价于 --profile asm up -d）
+  #   卸载：bash deploy/disable-asm.sh
+  # 它们与本体的关系只有一条：ARTEX 通过 http://scope-sentry:8082/mcp 读资产。
+  # ==========================================================================
+  asm-mongo:
+    image: mongo:7.0.28
+    profiles: ["asm"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${ASM_MONGO_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${ASM_MONGO_PASSWORD:-asm-not-configured}
+    ports:
+      - "127.0.0.1:27017:27017" # asm-scan 走 host 网络，必须能从 127.0.0.1 连
+    volumes:
+      - ./data/asm/mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  asm-redis:
+    image: redis:7.0.11
+    profiles: ["asm"]
+    command: redis-server --requirepass ${ASM_REDIS_PASSWORD:-asm-not-configured}
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - ./data/asm/redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${ASM_REDIS_PASSWORD:-asm-not-configured} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  scope-sentry:
+    image: autumn27/scopesentry:${ASM_TAG:-latest}
+    profiles: ["asm"]
+    environment:
+      TIMEZONE: Asia/Shanghai
+      MONGODB_IP: asm-mongo
+      MONGODB_PORT: 27017
+      MONGODB_DATABASE: ScopeSentry
+      MONGODB_USER: ${ASM_MONGO_USER:-root}
+      MONGODB_PASSWORD: ${ASM_MONGO_PASSWORD:-asm-not-configured}
+      REDIS_IP: asm-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${ASM_REDIS_PASSWORD:-asm-not-configured}
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./data/asm/files:/opt/ScopeSentry/files
+      - ./data/asm/images:/opt/ScopeSentry/images
+      - ./data/asm/uploads:/opt/ScopeSentry/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8082/ >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 180s
+    depends_on:
+      asm-mongo:
+        condition: service_healthy
+      asm-redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # 扫描节点必须 host 网络（上游要求），因此它在 Linux 宿主上跑；
+  # Docker Desktop（Windows/macOS）不支持 host 网络 → 见 deploy/start.ps1 的提示。
+  asm-scan:
+    image: autumn27/scopesentry-scan:${ASM_TAG:-latest}
+    profiles: ["asm"]
+    network_mode: host
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
+    environment:
+      NodeName: ${ASM_NODE_NAME:-lab-node}
+      TimeZoneName: Asia/Shanghai
+      MONGODB_IP: 127.0.0.1
+      MONGODB_PORT: 27017
+      MONGODB_DATABASE: ScopeSentry
+      MONGODB_USER: ${ASM_MONGO_USER:-root}
+      MONGODB_PASSWORD: ${ASM_MONGO_PASSWORD:-asm-not-configured}
+      REDIS_IP: 127.0.0.1
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${ASM_REDIS_PASSWORD:-asm-not-configured}
+    depends_on:
+      asm-redis:
+        condition: service_healthy
+      scope-sentry:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

@@ -4,6 +4,56 @@
 > 每一步都有：做什么 → 命令 → 判定成功 → 失败怎么办。
 > 人类的教程在 `使用教程.md`；本文是给机器执行的最小充分集，写得比人类版更啰嗦是故意的。
 
+**入口索引（按顺序看，不要通读全文）**
+
+| 你要做什么 | 看哪 | 命令 |
+|---|---|---|
+| 用户说「都装 / 零操作」 | 下面的 ⚡ 零操作模式 | `sudo bash deploy/bootstrap.sh` |
+| 用户没说装不装测绘 | §0 末的「只允许问的一个问题」 | 先起本体，再问 |
+| 安装/接线细节 | `deploy/README.md` | — |
+| 出错了 | §7 失败矩阵 / §12.5 测绘失败分支 | — |
+| 测绘是什么、产出什么 | `deploy/README.md` §接线 / `docs/资产体系-按原项目设计.md` | — |
+
+---
+
+## ⚡ 零操作模式（用户说「全装」「我零操作」「你自己搞定」时走这条）
+
+**不要问任何问题**（包括「要不要装测绘」）。直接执行：
+
+```bash
+git clone <用户给的仓库链接> artex-lab && cd artex-lab
+sudo bash deploy/bootstrap.sh
+```
+
+`bootstrap.sh` 自己做完：装 docker/compose/jq/git/openssl → 起 docker → 加组 → 生成 .env
+→ 构建并启动 → 设登录密码 → 装资产测绘 → 自动接线 → 体检。
+
+判定成功（三条全过）：
+
+```bash
+bash deploy/status.sh                                  # STATUS PASS
+curl -fsS http://127.0.0.1:8787/ >/dev/null && echo A_OK
+curl -fsS http://127.0.0.1:8082/ >/dev/null && echo S_OK    # 只装本体时可省
+```
+
+然后**只做一件事**：把下面两把 Key 交给用户自己填（这是唯一无法自动化的步骤，因为要花钱/要账号）：
+
+1. ARTEX → 系统 → LLM（模型 + API Key）
+2. ScopeSentry → 配置 → FOFA（email + key）或 Quake/Hunter
+
+用户如果直接把 Key 给了你：
+
+```bash
+# LLM：写进 .env 后重启即生效（ARTEX 启动时读 env）
+#   ARTEX_LLM_PROVIDER / ARTEX_LLM_MODEL / ARTEX_LLM_BASE_URL / OPENAI_API_KEY
+bash deploy/start.sh
+# 测绘的 FOFA Key：在 8082 界面里填（存在 Mongo 里，没有稳定的写入接口）
+```
+
+**失败就按 §12.5 与 §7 的矩阵排查，不要自由发挥。** 剩余内容（§0 及以下）是通用安装契约，零操作模式下可跳过。
+
+---
+
 ---
 
 ## 0. 你要产出的终态（只有这三种，别的都算没装完）
@@ -15,6 +65,17 @@
 | 任意 | 浏览器里能打开登录页 = 装完 |
 
 **装完必须留下三样**：① 数据库在跑 ② 服务能起来 ③ 用户知道"点哪里/敲什么"。缺一个都不算完成。
+
+**装完之后允许问且只允许问一个问题**（不是澄清，是选装配件）：
+
+```
+本体已经能用了。要不要顺手把「资产测绘」（ScopeSentry）一起装上？
+装了以后：你给它一个域名，它先扫出这个域名名下所有子域/端口/站点/指纹/已知漏洞，
+再把值得打的目标交给你手上的 ARTEX 深挖。不装也能用，只是目标要你自己一个一个贴。
+占资源约：4 核 8G、10G 磁盘；首次初始化 3-10 分钟。
+```
+
+用户说要 → 执行 §12。用户说不要 → 结束，并告知以后加装只需一条命令。
 
 ---
 
@@ -326,3 +387,67 @@ curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/   # 200（不是 4
 
 两条都过 → 装完了，把 §8 的话术发给用户。
 任何一条不过 → 回 §7 的失败矩阵，从症状找原因，不要猜。
+
+---
+
+## 12. 可选组件：资产测绘（ScopeSentry）
+
+### 12.1 它解决什么
+
+ARTEX 接一个目标；测绘接一个域名，产出"这个域名名下所有资产 + 指纹 + 已知漏洞命中"。
+两者由原作者预置的接口相连，不需要改业务代码。
+
+### 12.2 硬前提（不满足就别装，换成轻量三命令路线）
+
+| 条件 | 判据 | 不满足怎么办 |
+|---|---|---|
+| Linux 宿主 | `uname -s` = Linux | Docker Desktop 不支持 `network_mode: host`，测绘的扫描节点起不来 |
+| 内存 ≥ 8G | `free -g` | 低于 8G 走轻量路线：`uncover` + `httpx` + `nuclei`，不装 Mongo |
+| docker compose | `docker compose version` | 先装 |
+
+### 12.3 一条命令
+
+```bash
+cd <repo>
+bash deploy/start.sh --with-asm
+```
+
+它做的事（幂等）：
+1. 往 `.env` 补 `ASM_*` 随机密码、`ASM_ENABLED=1`
+2. `docker compose --profile asm up -d`（起 mongo/redis/scope-sentry/asm-scan）
+3. 等 `http://127.0.0.1:8082/` 就绪（**首次 3-10 分钟**，Mongo 要灌内置指纹/PoC 库）
+4. `deploy/wire.sh`：ScopeSentry 登录 → 建 API Key → 写进 ARTEX 的 MCP 数据源 → 验证工具数
+5. `deploy/status.sh` 体检
+
+### 12.4 判据（全过才算装完）
+
+```bash
+docker compose --profile asm ps            # 6 个容器 running
+curl -fsS http://127.0.0.1:8082/ >/dev/null && echo SS_OK
+bash deploy/status.sh                      # STATUS PASS，且「MCP 数据源 enabled，N 个工具」N>0
+```
+
+### 12.5 失败分支
+
+| 症状 | 原因 | 动作 |
+|---|---|---|
+| `wire.sh` 退出码 2 | ScopeSentry 登录失败 | 默认 `ScopeSentry/ScopeSentry`；改过就写进 `.env` 的 `ASM_ADMIN_PASSWORD` |
+| `wire.sh` 退出码 3 | 建 Key 失败 | 服务端还在初始化 → 等 2 分钟重跑 |
+| `wire.sh` 退出码 4 | ARTEX 侧失败 | 检查 `.env` 的 `ARTEX_PASSWORD`；`docker compose logs artex` |
+| 工具数 0 | MCP 未完成 discovery | 重跑 `bash deploy/wire.sh` |
+| `asm-scan` 反复重启 | host 网络不支持 | 换 Linux 宿主；Windows 用 WSL2 内的 Linux |
+
+### 12.6 装完之后必须告诉用户的三件事（不要代做）
+
+1. ScopeSentry → 配置：填测绘引擎 Key（FOFA 的 `email+key`，或 Quake / Hunter）。不填只能靠爆破字典，覆盖差一个量级。
+2. ScopeSentry 登录后立刻改默认密码 `ScopeSentry/ScopeSentry`；改完同步写进 `.env` 的 `ASM_ADMIN_PASSWORD`。
+3. 日常流程：测绘建项目（根域名）→ 建任务（勾子域/端口/指纹/敏感信息/漏洞）→ ARTEX「功能 → 资产同步」选项目同步 → 挑高分的开任务。
+
+### 12.7 卸载
+
+```bash
+bash deploy/disable-asm.sh            # 停测绘、保留数据
+bash deploy/disable-asm.sh --purge    # 连数据一起删
+```
+
+ARTEX 本体不受影响；数据源行会留着但显示未启用，不报错。

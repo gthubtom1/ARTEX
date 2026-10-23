@@ -1,3 +1,17 @@
+> ## 🚀 一句话部署（复制这段给 AI）
+>
+> ```
+> 把这个仓库装好：https://github.com/gthubtom1/ARTEX
+> 渗透本体和资产测绘（ScopeSentry）都要装，环境你自己搞定，我零操作。
+> 按 INSTALL-AI.md 开头的「⚡ 零操作模式」执行，根目录有 deploy/bootstrap.sh。
+> 装完再跑 bash deploy/status.sh，把 STATUS 结果和「我还需要填哪些 Key」告诉我。
+> ```
+>
+> 全新机器（Kali / Debian / Ubuntu）全程约 15–25 分钟无人值守，**只有两处要你本人填**：
+> ARTEX 的模型 Key、ScopeSentry 的测绘引擎 Key（FOFA / Quake / Hunter）。
+>
+> ---
+>
 > ### 这是 **gthubtom1 的二开版**（上游：[RuoJi6/ARTEX](https://github.com/RuoJi6/ARTEX)，再上游：[Autumn-27/ARTEX](https://github.com/Autumn-27/ARTEX)，AGPL-3.0）
 >
 > 上游是"AI 自主探索一个目标"的工作台；**本仓库在它上面加了一层"可交付"**：
@@ -21,6 +35,42 @@
 > 3) 系统 → 首次配置（数据库 / 模型 / 出口自检 / 完成）→ 首页「贴一个网址，直接开跑」
 > ```
 > 前置只有一样：**PostgreSQL**（Docker 路线由脚本起；其它路线需已有库，见 §部署）。
+
+---
+
+## 启动器（`deploy/`）—— 一个入口同时管本体和资产测绘
+
+```bash
+bash deploy/start.sh                 # 起本体（已装测绘就一起起）
+bash deploy/start.sh --with-asm      # 加装并一起起「资产测绘」（ScopeSentry）
+bash deploy/start.sh --rebuild       # 强制重建镜像
+bash deploy/start.sh --logs          # 起完跟日志
+bash deploy/bootstrap.sh             # 全新机器：装依赖→起服务→装测绘→接线→体检（一条命令）
+bash deploy/status.sh                # 体检：STATUS PASS / FAIL
+bash deploy/stop.sh                  # 停（保留数据）；--purge 连库一起删
+
+docker compose up -d                 # 不用启动器时：只起本体（测绘服务带 profile，不会起）
+```
+
+Windows 用 `.\deploy\start.ps1`（内部转给 Git Bash 的同一套逻辑）。
+
+### 为什么是「一个仓库、两个进程」
+
+| | ARTEX（本仓库） | ScopeSentry（资产测绘） |
+|---|---|---|
+| 干什么 | 给定一个目标深挖出成果 | 把一个域名铺成全部资产清单（段 1–4） |
+| 数据库 | PostgreSQL | MongoDB + Redis |
+| 端口 | 8787 | 8082 |
+| 装不装 | 必须 | **可选**（compose profile `asm`） |
+
+两者由**原作者预置的接口**连接：ARTEX 侧 `server/sync_scopesentry.go` + `/api/sync/scopesentry/*`，
+测绘侧 `internal/mcp/` + `/api/apikey/create`。`deploy/wire.sh` 负责建 API Key 并写进
+ARTEX 的 MCP 数据源（`http://scope-sentry:8082/mcp`），**不需要改任何业务代码**。
+不装测绘也能用：那就是上游原本的形态——你自己给目标。
+
+细节：`docs/资产体系-按原项目设计.md`、`deploy/README.md`。
+
+---
 > 应用内**不再有代理/Clash 配置**——出网由宿主层负责（VPS 直连或虚拟机 TUN）。
 
 ---
