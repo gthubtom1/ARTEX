@@ -84,10 +84,11 @@ func TestKBQueriesPrefersTargetSideAndVulnclass(t *testing.T) {
 // propose_intent 永远不自动执行，且必须带依据（cites 非空 + why 非空）。
 func TestDecideProposeIntentNeverAuto(t *testing.T) {
 	v := Verdict{
-		Verdict: "continue",
-		Body:    "手里有一条读取能力，可以换个方向。",
-		Cites:   []Cite{{Kind: "finding", ID: 31}},
-		Actions: []Action{{Kind: "propose_intent", Why: "读 applicationHost.config 找可写目录"}},
+		Verdict:     "continue",
+		Body:        "手里有一条读取能力，可以换个方向。",
+		Cites:       []Cite{{Kind: "finding", ID: 31}},
+		Actions:     []Action{{Kind: "propose_intent", Why: "读 applicationHost.config 找可写目录"}},
+		Expectation: "3 轮内出现涉及可写目录的新事实",
 	}
 	out := Decide(baseIn(v))
 	if out.Drop != "" {

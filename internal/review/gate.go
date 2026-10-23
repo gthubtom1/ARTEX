@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // 三档权限（docs/09 A2、docs/13 §6）。
@@ -253,6 +254,16 @@ func Decide(in GateIn) GateOut {
 	if len(out.Actions) > 0 && !downweighted {
 		out.Level = LevelAction
 	}
+
+	// ── E1 预期信号（docs/15 §5）：要动任务就必须能写出一句话的可机检预期 ──
+	// 没有预期 = 事后无法判断这条建议有没有起效，直接不发（只留内部日志）。
+	// 放在自动执行之前，保证 Drop 的结论一个动作也不会落到引擎上。
+	if out.Level == LevelAction && strings.TrimSpace(in.Verdict.Expectation) == "" {
+		out.Drop = "E1：有动作但没写可观测预期（expectation 为空），不投递"
+		out.Notes = append(out.Notes, out.Drop)
+		return out
+	}
+
 	if len(out.Actions) > 0 && tier != TierObserve && !downweighted && !out.Trip {
 		if in.State.AutoActions >= maxAuto {
 			out.Notes = append(out.Notes, fmt.Sprintf("自动动作已达上限 %d → 本次只提建议（R3）", maxAuto))
@@ -356,6 +367,163 @@ func reasonClass(classes []string) string {
 	}
 	sort.Strings(out)
 	return strings.Join(out, ",")
+}
+
+// ───────── 观察窗（docs/15 §3/§5）：一句话预期 → 到点比对 fact ─────────
+
+// review_runs.outcome 的三个取值（空串 = 还在观察窗里）。
+const (
+	OutcomeEffective   = "effective"
+	OutcomeIneffective = "ineffective"
+	OutcomeVoided      = "voided"
+)
+
+// ObservationResult 是观察窗回访的确定性判定结果。
+type ObservationResult struct {
+	Outcome string // effective|ineffective|voided
+	FactID  int64  // 命中/推翻的那条 fact
+	Keyword string // 命中的关键词（effective 时有值）
+}
+
+// EvaluateObservation 判定一条预期信号是否兑现（纯函数，不碰 DB）：
+//
+//	voided      —— 期间出现直接推翻建议的新事实（由调用方从 exploration_edges 判定后传入 conflict）；
+//	effective   —— 新增 fact ≥1 且 expectation 里至少一个具体关键词出现在某条新 fact 摘要里；
+//	ineffective —— 其余（没有新 fact、或新 fact 里一个关键词都没出现）。
+//
+// 关键词由 expectationKeywords 提取：先剔除"出现/涉及/新事实"这类空话，再做中文 2-gram；
+// 提不出任何具体关键词的预期视为不可机检，按 ineffective 处理（宁可说没起效，不要假报达成）。
+func EvaluateObservation(expectation string, newFacts []FactBrief, conflict *FactBrief) ObservationResult {
+	if conflict != nil {
+		return ObservationResult{Outcome: OutcomeVoided, FactID: conflict.ID}
+	}
+	if len(newFacts) == 0 {
+		return ObservationResult{Outcome: OutcomeIneffective}
+	}
+	kws := expectationKeywords(expectation)
+	if len(kws) == 0 {
+		return ObservationResult{Outcome: OutcomeIneffective}
+	}
+	for _, f := range newFacts {
+		sum := strings.ToLower(f.Summary)
+		if strings.TrimSpace(sum) == "" {
+			continue
+		}
+		for _, kw := range kws {
+			if strings.Contains(sum, kw) {
+				return ObservationResult{Outcome: OutcomeEffective, FactID: f.ID, Keyword: kw}
+			}
+		}
+	}
+	return ObservationResult{Outcome: OutcomeIneffective}
+}
+
+// expectationStopWords 是「一句话预期里的空话」：整词剔除后再做 2-gram，
+// 否则"出现/涉及/新事实"会在几乎任何 fact 里命中，观察窗就永远判 effective。
+var expectationStopWords = []string{
+	"可观测", "新事实", "新方向", "新证据", "轮内", "以内", "之内", "至少",
+	"出现", "涉及", "相关", "新增", "事实", "产生", "看到", "需要", "建议",
+	"预期", "信号", "确认", "已经", "可以", "能够", "可能", "应该", "是否",
+	"没有", "不再", "之间", "以及", "或者", "任何", "有关", "指向", "拿到",
+	"得到", "用于", "进行", "存在", "这个", "那个", "一条", "两条", "三条",
+	"新的", "一个", "分钟",
+}
+
+// expectationASCIIStop 是英文空话；具体技术词（IIS/SQL/RCE…）不在其中。
+var expectationASCIIStop = map[string]bool{
+	"the": true, "and": true, "for": true, "with": true,
+	"new": true, "fact": true, "facts": true, "within": true,
+	"round": true, "rounds": true, "expect": true, "expectation": true,
+}
+
+// expectationKeywords 从一句话预期里抽具体关键词：
+//  1. 小写化，先整词剔除空话；
+//  2. 中文串在「的/了/和/与/或/不/没…」等虚词处断开，再取 2-gram；
+//  3. 英文/数字串只留长度 ≥2 且不在英文空话表里的词，纯数字丢弃（"3 轮内"里的 3 不算）。
+func expectationKeywords(expectation string) []string {
+	exp := strings.ToLower(strings.TrimSpace(expectation))
+	if exp == "" {
+		return nil
+	}
+	for _, w := range expectationStopWords {
+		exp = strings.ReplaceAll(exp, w, " ")
+	}
+
+	seen := map[string]bool{}
+	var out []string
+	add := func(tok string) {
+		tok = strings.TrimSpace(tok)
+		if len([]rune(tok)) < 2 || seen[tok] || isAllDigits(tok) || expectationASCIIStop[tok] {
+			return
+		}
+		seen[tok] = true
+		out = append(out, tok)
+	}
+	emitHan := func(r []rune) {
+		if len(r) < 2 {
+			return
+		}
+		for i := 0; i+1 < len(r); i++ {
+			add(string(r[i : i+2]))
+		}
+	}
+
+	var han, ascii []rune
+	flushHan := func() {
+		start := 0
+		for i, r := range han {
+			if isHanFuncRune(r) {
+				emitHan(han[start:i])
+				start = i + 1
+			}
+		}
+		emitHan(han[start:])
+		han = han[:0]
+	}
+	flushASCII := func() {
+		if len(ascii) >= 2 {
+			add(string(ascii))
+		}
+		ascii = ascii[:0]
+	}
+	for _, r := range []rune(exp) {
+		switch {
+		case unicode.Is(unicode.Han, r):
+			flushASCII()
+			han = append(han, r)
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			flushHan()
+			ascii = append(ascii, r)
+		default:
+			flushHan()
+			flushASCII()
+		}
+	}
+	flushHan()
+	flushASCII()
+	return out
+}
+
+// isHanFuncRune 是「在中文里几乎不可能构成实词的虚词」；只切这些，避免把
+// 上传/下载/条件/中间件/分支这类实词切断。
+func isHanFuncRune(r rune) bool {
+	switch r {
+	case '的', '了', '和', '与', '或', '并', '而', '就', '也', '都', '很', '再', '只', '不', '没', '未', '这', '那', '被', '把':
+		return true
+	}
+	return false
+}
+
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
 }
 
 // AdviceText 生成 B 级投递给主 Agent 的建议正文（明确写"建议不是命令"）。

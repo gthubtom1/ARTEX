@@ -22,10 +22,11 @@ func mkSnap() Snapshot {
 
 func gatedVerdict(kind string, intent int64) Verdict {
 	return Verdict{
-		Verdict: "continue",
-		Body:    "手里有一个后台入口，另有一条路是我方接口断的，没真正试过。",
-		Cites:   []Cite{{Kind: "intent", ID: intent}},
-		Actions: []Action{{Kind: kind, Intent: intent, Why: "test"}},
+		Verdict:     "continue",
+		Body:        "手里有一个后台入口，另有一条路是我方接口断的，没真正试过。",
+		Cites:       []Cite{{Kind: "intent", ID: intent}},
+		Actions:     []Action{{Kind: kind, Intent: intent, Why: "test"}},
+		Expectation: "3 轮内出现涉及配置的新事实",
 	}
 }
 

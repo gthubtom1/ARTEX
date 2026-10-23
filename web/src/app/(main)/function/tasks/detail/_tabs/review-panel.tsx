@@ -50,6 +50,36 @@ type PanelRun = ReviewRun & {
   ack_deadline_at?: string | number;
   ack_expires_at?: string | number;
   ack_ttl?: number;
+  // 预期信号 / 观察窗口 / 结果校验（后端并行开发中，缺失即降级：不显示）
+  expectation?: string;
+  observe_until?: string;
+  outcome?: PanelOutcome;
+};
+
+// 结果校验三态 + 空（空 = 后端还没判或没这个字段）
+type PanelOutcome = "effective" | "ineffective" | "voided" | "";
+
+// 主结论卡底部状态带的三种终态样式
+const OUTCOME_BAND: Record<"effective" | "ineffective" | "voided", { text: string; cls: string }> = {
+  effective: {
+    text: "✓ 已生效（预期信号出现了）",
+    cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  },
+  ineffective: {
+    text: "△ 没效果（预期没出现，可能已升级）",
+    cls: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  },
+  voided: {
+    text: "⊘ 已撤回（被新证据推翻）",
+    cls: "border-slate-400/40 bg-slate-500/10 text-slate-600 dark:text-slate-400",
+  },
+};
+
+// 历史列表每条前面那个小徽标
+const OUTCOME_BADGE: Record<"effective" | "ineffective" | "voided", { text: string; chip: string }> = {
+  effective: { text: "✓ 生效", chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
+  ineffective: { text: "△ 没效果", chip: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
+  voided: { text: "⊘ 撤回", chip: "bg-slate-500/15 text-slate-500 dark:text-slate-400" },
 };
 
 // 动作白名单未来会多一个 propose_intent（docs/14 §3），类型上先兜一层。
@@ -191,6 +221,25 @@ function ackStatusOf(run: ReviewRun | null): string {
   return ((run?.ack_status ?? "") as string).trim();
 }
 
+// outcome 缺失 / 空串 / 未知值 → 一律当「没有」，整段状态带不显示。
+function outcomeOf(run: ReviewRun | null | undefined): PanelOutcome {
+  const raw = ((run as PanelRun | null | undefined)?.outcome ?? "").trim();
+  return raw === "effective" || raw === "ineffective" || raw === "voided" ? raw : "";
+}
+
+function expectationOf(run: ReviewRun | null | undefined): string {
+  return ((run as PanelRun | null | undefined)?.expectation ?? "").trim();
+}
+
+// observe_until 是 ISO 时间；再兜一手 "YYYY-MM-DD HH:MM"（本地时区，后端 to_char 风格）。
+function observeUntilOf(run: ReviewRun | null | undefined): number | null {
+  const raw = (run as PanelRun | null | undefined)?.observe_until;
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const s = raw.trim();
+  const t = Date.parse(s.includes("T") ? s : s.replace(" ", "T"));
+  return Number.isFinite(t) ? t : null;
+}
+
 // useCountdown：给了 deadline 就每秒重算剩下的秒数；到 0 后停在 0。
 function useCountdown(deadline: number | null): number | null {
   const [now, setNow] = React.useState(() => Date.now());
@@ -202,6 +251,18 @@ function useCountdown(deadline: number | null): number | null {
   }, [deadline]);
   if (!deadline) return null;
   return Math.max(0, Math.ceil((deadline - now) / 1000));
+}
+
+// useNow：按固定间隔（观察中 60s）重算当前时间，用于「还剩 N 分钟」；active=false 时不起定时器。
+function useNow(intervalMs: number, active: boolean): number {
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(t);
+  }, [intervalMs, active]);
+  return now;
 }
 
 // intent.payload 是 JSON（含 summary/text/description），非 JSON 就原样展示。
@@ -529,6 +590,17 @@ export function ReviewPanel({
   const kb = kbTitleOf(main?.body ?? "");
   const citeDetailText = openCite ? citeDetail[openCite] : undefined;
 
+  // 预期信号：没有就整行不显示
+  const expectation = expectationOf(main);
+  // 底部状态带：终态（effective/ineffective/voided）优先，否则看 observe_until 是否还在观察窗口内。
+  const outcome = outcomeOf(main);
+  const observeUntil = observeUntilOf(main);
+  const observing = !outcome && observeUntil != null;
+  // 观察中每分钟刷新一次；不在观察中就不开定时器。
+  const nowTs = useNow(60_000, observing);
+  const observeLeftMs = observeUntil != null ? observeUntil - nowTs : 0;
+  const observeLeftMin = Math.ceil(observeLeftMs / 60_000);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* ① 头部（固定不滚）：审查官 + 档位三选一 + 自动看过/处理 + 关闭 */}
@@ -719,6 +791,17 @@ export function ReviewPanel({
                 </div>
               )}
 
+              {/* 预期信号：接在「依据」下方；后端没下发 expectation 时整行省略 */}
+              {expectation && (
+                <div
+                  className="mt-1 flex flex-wrap items-baseline gap-1 text-[10.5px] text-muted-foreground"
+                  title={expectation}
+                >
+                  <span className="shrink-0">预期：</span>
+                  <span className="min-w-0 whitespace-pre-wrap break-words text-foreground/80">{expectation}</span>
+                </div>
+              )}
+
               {/* 自动处理倒计时（有 ack_deadline 且未 ack 才显示） */}
               {deadline != null && !ackStatus && !isRunning && (
                 <div
@@ -798,6 +881,34 @@ export function ReviewPanel({
                   })}
                 </div>
               )}
+
+              {/* 底部状态带（动作行下方，三选一）：观察中 / 已生效 / 没效果 / 已撤回；都没有就不占位 */}
+              {outcome ? (
+                <div
+                  className={cn(
+                    "mt-2 flex items-center gap-1 rounded border px-2 py-1 text-[10.5px]",
+                    OUTCOME_BAND[outcome].cls,
+                  )}
+                >
+                  {OUTCOME_BAND[outcome].text}
+                </div>
+              ) : observing ? (
+                <div
+                  className={cn(
+                    "mt-2 flex items-center gap-1 rounded border px-2 py-1 text-[10.5px]",
+                    observeLeftMin > 0
+                      ? "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-400"
+                      : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                  )}
+                  title={
+                    observeLeftMin > 0 && observeUntil != null
+                      ? `观察窗口到 ${new Date(observeUntil).toLocaleString()}（每分钟刷新）`
+                      : "观察窗口已到期，但后端还没给出结果"
+                  }
+                >
+                  {observeLeftMin > 0 ? `⟳ 观察中（还剩 ${observeLeftMin} 分钟）` : "⟳ 观察中（快到点了，刷新查看）"}
+                </div>
+              ) : null}
             </div>
 
             {/* 其余历史结论：折叠一行，展开是紧凑列表，点某条切换成主结论 */}
@@ -817,6 +928,7 @@ export function ReviewPanel({
                   <div className="mt-1 space-y-1">
                     {others.map((r) => {
                       const t = verdictMeta(r.verdict);
+                      const ro = outcomeOf(r);
                       return (
                         <button
                           type="button"
@@ -830,6 +942,14 @@ export function ReviewPanel({
                           }}
                           title={r.body}
                         >
+                          {ro && (
+                            <span
+                              className={cn("shrink-0 rounded px-1 py-0.5 text-[9.5px]", OUTCOME_BADGE[ro].chip)}
+                              title={`结果校验：${OUTCOME_BADGE[ro].text}`}
+                            >
+                              {OUTCOME_BADGE[ro].text}
+                            </span>
+                          )}
                           <span className="shrink-0 text-[10px] text-muted-foreground">{hhmm(r.created_at)}</span>
                           <span className={cn("shrink-0 rounded px-1 py-0.5 text-[10px]", t.chip)}>
                             {r.status === "running" ? "在看" : t.label}

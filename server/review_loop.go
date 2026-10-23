@@ -211,9 +211,12 @@ func (s *Server) emitMainAgentAdvice(t *Task, runID int64, text string) {
 	if seg, err := t.Store.CurrentMainSeg(); err == nil {
 		segPtr = &seg
 	}
-	detail := text + "\n\n依据：review run #" + strconv.FormatInt(runID, 10) +
-		"（结论卡里的 cites/actions 带真实 id 与状态）。" +
-		"\n请先核对现状再决定；不要把它当命令直接执行（审查官没有执行权：没改目标、没收工、没派活）。"
+	detail := text
+	if runID > 0 {
+		detail += "\n\n依据：review run #" + strconv.FormatInt(runID, 10) +
+			"（结论卡里的 cites/actions 带真实 id 与状态）。"
+	}
+	detail += "\n请先核对现状再决定；不要把它当命令直接执行（审查官没有执行权：没改目标、没收工、没派活）。"
 	s.engine.emitActivity(t, db.Activity{
 		Worker:  "mainagent",
 		Kind:    "text",
@@ -285,17 +288,22 @@ func (s *Server) deliverReviewAdvice(ctx context.Context, t *Task, runID int64, 
 func (s *Server) finishReviewRun(ctx context.Context, runID int64, v review.Verdict, model string,
 	g review.GateOut, ver, autoApplied int, ackStatus, ackReason string) {
 	citesJSON, _ := json.Marshal(v.Cites)
-	actionsJSON, _ := json.Marshal(v.Actions)
+	// 只落门后真正允许下发的动作；被剔除/降权的动作不该进入观察窗冲突判定。
+	actions := g.Actions
+	if actions == nil {
+		actions = []review.Action{}
+	}
+	actionsJSON, _ := json.Marshal(actions)
 	status := "done"
 	if g.Drop != "" {
 		status = "superseded" // 自检没过：只留内部日志，不进主会话、不亮红点
 	}
 	_, err := s.m.pg.ExecContext(ctx, `UPDATE review_runs SET status=$2, verdict=$3, body=$4, cites=$5, actions=$6,
 		model=$7, notes_version=$8, dedupe_key=$9, level=$10, reason_class=$11,
-		auto_applied=$12, ack_status=$13, ack_reason=$14, error=$15, finished_at=now() WHERE id=$1`,
+		auto_applied=$12, ack_status=$13, ack_reason=$14, error=$15, expectation=$16, finished_at=now() WHERE id=$1`,
 		runID, status, v.Verdict, v.Body, string(citesJSON), string(actionsJSON),
 		model, ver, g.DedupeKey, g.Level, g.ReasonClass,
-		autoApplied > 0, ackStatus, ackReason, g.Drop)
+		autoApplied > 0, ackStatus, ackReason, g.Drop, strings.TrimSpace(v.Expectation))
 	if err != nil {
 		log.Printf("[review] finish run=%d: %v", runID, err)
 	}
@@ -337,7 +345,8 @@ func (s *Server) reviewTicker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			s.reviewAckSweep(ctx) // 20 秒粒度（docs/14 §4）
+			s.reviewAckSweep(ctx)     // 20 秒粒度（docs/14 §4）
+			s.reviewObserveSweep(ctx) // 20 秒粒度回访观察窗（docs/15 §3）
 			tick++
 			if tick%3 != 0 {
 				continue
@@ -395,6 +404,178 @@ func (s *Server) reviewAckSweep(ctx context.Context) {
 		log.Printf("[review] run=%d ack 超时（无人回应）→ 按档位处理", x.runID)
 		s.reviewEscalate(ctx, x.taskID, x.runID, x.actions)
 	}
+}
+
+// ───────── 观察窗回访（docs/15 §3/§5）─────────
+
+// reviewObserveDue 是一条到点待回访的介入。
+type reviewObserveDue struct {
+	runID, taskID int64
+	expectation   string
+	actionsRaw    string
+	startedAt     time.Time
+}
+
+// reviewObserveSweep 扫「观察窗到点且还没有结论」的介入：
+//
+//	outcome='' AND observe_until < now()
+//
+// 比对介入后新增 fact 与 expectation 关键词，写 effective/ineffective/voided。
+// 用 outcome=” 的原子更新认领，多实例/重复扫描不会把同一句话发两遍。
+func (s *Server) reviewObserveSweep(ctx context.Context) {
+	if s.m == nil || s.m.PG() == nil {
+		return
+	}
+	rows, err := s.m.pg.QueryContext(ctx, `SELECT id, task_id, COALESCE(expectation,''),
+		COALESCE(actions::text,'[]'), COALESCE(finished_at, created_at)
+		FROM review_runs
+		WHERE status='done' AND COALESCE(outcome,'')=''
+		  AND observe_until IS NOT NULL AND observe_until < now()
+		ORDER BY id LIMIT 20`)
+	if err != nil {
+		return
+	}
+	var list []reviewObserveDue
+	for rows.Next() {
+		var x reviewObserveDue
+		if rows.Scan(&x.runID, &x.taskID, &x.expectation, &x.actionsRaw, &x.startedAt) == nil {
+			list = append(list, x)
+		}
+	}
+	rows.Close()
+	for _, x := range list {
+		s.reviewObserveOne(ctx, x)
+	}
+}
+
+// reviewObserveOne 判定单条观察窗：
+//
+//	voided      —— 建议放弃的方向又产出了新 fact（exploration_edges 直连，见 reviewObservationConflict）；
+//	effective   —— 新增 fact ≥1 且 expectation 里至少一个具体关键词出现在新 fact 摘要里；
+//	ineffective —— 其余；有动作时再发一条回访建议给主 Agent。
+func (s *Server) reviewObserveOne(ctx context.Context, x reviewObserveDue) {
+	newFacts, total := s.reviewFactsSince(ctx, x.taskID, x.startedAt)
+	var conflict *review.FactBrief
+	var conflictIntent int64
+	if c := s.reviewObservationConflict(ctx, x); c != nil {
+		conflict = &c.Fact
+		conflictIntent = c.IntentID
+	}
+	obs := review.EvaluateObservation(x.expectation, newFacts, conflict)
+
+	detail := ""
+	switch obs.Outcome {
+	case review.OutcomeVoided:
+		summary := ""
+		if conflict != nil {
+			summary = firstLine(conflict.Summary, 80)
+		}
+		if conflictIntent > 0 {
+			detail = fmt.Sprintf("观察窗：建议放弃的 #%d 方向又产出了新事实（fact#%d：%s），原建议被推翻，已撤回",
+				conflictIntent, obs.FactID, summary)
+		} else {
+			detail = fmt.Sprintf("观察窗：原建议被新事实推翻（fact#%d：%s），已撤回", obs.FactID, summary)
+		}
+	case review.OutcomeEffective:
+		detail = fmt.Sprintf("观察窗：预期「%s」已出现（命中 fact#%d 关键词「%s」，新增 fact %d 条）",
+			x.expectation, obs.FactID, obs.Keyword, total)
+	default:
+		detail = fmt.Sprintf("观察窗：预期「%s」未出现（新增 fact %d 条，关键词未命中）", x.expectation, total)
+	}
+
+	res, err := s.m.pg.ExecContext(ctx, `UPDATE review_runs
+		SET outcome=$2, observe_until=NULL,
+		    ack_reason = CASE WHEN COALESCE(ack_reason,'')='' THEN $3 ELSE ack_reason || '；' || $3 END
+		WHERE id=$1 AND COALESCE(outcome,'')=''`, x.runID, obs.Outcome, detail)
+	if err != nil {
+		log.Printf("[review] observe run=%d: %v", x.runID, err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return // 另一个实例/上一次扫描已经判过
+	}
+	log.Printf("[review] run=%d 观察窗结论=%s：%s", x.runID, obs.Outcome, detail)
+
+	// 全部写 activity（worker='adviser'），便于排查；任务已不在运行就只落库。
+	t, ok := s.m.Task(strconv.FormatInt(x.taskID, 10))
+	if ok && t != nil && s.engine != nil {
+		s.engine.emitActivity(t, db.Activity{
+			Worker: "adviser", Kind: "text",
+			Summary: "观察窗：" + obs.Outcome + "（" + firstLine(x.expectation, 40) + "）",
+			Detail:  detail,
+		})
+		t.Notify()
+	}
+
+	// 没起效且有动作：给主 Agent 一条回访建议（复用唯一投递入口）。
+	if obs.Outcome == review.OutcomeIneffective {
+		var actions []review.Action
+		_ = json.Unmarshal([]byte(x.actionsRaw), &actions)
+		if len(actions) > 0 && ok && t != nil {
+			text := fmt.Sprintf("审查官回访：上次建议没起效（预期「%s」未出现），考虑换方向/判死。\n依据：review run #%d；观察窗 10 分钟内新增 fact %d 条，但关键词没有命中。",
+				x.expectation, x.runID, total)
+			// runID=0：这是一条「新的回访消息」，不能因为原 run 已投递过就被哨兵吞掉；
+			// 不会重复——outcome 的原子更新已经保证每条 run 只回访一次。
+			s.deliverReviewHintOnce(ctx, t, 0, text, "审查官回访：上次建议没起效，建议换方向/判死")
+		}
+	}
+}
+
+// reviewFactsSince 取「介入后新增」的 fact（按 id 倒序，最多 100 条），并返回总数。
+// 计数用 count(*) OVER ()，一次查询拿到总数与摘要，避免扫描时再查一遍。
+func (s *Server) reviewFactsSince(ctx context.Context, taskID int64, since time.Time) ([]review.FactBrief, int) {
+	rows, err := s.m.pg.QueryContext(ctx, `SELECT n.id,
+			COALESCE(NULLIF(n.payload->>'summary',''), NULLIF(n.payload->>'text',''), ''),
+			count(*) OVER () AS total
+		FROM exploration_nodes n
+		WHERE n.exploration_id=(SELECT exploration_id FROM tasks WHERE id=$1)
+		  AND n.kind='fact' AND n.created_at > $2
+		ORDER BY n.id DESC LIMIT 100`, taskID, since)
+	if err != nil {
+		return nil, 0
+	}
+	defer rows.Close()
+	var out []review.FactBrief
+	total := 0
+	for rows.Next() {
+		var f review.FactBrief
+		if rows.Scan(&f.ID, &f.Summary, &total) == nil {
+			out = append(out, f)
+		}
+	}
+	return out, total
+}
+
+// reviewObservationConflict 判定「建议被新事实直接推翻」的情形：
+// 如果这条 run 建议 kill 某条意图，而观察窗内该意图又产出了新 fact（
+// exploration_edges 直连，rel 不限），就是最典型的 voided（docs/15 §3：
+// “它建议放弃的方向产出了新 fact”）。
+type reviewObserveConflict struct {
+	IntentID int64
+	Fact     review.FactBrief
+}
+
+func (s *Server) reviewObservationConflict(ctx context.Context, x reviewObserveDue) *reviewObserveConflict {
+	var actions []review.Action
+	_ = json.Unmarshal([]byte(x.actionsRaw), &actions)
+	for _, a := range actions {
+		if a.Kind != "kill_intent" || a.Intent <= 0 {
+			continue
+		}
+		var f review.FactBrief
+		err := s.m.pg.QueryRowContext(ctx, `SELECT n.id,
+				COALESCE(NULLIF(n.payload->>'summary',''), NULLIF(n.payload->>'text',''), '')
+			FROM exploration_nodes n
+			JOIN exploration_edges e ON e.exploration_id=n.exploration_id
+			  AND ((e.src_id=$2 AND e.dst_id=n.id) OR (e.dst_id=$2 AND e.src_id=n.id))
+			WHERE n.exploration_id=(SELECT exploration_id FROM tasks WHERE id=$1)
+			  AND n.kind='fact' AND n.created_at > $3
+			ORDER BY n.id DESC LIMIT 1`, x.taskID, a.Intent, x.startedAt).Scan(&f.ID, &f.Summary)
+		if err == nil {
+			return &reviewObserveConflict{IntentID: a.Intent, Fact: f}
+		}
+	}
+	return nil
 }
 
 // reviewEscalate 是「90 秒没人点」之后的处理（docs/14 §4）：

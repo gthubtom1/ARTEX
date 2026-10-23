@@ -67,6 +67,8 @@ type reviewRunRow struct {
 	AckReason   string          `json:"ack_reason,omitempty"`
 	AckDeadline string          `json:"ack_deadline,omitempty"` // 无人值守窗口到期时间（面板倒计时用）
 	AutoApplied bool            `json:"auto_applied"`
+	Expectation string          `json:"expectation,omitempty"` // 一句话可机检预期（E1）
+	Outcome     string          `json:"outcome,omitempty"`     // effective|ineffective|voided（观察窗回访）
 }
 
 // agentPromptOrConst 取 Agent 页当前提示词；含未渲染模板变量时回退常量。
@@ -104,7 +106,7 @@ func (s *Server) reviewRebut(w http.ResponseWriter, r *http.Request) {
 		var runID int64
 		if err := s.m.pg.QueryRowContext(r.Context(), `SELECT id FROM review_runs
 			WHERE task_id=$1 AND status='done' ORDER BY id DESC LIMIT 1`, taskID).Scan(&runID); err == nil && runID > 0 {
-			_, _ = s.m.pg.ExecContext(r.Context(), `UPDATE review_runs SET ack_status='rejected', ack_reason=$2 WHERE id=$1`,
+			_, _ = s.m.pg.ExecContext(r.Context(), `UPDATE review_runs SET ack_status='rejected', ack_reason=$2, observe_until=NULL WHERE id=$1`,
 				runID, body.Text)
 			_, _ = s.m.pg.ExecContext(r.Context(), `INSERT INTO review_feedback(run_id,action,by_user,rebuttal)
 				VALUES($1,'rebutted','ui',$2)`, runID, body.Text)
@@ -240,6 +242,9 @@ func (s *Server) reviewOnce(parent context.Context, taskIDStr string, taskID int
 		if g.Level == review.LevelAction && len(g.Actions) > 0 {
 			text := review.AdviceText(v.Body, g.Actions, g.AutoApplied)
 			s.deliverReviewAdvice(ctx, task, runID, text)
+			// 有动作且已投递 → 开观察窗（docs/15 §3）：10 分钟后回访预期信号。
+			// 门（E1）保证这条路径上的 expectation 非空。
+			s.setReviewObserveWindow(ctx, runID, reviewObserveWindow)
 		}
 		st.Interventions++
 		st.LastSentAt = time.Now()
@@ -292,7 +297,8 @@ func (s *Server) listReviewRuns(taskID int64, limit int) ([]reviewRunRow, error,
 		COALESCE(model,''),to_char(created_at,'YYYY-MM-DD HH24:MI'),COALESCE(to_char(finished_at,'YYYY-MM-DD HH24:MI'),''),
 		COALESCE(level,'read'),COALESCE(reason_class,''),COALESCE(to_char(seen_at,'YYYY-MM-DD HH24:MI'),''),
 		COALESCE(ack_status,''),COALESCE(ack_reason,''),auto_applied,
-		COALESCE(to_char(ack_deadline,'YYYY-MM-DD HH24:MI:SS'),'')
+		COALESCE(to_char(ack_deadline,'YYYY-MM-DD HH24:MI:SS'),''),
+		COALESCE(expectation,''),COALESCE(outcome,'')
 		FROM review_runs WHERE task_id=$1 AND status IN ('running','done','superseded')
 		ORDER BY id DESC LIMIT $2`, taskID, limit)
 	if err != nil {
@@ -305,7 +311,7 @@ func (s *Server) listReviewRuns(taskID int64, limit int) ([]reviewRunRow, error,
 		var cites, actions, conf string
 		if err := rows.Scan(&x.ID, &x.TaskID, &x.Trigger, &x.Status, &x.Verdict, &x.Body, &cites, &actions, &conf,
 			&x.Model, &x.CreatedAt, &x.FinishedAt, &x.Level, &x.ReasonClass, &x.SeenAt,
-			&x.AckStatus, &x.AckReason, &x.AutoApplied, &x.AckDeadline); err != nil {
+			&x.AckStatus, &x.AckReason, &x.AutoApplied, &x.AckDeadline, &x.Expectation, &x.Outcome); err != nil {
 			continue
 		}
 		_ = json.Unmarshal([]byte(cites), &x.Cites)
@@ -438,6 +444,9 @@ func (s *Server) reviewListRuns(w http.ResponseWriter, r *http.Request) {
 // reviewAckWindow 是无人值守时的等待窗口（docs/14 §4：默认 90 秒）。
 const reviewAckWindow = 90 * time.Second
 
+// reviewObserveWindow 是「有动作且已投递」的观察窗（docs/15 §3：10 分钟 / 3 轮）。
+const reviewObserveWindow = 10 * time.Minute
+
 // reviewPendingActions 数「还需要人点头」的动作：已在自动路径执行过的减浪费动作不计。
 func reviewPendingActions(g review.GateOut) int {
 	done := map[string]bool{}
@@ -463,6 +472,19 @@ func (s *Server) setReviewAckDeadline(ctx context.Context, runID int64, w time.D
 		SET ack_deadline = now() + ($2 || ' seconds')::interval
 		WHERE id=$1 AND COALESCE(ack_status,'')=''`, runID, int(w.Seconds())); err != nil {
 		log.Printf("[review] set ack deadline run=%d: %v", runID, err)
+	}
+}
+
+// setReviewObserveWindow 给「有动作且已投递」的结论开观察窗。到点后 reviewObserveSweep
+// 比对 expectation 与新 fact，写 outcome（docs/15 §3）。
+func (s *Server) setReviewObserveWindow(ctx context.Context, runID int64, w time.Duration) {
+	if s.m == nil || s.m.pg == nil || runID <= 0 || w <= 0 {
+		return
+	}
+	if _, err := s.m.pg.ExecContext(ctx, `UPDATE review_runs
+		SET observe_until = now() + ($2 || ' seconds')::interval
+		WHERE id=$1 AND COALESCE(outcome,'')=''`, runID, int(w.Seconds())); err != nil {
+		log.Printf("[review] set observe window run=%d: %v", runID, err)
 	}
 }
 
@@ -591,8 +613,9 @@ func (s *Server) reviewAck(w http.ResponseWriter, r *http.Request) {
 		notes = append(notes, "好，我不动（红点保留给你）")
 	case "rejected":
 		// negative → R4 降权：同 reason_class 再被拒 2 次后只留结论卡。
+		// 被拒的建议不再进观察窗（docs/15 §3：rejected → 读理由，不进入 observing）。
 		_, _ = s.m.pg.ExecContext(r.Context(), `UPDATE review_runs SET ack_status='rejected', ack_at=now(),
-			ack_deadline=NULL, ack_reason=$2 WHERE id=$1`, runID, "人明确不要这条建议")
+			ack_deadline=NULL, observe_until=NULL, ack_reason=$2 WHERE id=$1`, runID, "人明确不要这条建议")
 		_, _ = s.m.pg.ExecContext(r.Context(), `INSERT INTO review_feedback(run_id,action,by_user) VALUES($1,'rejected','ui')`, runID)
 		notes = append(notes, "已记下：同类建议将降权")
 	case "accepted":

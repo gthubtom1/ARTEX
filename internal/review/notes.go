@@ -77,12 +77,13 @@ type Cite struct {
 
 // Verdict 是一次评审的结构化结论。
 type Verdict struct {
-	Verdict    string   `json:"verdict"` // continue|pivot|wrapup
-	Body       string   `json:"body"`
-	Cites      []Cite   `json:"cites"`
-	Actions    []Action `json:"actions"`
-	Confidence string   `json:"confidence"` // high|medium|low
-	Notes      string   `json:"notes"`      // 更新后的笔记（六行）
+	Verdict     string   `json:"verdict"` // continue|pivot|wrapup
+	Body        string   `json:"body"`
+	Cites       []Cite   `json:"cites"`
+	Actions     []Action `json:"actions"`
+	Expectation string   `json:"expectation"` // 一句话、可机检的预期（E1：有动作时必须写）
+	Confidence  string   `json:"confidence"`  // high|medium|low
+	Notes       string   `json:"notes"`       // 更新后的笔记（六行）
 }
 
 // SystemPrompt 是复盘官的人设：外部评估者 + 不信前判断 + 只给四类动作。
@@ -98,9 +99,12 @@ const SystemPrompt = `你是这次渗透任务请来的「外部评估者」。�
 5. 输出必须是一个 JSON 对象，不要 Markdown 代码块，字段：
    {"verdict":"continue|pivot|wrapup","body":"给完全不懂技术的人看的 3-6 句","cites":[{"kind":"intent","id":20}],
     "actions":[{"kind":"kill_intent","intent":21,"why":"目标 OPTIONS 明确不含 PUT，连续 4 次"}],
+    "expectation":"3 轮内出现涉及 IIS 配置的新事实",
     "confidence":"high|medium|low","notes":"更新后的笔记，固定六行，≤400字"}
 6. body 里不许出现英文术语与命令；只写"手里有什么、还差什么、下一步值不值得做"。
-7. 必须简短：body ≤200 字，notes ≤150 字，actions ≤3 条，cites ≤6 条；一次写完且以 } 结尾。`
+7. 必须简短：body ≤200 字，notes ≤150 字，actions ≤3 条，cites ≤6 条；一次写完且以 } 结尾。
+8. E1：只要 actions 非空，expectation 就是必填——一句话写清「到什么程度算这条建议起效」，且必须能被事实摘要机检（例："3 轮内出现涉及 IIS 配置的新事实"）。写不出预期信号就不要给动作。
+9. 快照里的 last_rejections 是最近被合理拒绝的建议与理由：不要重复提，除非有新证据能推翻那个理由。`
 
 // Parse 解析模型输出（容忍 ```json 包裹）。
 func Parse(raw string) (Verdict, error) {
@@ -178,7 +182,8 @@ const ProsePrompt = `你是这次渗透任务请来的「外部评估者」。�
 1. 只信事实，没写的写"还没确认"；
 2. 不出现英文术语、命令、模型名；
 3. 不写数量细节（只说"有用户密码"这种程度）；
-4. 直接输出这段话本身，不要 JSON、不要 Markdown、不要分点标题。`
+4. 直接输出这段话本身，不要 JSON、不要 Markdown、不要分点标题。
+5. 快照里的 last_rejections 是最近被合理拒绝的建议与理由：不要重复提，除非有新证据能推翻那个理由。`
 
 // RuleBased 是模型不可用时的确定性兜底（不烧 token、不编造）。
 func RuleBased(s *Snapshot) Verdict {
@@ -215,7 +220,43 @@ func RuleBased(s *Snapshot) Verdict {
 		v.Actions = append(v.Actions, Action{Kind: "retry_intent", Intent: id, Why: "我方故障，没真正试过"})
 		v.Cites = append(v.Cites, Cite{Kind: "intent", ID: id})
 	}
+	// E1：规则版给动作时同样必须给一句话可机检的预期；没有预期就不该有动作。
+	v.Expectation = expectationFor(s, v.Actions)
 	return v
+}
+
+// expectationFor 给规则版动作生成一句话可机检的预期。
+// 关键词锚点优先用「被重开/被提议的具体方向」，其次用任务目标；这样观察窗回访时
+// 能用 fact 摘要做确定性比对（见 gate.go 的 EvaluateObservation）。
+func expectationFor(s *Snapshot, actions []Action) string {
+	if s == nil || len(actions) == 0 {
+		return ""
+	}
+	byID := map[int64]IntentBrief{}
+	for _, it := range s.Intents {
+		byID[it.ID] = it
+	}
+	goal := truncRunes(s.Goal, 40)
+	for _, a := range actions {
+		if a.Kind == "retry_intent" {
+			anchor := truncRunes(byID[a.Intent].Summary, 40)
+			if anchor == "" {
+				anchor = goal
+			}
+			if anchor != "" {
+				return fmt.Sprintf("3 轮内出现涉及「%s」的新事实", anchor)
+			}
+		}
+	}
+	for _, a := range actions {
+		if a.Kind == "propose_intent" && strings.TrimSpace(a.Why) != "" {
+			return fmt.Sprintf("3 轮内出现涉及「%s」的新事实", truncRunes(a.Why, 40))
+		}
+	}
+	if goal == "" {
+		goal = "整体目标"
+	}
+	return fmt.Sprintf("3 轮内出现与「%s」相关的新事实", goal)
 }
 
 func truncRunes(s string, n int) string {

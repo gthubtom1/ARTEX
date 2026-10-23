@@ -80,6 +80,9 @@ type Snapshot struct {
 	// 经验两字段（docs/14 §7-1）：死路台账 + KB 命中。两条都可能为空，空就整段不出现。
 	DeadEnds []string `json:"dead_ends,omitempty"`
 	KBHits   []KBHit  `json:"kb_hits,omitempty"`
+	// 拒因回读（docs/15 §3 / docs/14 §7-4）：该任务最近 3 条被拒理由（带 run id），
+	// 让它下次别再提已经被合理拒绝的建议。空就整段不出现。
+	LastRejections []string `json:"last_rejections,omitempty"`
 }
 
 // Hash 是快照指纹（落地对账用；不含时间，否则缓存永远失效）。
@@ -307,6 +310,26 @@ func BuildWithKB(ctx context.Context, d *pgdb.DB, taskID int64, notes, kbRoot st
 
 	// KB 经验：目录不存在/检索失败一律静默跳过，绝不阻塞评审。
 	s.KBHits = buildKBHits(kbRoot, kbQueries(s.Errors, vulnClasses))
+
+	// 拒因回读：被拒理由也是「经验」——同样的建议不要提第二次，除非有新证据。
+	// 读失败不算错误，没有拒因就整段不出现。
+	if rrows, rerr := d.QueryContext(ctx, `SELECT id, COALESCE(ack_reason,'')
+		FROM review_runs WHERE task_id=$1 AND ack_status='rejected'
+		ORDER BY COALESCE(ack_at, created_at) DESC, id DESC LIMIT 3`, taskID); rerr == nil {
+		defer rrows.Close()
+		for rrows.Next() {
+			var id int64
+			var reason string
+			if rrows.Scan(&id, &reason) != nil {
+				continue
+			}
+			reason = truncRunes(strings.TrimSpace(reason), 160)
+			if reason == "" {
+				reason = "（未写理由）"
+			}
+			s.LastRejections = append(s.LastRejections, fmt.Sprintf("run #%d：%s", id, reason))
+		}
+	}
 	return s, nil
 }
 

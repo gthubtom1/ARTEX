@@ -58,6 +58,8 @@ db/db.go
 db/seed_templates.go
 db/migrations/0006_review_loop.sql
 db/migrations/0008_review_ack.sql
+db/migrations/0009_review_expect.sql
+internal/review/observe_test.go
 internal/review/experience_test.go
 web/src/app/(main)/function/tasks/detail/_tabs/review-panel.tsx
 web/src/app/(main)/function/tasks/detail/_tabs/sessions-tab.tsx
