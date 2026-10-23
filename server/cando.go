@@ -184,7 +184,8 @@ func (s *Server) candoLanes(t *Task, caps []capability.Card, findings []*db.Node
 	for _, c := range caps {
 		key := strings.TrimSpace(c.Surface)
 		if key == "" {
-			key = "未标注入口"
+			// 能力卡没标 surface（实测常态）：用能力名当入口，避免所有卡挤进"未标注入口"。
+			key = nz2(c.Can, "未标注入口")
 		}
 		if _, ok := groups[key]; !ok {
 			order = append(order, key)
