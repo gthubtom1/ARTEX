@@ -4260,6 +4260,20 @@ func (s *Server) fallbackChat(t *Task, msg string) string {
 	}
 }
 
+// distinctStats 取任务的「独立漏洞」计数（同一缺陷多次上报只算一个）。
+// 页面侧早就用它（见列表 DTO 的 DistinctFindings），报告侧此前用的是原始条数，
+// 导致「页面 3 个 / 报告 4 个」。失败时返回 nil，报告回退旧文案，不阻断生成。
+func distinctStats(s *Server, taskID string) *db.FindingDistinctStats {
+	if s == nil || s.m == nil || s.m.PG() == nil {
+		return nil
+	}
+	st, err := s.m.PG().DistinctFindingStats(taskID)
+	if err != nil || st == nil {
+		return nil
+	}
+	return st
+}
+
 func (s *Server) getReport(w http.ResponseWriter, r *http.Request) {
 	t := s.m.ResolveTask(r.URL.Query().Get("task"))
 	if t == nil {
@@ -4277,6 +4291,9 @@ func (s *Server) getReport(w http.ResponseWriter, r *http.Request) {
 	md := report.Markdown(report.Input{
 		Title: t.Description, Goal: t.Goal, GeneratedAt: time.Now(),
 		AssetCounts: counts, Findings: findings,
+		// 独立漏洞计数（同一缺陷多次上报只算一个）。查失败时留 nil，
+		// report.Markdown 会回退到 len(findings)，不阻断报告生成。
+		Distinct: distinctStats(s, t.ID),
 	})
 	// 报告后附「能力菜单 + 覆盖度 + 持有台账」：零基础读者最关心的三段。
 	if s.p2 != nil {

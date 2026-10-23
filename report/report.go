@@ -19,6 +19,11 @@ type Input struct {
 	GeneratedAt time.Time
 	AssetCounts map[string]int
 	Findings    []*db.Node
+	// Distinct 是「独立漏洞」计数（同一缺陷多次上报只算一个）。
+	// 为 nil 时回退到 len(Findings)（原始上报数），保持旧行为不变。
+	// 页面侧早就用 db.DistinctFindingStats 统计，报告侧曾是原始条数——
+	// 同一份数据两个数字，用户拿报告交付会被问住。
+	Distinct *db.FindingDistinctStats
 }
 
 type findingView struct {
@@ -54,7 +59,11 @@ func Markdown(in Input) string {
 
 	// summary
 	fmt.Fprintf(&b, "## 摘要\n\n")
-	fmt.Fprintf(&b, "- 确认发现：**%d** 个\n", len(in.Findings))
+	if in.Distinct != nil {
+		fmt.Fprintf(&b, "- 确认发现：**%d** 个独立漏洞（原始上报 %d 条）\n", in.Distinct.Total, in.Distinct.Reports)
+	} else {
+		fmt.Fprintf(&b, "- 确认发现：**%d** 个\n", len(in.Findings))
+	}
 	fmt.Fprintf(&b, "- 资产：")
 	var types []string
 	for t := range in.AssetCounts {
