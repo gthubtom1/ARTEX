@@ -10,6 +10,7 @@ package guard
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -256,6 +257,11 @@ func (g *Guard) preToolUse(ctx context.Context, ev hook.Event) hook.Result {
 		cmd = in.Text
 	}
 	g.record(ev.ToolName, "allow", "", cmd)
+	// CARD-E01 L2：裸跑有结构化等价物的命令时，**提示一次**（第二次放行）。
+	if msg, hit := redirectHint(ctx, ev.ToolName, cmd); hit {
+		g.record(ev.ToolName, "redirect-hint", msg, cmd)
+		return g.block(ev.ToolName, msg, cmd)
+	}
 	// 工具存在性：命令首词不在本机时，给出**可执行的替代方案**，
 	// 而不是把 "command not found" 甩给模型（那会让它开始乱搓）。
 	if ToolPresence != nil && cmd != "" && (ev.ToolName == "Bash" || ev.ToolName == "shell_open" || ev.ToolName == "shell_send") {
@@ -425,4 +431,46 @@ func (g *Guard) Audit() []AuditEntry {
 	out := make([]AuditEntry, len(g.audit))
 	copy(out, g.audit)
 	return out
+}
+
+// ───────────── 工具改道（CARD-E01 L2）─────────────
+
+// ToolRedirect 由 server 注入：把裸跑的命令名映射到平台内置的结构化工具名。
+// 返回 ok=false 表示"没有对应工具，别多嘴"。
+var ToolRedirect func(name string) (target string, ok bool)
+
+// redirectOnce 记录"每个任务里每个命令只提示一次"。模型坚持要裸跑时，
+// 第二次就会放行 —— 改道是提示，不是权限。
+var (
+	redirectMu   sync.Mutex
+	redirectSeen = map[string]int{}
+)
+
+// redirectHint 在一次 Bash 调用里判断是否需要提示改道。
+// 返回 (message, true) 时调用方应把这次调用**挡一次**，让模型看到建议。
+func redirectHint(ctx context.Context, tool, cmd string) (string, bool) {
+	if ToolRedirect == nil || cmd == "" {
+		return "", false
+	}
+	if tool != "Bash" && tool != "shell_open" && tool != "shell_send" {
+		return "", false
+	}
+	name := firstCommand(cmd)
+	if name == "" {
+		return "", false
+	}
+	target, ok := ToolRedirect(name)
+	if !ok || target == "" {
+		return "", false
+	}
+	key := fmt.Sprintf("%d|%s", TaskIDOf(ctx), name)
+	redirectMu.Lock()
+	n := redirectSeen[key]
+	redirectSeen[key] = n + 1
+	redirectMu.Unlock()
+	if n > 0 {
+		return "", false // 已经提示过：放行，别拦住干活
+	}
+	return fmt.Sprintf("平台有结构化工具 %s，返回 JSON（端口/服务/状态码等），比裸跑 %s 再解析屏幕文本更省 token。"+
+		"建议改用 %s；如果你确信要裸跑，再执行一次同样的命令就会放行。", target, name, target), true
 }

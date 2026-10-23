@@ -4421,6 +4421,18 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		s.tools.Store(tools)
 		log.Printf("[env] tool discovery: %d tools, missing=%v", len(tools), s.envDisc.Missing(tools))
 	}()
+	// CARD-E01 L2：裸跑有结构化等价物的命令 → 提示一次改道（第二次放行）。
+	guard.ToolRedirect = func(name string) (string, bool) {
+		switch name {
+		case "nmap":
+			return "nmap_scan", true
+		case "httpx":
+			return "httpx_probe", true
+		case "nuclei":
+			return "nuclei_scan", true
+		}
+		return "", false
+	}
 	guard.ToolPresence = func(name string) (bool, string) {
 		v := s.tools.Load()
 		if v == nil {
