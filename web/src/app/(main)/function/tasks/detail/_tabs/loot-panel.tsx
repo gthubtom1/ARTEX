@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { CheckIcon, ClipboardCopyIcon, Loader2Icon, RefreshCwIcon, SparklesIcon, XIcon } from "lucide-react";
 
-import { candoSend, lootapi, type LootResponse, type LootRow } from "@/lib/api";
+import { lootapi, type LootResponse, type LootRow } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 // 战果清单（CARD-B01）
@@ -171,22 +171,12 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
     setShowEvidence(false);
   }
 
-  async function copy(text: string) {
+  async function copy(text: string, okMsg = "已复制") {
     try {
       await navigator.clipboard.writeText(text);
-      setMsg("已复制");
+      setMsg(okMsg);
     } catch {
       setMsg("复制失败，请手动选中");
-    }
-  }
-
-  async function send(r: LootRow) {
-    if (!window.confirm("这会向目标发起真实请求，继续？")) return;
-    try {
-      await candoSend(taskId, r.hint ?? r.plain ?? r.label, r.key);
-      setMsg("已作为提示发给主 Agent，规划者下一轮会读到");
-    } catch {
-      setMsg("发送失败（可能任务已终止）");
     }
   }
 
@@ -233,7 +223,9 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
 
   const evidence = row?.evidence ?? [];
   const plainText = row?.plain || (row ? ST[row.status].label : "");
-  const nextStep = row?.hint ?? "";
+  // 下一步：优先用后端确定性模板生成的 next_prompt（可直接粘贴到主会话）
+  const nextStep = row?.next_prompt ?? row?.hint ?? "";
+  const nextActionText = row ? (row.next_prompt ?? row.hint ?? row.plain ?? row.label) : "";
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col">
@@ -432,38 +424,39 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
               )}
             </section>
 
-            {/* 下一步 */}
+            {/* 下一步：只读展示可直接粘贴的指令 */}
             <section className="mb-1">
               <h5 className="mb-1 text-[10px] font-semibold tracking-wide text-muted-foreground">下一步</h5>
-              <div className={cn("text-[11.5px]", nextStep ? "text-foreground/80" : "text-muted-foreground")}>
-                {nextStep || "暂无建议"}
-              </div>
+              {nextStep ? (
+                <>
+                  <pre className="max-h-[4.5rem] overflow-auto whitespace-pre-wrap break-words rounded border bg-card px-2 py-1 text-[11px] leading-snug text-foreground/80">
+                    {nextStep}
+                  </pre>
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">点下面的按钮复制，粘到主 Agent 会话里发送即可。</div>
+                </>
+              ) : (
+                <div className="text-[11.5px] text-muted-foreground">暂无建议</div>
+              )}
             </section>
           </div>
 
-          {/* 四个动作 */}
+          {/* 三个动作：复制指令 / 看证据 / AI 说清楚 */}
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t bg-card px-3 py-2">
+            <button
+              className="inline-flex items-center gap-1 rounded-md border border-emerald-600/40 bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-45"
+              onClick={() => copy(nextActionText, "已复制，粘到上面「主 Agent 会话」里发送即可")}
+              disabled={!nextActionText}
+              title="只复制，不会自动发给 AI 或任务"
+            >
+              <ClipboardCopyIcon className="size-3" />
+              {row.status === "tried" ? '复制"换个手法再试"的指令' : "复制下一步指令"}
+            </button>
             <button
               className="rounded-md border px-2 py-1 text-[11px] hover:bg-accent disabled:opacity-45"
               onClick={() => setShowEvidence((v) => !v)}
               disabled={evidence.length === 0}
             >
               看证据原文
-            </button>
-            <button
-              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-accent"
-              onClick={() => copy(`${row.label}\n一句话：${plainText}\n下一步：${nextStep}`)}
-            >
-              <ClipboardCopyIcon className="size-3" />
-              复制指令
-            </button>
-            <button
-              className="rounded-md border border-emerald-600/40 bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-45"
-              onClick={() => send(row)}
-              disabled={row.status !== "done"}
-              title={row.status === "done" ? "让规划者去目标上拉样本" : "只有「已拿到」的行才能真去拉样本"}
-            >
-              让它去拉样本
             </button>
             <button
               className="ml-auto inline-flex items-center gap-1 rounded-md border border-violet-500/40 bg-violet-500/5 px-2 py-1 text-[11px] font-semibold text-violet-600 hover:bg-violet-500/10 disabled:opacity-50"

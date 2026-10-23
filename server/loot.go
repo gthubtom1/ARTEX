@@ -36,6 +36,7 @@ type lootRow struct {
 	Objects    []lootObject    `json:"objects,omitempty"`
 	ProofState string          `json:"proof_state,omitempty"` // real|reachable|tried
 	Hint       string          `json:"hint,omitempty"`
+	NextPrompt string          `json:"next_prompt,omitempty"` // 确定性模板：可直接粘贴到主会话的下一步指令
 	Evidence   []candoEvidence `json:"evidence,omitempty"`
 
 	// evidenceHash 只用于 L1 解释缓存键，不进入 JSON。
@@ -182,6 +183,7 @@ func (s *Server) lootRowsForTask(ctx context.Context, t *Task, fs []lootFinding)
 		row.Objects = extractLootObjects(matched)
 		row.ProofState = lootProofState(row.Status, matched)
 		row.Plain = lootPlain(def.key, def.label, row.Why, row.Objects, row.Status)
+		row.NextPrompt = lootNextPrompt(def.key, row.Objects, row.Hint, t.Goal)
 		row.evidenceHash = lootRowHash(def.key, row, matched)
 		rows = append(rows, row)
 	}
@@ -243,6 +245,58 @@ func lootPlain(key, label, why string, objects []lootObject, status string) stri
 		return "能从它这里往内网横向"
 	default:
 		return "已经能做到：" + label
+	}
+}
+
+// lootHostRe 从任务 goal 里取第一个目标 host。
+var lootHostRe = regexp.MustCompile(`(?i)https?://([^/\s（）()]+)`)
+
+// lootGoalHost 返回 goal 里的第一个 host；取不到写“目标”。
+func lootGoalHost(goal string) string {
+	m := lootHostRe.FindStringSubmatch(goal)
+	if m == nil {
+		return "目标"
+	}
+	host := strings.TrimSpace(m[1])
+	host = strings.TrimRight(host, "。，,.;；、")
+	if host == "" {
+		return "目标"
+	}
+	return host
+}
+
+// lootNextPrompt 生成“可直接粘贴到主会话”的下一步指令。
+// 纯模板拼接，不调模型：同样的行永远产出同样的文案。
+func lootNextPrompt(key string, objects []lootObject, hint, goal string) string {
+	host := lootGoalHost(goal)
+	names := lootObjectCNList(objects, 2)
+	obj := "数据"
+	if len(names) > 0 {
+		obj = strings.Join(names, "、")
+	}
+	switch key {
+	case "data":
+		return "沿已确认的入口，把它的" + obj + "各拉 3 条样本证明能读到（只读，不要整表导出）。只打 " + host + "，20 分钟内给我结论。"
+	case "admin":
+		return "用拿到的方式登录它后台，确认能看到用户/订单列表，取 1 条样本作为证据，不要修改任何数据。只打 " + host + "，15 分钟内给我结论。"
+	case "cred":
+		return "用拿到的账号口令去验证：先试它自己的数据库/后台登录（只读验证），成功就停，别扩大范围。只打 " + host + "，15 分钟内给我结论。"
+	case "fileread":
+		return "读它服务器上的关键文件（源码/配置文件）证明任意文件读取，取关键 20 行作为证据，不要写文件。只打 " + host + "，15 分钟内给我结论。"
+	case "filewrite":
+		return "换一种写入手法（换目录/换扩展名/换上传点）再试一次，落一个最小验证文件并立即删掉。只打 " + host + "，20 分钟内给我结论。"
+	case "rce":
+		h := strings.TrimSpace(hint)
+		if h != "" {
+			return "按 hint 里的备选手法（" + h + "）再试一次，30 分钟内没有命令回显就判死，写负结论并停止这条方向。只打 " + host + "。"
+		}
+		return "按 hint 里的备选手法再试一次，30 分钟内没有命令回显就判死，写负结论并停止这条方向。只打 " + host + "。"
+	case "hash":
+		return "离线把已拿到的口令哈希还原成明文，先跑常用字典，出 1-2 个明文就够证明影响。不要碰目标站。"
+	case "lateral":
+		return "确认同网段还有哪些可达资产，只做只读探测，列出候选后停。只打 " + host + "。"
+	default:
+		return "沿这条已确认的方向再取一个最小样本作为证据。只打 " + host + "，20 分钟内给我结论。"
 	}
 }
 

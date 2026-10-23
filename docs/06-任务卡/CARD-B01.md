@@ -37,6 +37,7 @@ server/cando.go
 server/loot.go
 server/loot_ai.go
 server/loot_extract_test.go
+server/loot_prompt_test.go
 server/server.go
 db/migrations/0007_loot_explain.sql
 web/src/app/(main)/function/tasks/detail/_tabs/loot-panel.tsx

@@ -1852,6 +1852,8 @@ export interface LootRow {
   status: "done" | "run" | "tried" | "blank";
   why: string;
   hint?: string;
+  // 确定性模板生成的“复制粘贴即可发送”的下一步指令
+  next_prompt?: string;
   evidence?: CandoEvidence[];
   // L0 规则抽取：一句人话 / 具体能拿到什么 / 证据强度
   plain?: string;
