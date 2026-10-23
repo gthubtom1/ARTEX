@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -237,6 +238,13 @@ func collectText(ctx context.Context, prov llm.Provider, nonStreaming bool, syst
 	var sb strings.Builder
 	for ev, err := range prov.Stream(ctx, req) {
 		if err != nil {
+			// 某些端点（如 openai-responses 经代理）会在 output_item.done 之后
+			// 直接断流、不发 terminal 事件，但文本其实已经完整。
+			// 已积累到可用长度时按成功返回，避免把完整结论丢掉。
+			if sb.Len() >= 40 {
+				log.Printf("[llm] stream closed early, keep %d bytes: %v", sb.Len(), err)
+				return sb.String(), nil
+			}
 			return "", err
 		}
 		if ev.Type == llm.SETextDelta {
@@ -261,6 +269,13 @@ func streamCollectText(ctx context.Context, prov llm.Provider, system, user stri
 	var sb strings.Builder
 	for ev, err := range prov.Stream(ctx, req) {
 		if err != nil {
+			// 某些端点（如 openai-responses 经代理）会在 output_item.done 之后
+			// 直接断流、不发 terminal 事件，但文本其实已经完整。
+			// 已积累到可用长度时按成功返回，避免把完整结论丢掉。
+			if sb.Len() >= 40 {
+				log.Printf("[llm] stream closed early, keep %d bytes: %v", sb.Len(), err)
+				return sb.String(), nil
+			}
 			return "", err
 		}
 		if ev.Type == llm.SETextDelta {
