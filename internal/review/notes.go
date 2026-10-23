@@ -99,7 +99,8 @@ const SystemPrompt = `你是这次渗透任务请来的「外部评估者」。�
    {"verdict":"continue|pivot|wrapup","body":"给完全不懂技术的人看的 3-6 句","cites":[{"kind":"intent","id":20}],
     "actions":[{"kind":"kill_intent","intent":21,"why":"目标 OPTIONS 明确不含 PUT，连续 4 次"}],
     "confidence":"high|medium|low","notes":"更新后的笔记，固定六行，≤400字"}
-6. body 里不许出现英文术语与命令；只写"手里有什么、还差什么、下一步值不值得做"。`
+6. body 里不许出现英文术语与命令；只写"手里有什么、还差什么、下一步值不值得做"。
+7. 必须简短：body ≤200 字，notes ≤150 字，actions ≤3 条，cites ≤6 条；一次写完且以 } 结尾。`
 
 // Parse 解析模型输出（容忍 ```json 包裹）。
 func Parse(raw string) (Verdict, error) {

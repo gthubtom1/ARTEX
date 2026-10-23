@@ -132,7 +132,7 @@ func (s *Server) runReview(w http.ResponseWriter, r *http.Request, trigger, rebu
 	var v review.Verdict
 	modelName := "rule"
 	rt := &taskLLMRuntime{s: s, taskID: t.ID, agentKey: "adviser"}
-	raw, lerr := collectText(ctx, rt, true, sys, user, 4000)
+	raw, lerr := collectText(ctx, rt, true, sys, user, 8000)
 	if lerr == nil {
 		if parsed, perr := review.Parse(raw); perr == nil {
 			v = parsed
