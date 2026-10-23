@@ -11,11 +11,29 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	pgdb "github.com/Autumn-27/artex/db"
+	artexkb "github.com/Autumn-27/artex/internal/kb"
 )
+
+// 经验层（docs/14 §2 L3）的规模上限：宁可少说，也不要拿一堆噪声淹掉模型。
+const (
+	deadEndMax     = 8   // 死路台账最多 8 条
+	deadEndTextMax = 100 // 每条截断 100 字
+	kbMaxHits      = 2   // KB 最多 2 条命中
+	kbMaxQueries   = 2   // KB 最多 2 个查询词
+)
+
+// KBHit 是一条能写进结论的「经验」：哪个词查到的、哪份知识、命中的上下文。
+type KBHit struct {
+	Query   string `json:"query"`
+	Title   string `json:"title"`
+	Snippet string `json:"snippet"`
+}
 
 // IntentBrief 是一条意图的对外摘要（不含执行细节）。
 type IntentBrief struct {
@@ -59,6 +77,9 @@ type Snapshot struct {
 	Owned      []string       `json:"owned"`
 	Caps       []CapBrief     `json:"capabilities"`
 	Notes      string         `json:"notes"`
+	// 经验两字段（docs/14 §7-1）：死路台账 + KB 命中。两条都可能为空，空就整段不出现。
+	DeadEnds []string `json:"dead_ends,omitempty"`
+	KBHits   []KBHit  `json:"kb_hits,omitempty"`
 }
 
 // Hash 是快照指纹（落地对账用；不含时间，否则缓存永远失效）。
@@ -82,6 +103,11 @@ func (s Snapshot) Prompt() string {
 
 // Build 组装快照。notes 由调用方从 review_notes 读好传入。
 func Build(ctx context.Context, d *pgdb.DB, taskID int64, notes string) (*Snapshot, error) {
+	return BuildWithKB(ctx, d, taskID, notes, "")
+}
+
+// BuildWithKB 与 Build 相同，但可以指定知识库根目录（空=自动找 kb/ 或 skills/）。
+func BuildWithKB(ctx context.Context, d *pgdb.DB, taskID int64, notes, kbRoot string) (*Snapshot, error) {
 	if d == nil {
 		return nil, fmt.Errorf("db unavailable")
 	}
@@ -153,15 +179,21 @@ func Build(ctx context.Context, d *pgdb.DB, taskID int64, notes string) (*Snapsh
 		s.Intents = append(s.Intents, it)
 	}
 
-	// 漏洞
-	frows, err := d.QueryContext(ctx, `SELECT id, COALESCE(severity,''), COALESCE(NULLIF(name,''), vulnclass, '未命名'), COALESCE(status,'')
+	// 漏洞（顺带记下 vulnclass：它是 KB 检索词的第二来源）
+	var vulnClasses []string
+	frows, err := d.QueryContext(ctx, `SELECT id, COALESCE(severity,''), COALESCE(NULLIF(name,''), vulnclass, '未命名'), COALESCE(status,''),
+			COALESCE(vulnclass,'')
 		FROM findings WHERE task_id=$1 ORDER BY id DESC LIMIT 30`, taskID)
 	if err == nil {
 		defer frows.Close()
 		for frows.Next() {
 			var f FindingBrief
-			if err := frows.Scan(&f.ID, &f.Severity, &f.Title, &f.Proof); err == nil {
+			var vc string
+			if err := frows.Scan(&f.ID, &f.Severity, &f.Title, &f.Proof, &vc); err == nil {
 				s.Findings = append(s.Findings, f)
+				if strings.TrimSpace(vc) != "" {
+					vulnClasses = append(vulnClasses, vc)
+				}
 			}
 		}
 	}
@@ -257,5 +289,139 @@ func Build(ctx context.Context, d *pgdb.DB, taskID int64, notes string) (*Snapsh
 		}
 	}
 	sort.SliceStable(s.Negatives, func(i, j int) bool { return s.Negatives[i] < s.Negatives[j] })
+
+	// 死路台账：assumptions 里还没了结的假设，就是「这条路通常走不通」的经验。
+	// 读失败不算错误——没有台账就当作没有经验。
+	drows, derr := d.QueryContext(ctx, `SELECT COALESCE(text,'') FROM assumptions
+		WHERE task_id=$1 AND COALESCE(status,'') <> 'resolved'
+		ORDER BY id DESC LIMIT $2`, taskID, deadEndMax)
+	if derr == nil {
+		defer drows.Close()
+		for drows.Next() {
+			var txt string
+			if drows.Scan(&txt) == nil && strings.TrimSpace(txt) != "" {
+				s.DeadEnds = append(s.DeadEnds, truncRunes(txt, deadEndTextMax))
+			}
+		}
+	}
+
+	// KB 经验：目录不存在/检索失败一律静默跳过，绝不阻塞评审。
+	s.KBHits = buildKBHits(kbRoot, kbQueries(s.Errors, vulnClasses))
 	return s, nil
+}
+
+// kbQueries 从快照生成检索词（最多 2 个）：最频繁的错误类 + 最近漏洞的类型词。
+// 我方故障（self_error/env_error）说明的是平台坏了，不是这条路不通，不进检索词。
+func kbQueries(errs map[string]int, vulnClasses []string) []string {
+	var out []string
+	best, bestN := "", 0
+	for c, n := range errs {
+		switch c {
+		case "", "self_error", "env_error":
+			continue
+		}
+		if n > bestN || (n == bestN && c < best) {
+			best, bestN = c, n
+		}
+	}
+	if best != "" {
+		out = append(out, best)
+	}
+	for _, v := range vulnClasses {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		dup := false
+		for _, q := range out {
+			if strings.EqualFold(q, v) {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			out = append(out, v)
+		}
+		break
+	}
+	if len(out) > kbMaxQueries {
+		out = out[:kbMaxQueries]
+	}
+	return out
+}
+
+// resolveKBRoot 决定检索哪个目录：显式配置优先，其次 kb/，再次 skills/；都没有就返回 ""。
+func resolveKBRoot(explicit string) string {
+	for _, c := range []string{explicit, "kb", "skills"} {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
+		if st, err := os.Stat(c); err == nil && st.IsDir() {
+			return c
+		}
+	}
+	return ""
+}
+
+// buildKBHits 复用 internal/kb 的只读检索（文件名+正文、按分数排序），
+// 再按「命中行前后 2 行」生成 Snippet、Title 用文件名（docs/14 §7-1）。
+// 任何错误都只跳过，不返回、不阻塞。
+func buildKBHits(root string, queries []string) []KBHit {
+	root = resolveKBRoot(root)
+	if root == "" || len(queries) == 0 {
+		return nil
+	}
+	var out []KBHit
+	seen := map[string]bool{}
+	for _, q := range queries {
+		if len(out) >= kbMaxHits {
+			break
+		}
+		hits, err := artexkb.Search(root, q, artexkb.Options{MaxFiles: 400, Limit: 8})
+		if err != nil {
+			continue
+		}
+		for _, h := range hits {
+			if len(out) >= kbMaxHits {
+				break
+			}
+			if seen[h.Path] {
+				continue
+			}
+			seen[h.Path] = true
+			out = append(out, KBHit{Query: q, Title: filepath.Base(h.Path), Snippet: kbSnippet(root, h, q)})
+		}
+	}
+	return out
+}
+
+// kbSnippet 取命中行前后各 2 行；读不到/没命中就退回 kb.Search 给的片段。
+func kbSnippet(root string, h artexkb.Hit, query string) string {
+	body, err := artexkb.Read(root, h.Path, 256*1024)
+	if err != nil {
+		return h.Snippet
+	}
+	lines := strings.Split(body, "\n")
+	at := -1
+	low := strings.ToLower(query)
+	for i, ln := range lines {
+		if strings.Contains(strings.ToLower(ln), low) {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		return h.Snippet
+	}
+	start, end := at-2, at+2
+	if start < 0 {
+		start = 0
+	}
+	if end > len(lines)-1 {
+		end = len(lines) - 1
+	}
+	// 压掉多余空白：Snippet 进 Prompt，省 token 也更好读。
+	sn := strings.Join(strings.Fields(strings.Join(lines[start:end+1], " ")), " ")
+	return truncRunes(sn, 300)
 }

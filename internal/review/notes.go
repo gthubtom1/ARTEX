@@ -61,12 +61,12 @@ func clampNotes(s string) string {
 	return s
 }
 
-// Action 是允许下发到引擎的动作（docs/09 §6：只有这三类）。
+// Action 是允许下发到引擎的动作（docs/14 §3：四类）。
 type Action struct {
-	Kind   string `json:"kind"`             // kill_intent|retry_intent|set_next_stage
+	Kind   string `json:"kind"`             // kill_intent|retry_intent|set_next_stage|propose_intent
 	Intent int64  `json:"intent,omitempty"` // kill/retry 用
 	Stage  string `json:"stage,omitempty"`  // set_next_stage 用
-	Why    string `json:"why"`
+	Why    string `json:"why"`              // propose_intent 时这里就是「新方向 + 依据」
 }
 
 // Cite 是证据锚点（必须真实 id）。
@@ -85,7 +85,7 @@ type Verdict struct {
 	Notes      string   `json:"notes"`      // 更新后的笔记（六行）
 }
 
-// SystemPrompt 是复盘官的人设：外部评估者 + 不信前判断 + 只给三类动作。
+// SystemPrompt 是复盘官的人设：外部评估者 + 不信前判断 + 只给四类动作。
 const SystemPrompt = `你是这次渗透任务请来的「外部评估者」。你不参与执行，不跑命令，只读一份结构化快照和你自己上次的笔记。
 
 你的判断对象只有一件：整条方向还成不成立。不是某条漏洞真假，也不是某条命令对不对。
@@ -94,7 +94,7 @@ const SystemPrompt = `你是这次渗透任务请来的「外部评估者」。�
 1. 只信快照里的结构化事实；快照里没写的东西不许推测，写"未确认"；
 2. 每条结论后面用 [intent:ID] / [finding:ID] / [fact:ID] 标注依据；没有依据的句子删掉；
 3. 区分两件事：目标侧明确拒绝（死路）与 我方故障（self_error/env_error，没真正试过，应建议重跑）；
-4. 只允许三类动作：kill_intent（标死已被证死的路）、retry_intent（重跑被我方故障打断的路）、set_next_stage（换阶段）。任何"改目标/改数据/收工"都不是你的动作；
+4. 只允许四类动作：kill_intent（标死已被证死的路）、retry_intent（重跑被我方故障打断的路）、set_next_stage（换阶段）、propose_intent（只提议新方向，附依据，永远不自动执行）。任何"改目标/改数据/收工"都不是你的动作；
 5. 输出必须是一个 JSON 对象，不要 Markdown 代码块，字段：
    {"verdict":"continue|pivot|wrapup","body":"给完全不懂技术的人看的 3-6 句","cites":[{"kind":"intent","id":20}],
     "actions":[{"kind":"kill_intent","intent":21,"why":"目标 OPTIONS 明确不含 PUT，连续 4 次"}],
@@ -126,7 +126,7 @@ func Parse(raw string) (Verdict, error) {
 	kept := v.Actions[:0]
 	for _, a := range v.Actions {
 		switch a.Kind {
-		case "kill_intent", "retry_intent", "set_next_stage":
+		case "kill_intent", "retry_intent", "set_next_stage", "propose_intent":
 			kept = append(kept, a)
 		}
 	}

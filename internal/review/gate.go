@@ -45,7 +45,7 @@ type RunBrief struct {
 	DedupeKey   string
 	Level       string
 	ReasonClass string
-	AckStatus   string // accepted|rejected|stale|''
+	AckStatus   string // ''|held|accepted|rejected|escalated|stale
 }
 
 // State 是 review_state 的一行。
@@ -133,6 +133,21 @@ func Decide(in GateIn) GateOut {
 	var kept []Action
 	var classes []string
 	for _, a := range in.Verdict.Actions {
+		// propose_intent（提新方向）不指向已有意图，所以不能走下面的「必须指向快照里真实意图」校验。
+		// 它只需要一个依据（cites 非空 + why 非空），且永远不能自动执行。
+		if a.Kind == "propose_intent" {
+			if strings.TrimSpace(a.Why) == "" {
+				out.Notes = append(out.Notes, "剔除 propose_intent：没说依据（why 为空）")
+				continue
+			}
+			if len(in.Verdict.Cites) == 0 {
+				out.Notes = append(out.Notes, "剔除 propose_intent：没有引用任何真实 id（Q3 无依据）")
+				continue
+			}
+			out.NeedHuman = true
+			kept = append(kept, a)
+			continue
+		}
 		it, ok := byID[a.Intent]
 		if !ok || a.Intent == 0 {
 			out.Notes = append(out.Notes, fmt.Sprintf("剔除动作 %s#%d：快照里没有这条意图（已过期）", a.Kind, a.Intent))
@@ -161,6 +176,9 @@ func Decide(in GateIn) GateOut {
 			classes = append(classes, ClassKillRejected)
 		case "set_next_stage":
 			// 引擎没有"换阶段"接口：只能记账 + 抛给人，永远不自动执行。
+			out.NeedHuman = true
+		case "propose_intent":
+			// 上文已单独处理（不指向已有意图）；这里只保留白名单语义。
 			out.NeedHuman = true
 		default:
 			out.Notes = append(out.Notes, fmt.Sprintf("剔除未知动作 %q", a.Kind))
@@ -259,8 +277,42 @@ func Decide(in GateIn) GateOut {
 	return out
 }
 
+// NeedHumanFor 判定单个动作是否必须由人（或主 Agent 核对后）拍板。
+// propose_intent（提新方向）与 set_next_stage（换阶段）**永远不能自动执行**；
+// 前者只会被写成一条建议（不改目标、不派活），后者引擎根本没有接口。
+func NeedHumanFor(kind string) bool {
+	switch kind {
+	case "propose_intent", "set_next_stage":
+		return true
+	}
+	return false
+}
+
+// EscalatePlan 把「ack 窗口超时、没人回应」的一组动作分成两类（docs/14 §4）：
+//
+//	auto    — 只减浪费的两类（标死已证死的路 / 重开我方故障断的路），可按档位自动执行；
+//	suggest — 换阶段 / 提新方向 / 未知动作，只能写成给主 Agent 的建议，**绝不改目标、绝不收工**。
+func EscalatePlan(actions []Action) (auto, suggest []Action) {
+	for _, a := range actions {
+		if NeedHumanFor(a.Kind) {
+			suggest = append(suggest, a)
+			continue
+		}
+		switch a.Kind {
+		case "kill_intent", "retry_intent":
+			auto = append(auto, a)
+		default:
+			suggest = append(suggest, a)
+		}
+	}
+	return auto, suggest
+}
+
 // isAutoSafe 判定单个动作是否可以由它自己执行：只允许两类减浪费，且必须满足证据门槛。
 func isAutoSafe(a Action, it IntentBrief) bool {
+	if NeedHumanFor(a.Kind) {
+		return false // propose_intent / set_next_stage 永远不自动
+	}
 	switch a.Kind {
 	case "retry_intent":
 		return it.LastError == "self_error" || it.LastError == "env_error"
@@ -278,6 +330,11 @@ func dedupeKey(actions []Action, byID map[int64]IntentBrief) string {
 	}
 	parts := make([]string, 0, len(actions))
 	for _, a := range actions {
+		if a.Kind == "propose_intent" {
+			// 新方向没有目标 id，靠提议正文区分；否则所有提议会被当成同一条。
+			parts = append(parts, "propose_intent:"+truncRunes(strings.TrimSpace(a.Why), 48))
+			continue
+		}
 		it := byID[a.Intent]
 		parts = append(parts, fmt.Sprintf("%s:%d:%s:%s", a.Kind, a.Intent, it.State, it.LastError))
 	}
@@ -322,6 +379,8 @@ func AdviceText(body string, actions []Action, autoApplied []Action) string {
 				fmt.Fprintf(&b, "重开 #%d（%s）", a.Intent, a.Why)
 			case "set_next_stage":
 				fmt.Fprintf(&b, "换阶段 %s（%s）", a.Stage, a.Why)
+			case "propose_intent":
+				fmt.Fprintf(&b, "建议新方向：%s（它没有派活，采纳与否由你核对后决定）", a.Why)
 			default:
 				fmt.Fprintf(&b, "%s #%d（%s）", a.Kind, a.Intent, a.Why)
 			}

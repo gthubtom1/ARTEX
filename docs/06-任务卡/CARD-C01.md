@@ -56,6 +56,8 @@ agent/promptcatalog.go
 agent/prompt_test.go
 db/db.go
 db/migrations/0006_review_loop.sql
+db/migrations/0008_review_ack.sql
+internal/review/experience_test.go
 web/src/app/(main)/function/tasks/detail/_tabs/review-panel.tsx
 web/src/app/(main)/function/tasks/detail/_tabs/sessions-tab.tsx
 web/src/components/side-question-workspace.tsx

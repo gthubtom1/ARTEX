@@ -29,11 +29,12 @@ func (s *Server) registerReviewRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks/{id}/review/latest", s.reviewLatest)
 	mux.HandleFunc("GET /api/tasks/{id}/review/runs", s.reviewListRuns)
 	mux.HandleFunc("POST /api/tasks/{id}/review/{run}/apply", s.reviewApply)
+	mux.HandleFunc("POST /api/tasks/{id}/review/{run}/ack", s.reviewAck) // ack 窗口：held|accepted|rejected
 	mux.HandleFunc("POST /api/tasks/{id}/review/{run}/rebut", s.reviewRebut)
 	mux.HandleFunc("GET /api/tasks/{id}/review/notes", s.reviewNotes)
-	mux.HandleFunc("POST /api/tasks/{id}/review/seen", s.reviewSeen)      // 人看过了 → 红点消
+	mux.HandleFunc("POST /api/tasks/{id}/review/seen", s.reviewSeen)     // 人看过了 → 红点消
 	mux.HandleFunc("GET /api/tasks/{id}/review/state", s.reviewStateAPI) // 档位/配额/熔断/未读数
-	mux.HandleFunc("PUT /api/tasks/{id}/review/tier", s.reviewSetTier)  // 任务级三档覆盖
+	mux.HandleFunc("PUT /api/tasks/{id}/review/tier", s.reviewSetTier)   // 任务级三档覆盖
 }
 
 // notImplemented 保留给 CARD-000 未接线的桩（cando.go 里也有一个同名函数，
@@ -62,8 +63,9 @@ type reviewRunRow struct {
 	Level       string          `json:"level"`        // read|action（docs/13 §1 分级投递）
 	ReasonClass string          `json:"reason_class"` // retry:self_fault / kill:target_blocked
 	SeenAt      string          `json:"seen_at,omitempty"`
-	AckStatus   string          `json:"ack_status,omitempty"` // accepted|rejected|stale
+	AckStatus   string          `json:"ack_status,omitempty"` // '|held|accepted|rejected|escalated
 	AckReason   string          `json:"ack_reason,omitempty"`
+	AckDeadline string          `json:"ack_deadline,omitempty"` // 无人值守窗口到期时间（面板倒计时用）
 	AutoApplied bool            `json:"auto_applied"`
 }
 
@@ -154,7 +156,7 @@ func (s *Server) reviewOnce(parent context.Context, taskIDStr string, taskID int
 	defer cancel()
 
 	notes, ver, _ := review.LoadNotes(ctx, s.m.PG(), taskID)
-	snap, err := review.Build(ctx, s.m.PG(), taskID, notes)
+	snap, err := review.BuildWithKB(ctx, s.m.PG(), taskID, notes, s.kbRoot())
 	if err != nil {
 		log.Printf("[review] snapshot build failed (task=%d): %v", taskID, err)
 		return 0, fmt.Errorf("快照生成失败")
@@ -214,7 +216,8 @@ func (s *Server) reviewOnce(parent context.Context, taskIDStr string, taskID int
 			}
 		}
 		if autoApplied > 0 {
-			ackStatus, ackReason = "accepted", "自动执行："+strings.Join(done, "；")
+			// ack_status 故意留 ''：这次可能还有需要人点头的动作，ack 窗口要能扫到它。
+			ackReason = "自动执行：" + strings.Join(done, "；")
 			_, _ = s.m.pg.ExecContext(ctx, `INSERT INTO review_feedback(run_id,action,by_user,outcome)
 				VALUES($1,'applied','auto','')`, runID)
 			if s.engine != nil {
@@ -225,6 +228,12 @@ func (s *Server) reviewOnce(parent context.Context, taskIDStr string, taskID int
 	}
 
 	s.finishReviewRun(ctx, runID, v, modelName, g, ver, autoApplied, ackStatus, ackReason)
+
+	// ack 窗口（docs/14 §4）：只有「还要人点头的动作」才开 90 秒倒计时。
+	// 已自动执行的减浪费动作不再等，否则超时会重复处理同一件事。
+	if g.Drop == "" && g.Level == review.LevelAction && reviewPendingActions(g) > 0 {
+		s.setReviewAckDeadline(ctx, runID, reviewAckWindow)
+	}
 
 	// 投递：A 级永远只留结论卡；B 级（有动作）额外给主链路一条"建议"。
 	if g.Drop == "" {
@@ -282,7 +291,8 @@ func (s *Server) listReviewRuns(taskID int64, limit int) ([]reviewRunRow, error,
 		COALESCE((SELECT 'high' ),''),
 		COALESCE(model,''),to_char(created_at,'YYYY-MM-DD HH24:MI'),COALESCE(to_char(finished_at,'YYYY-MM-DD HH24:MI'),''),
 		COALESCE(level,'read'),COALESCE(reason_class,''),COALESCE(to_char(seen_at,'YYYY-MM-DD HH24:MI'),''),
-		COALESCE(ack_status,''),COALESCE(ack_reason,''),auto_applied
+		COALESCE(ack_status,''),COALESCE(ack_reason,''),auto_applied,
+		COALESCE(to_char(ack_deadline,'YYYY-MM-DD HH24:MI:SS'),'')
 		FROM review_runs WHERE task_id=$1 AND status IN ('running','done','superseded')
 		ORDER BY id DESC LIMIT $2`, taskID, limit)
 	if err != nil {
@@ -295,7 +305,7 @@ func (s *Server) listReviewRuns(taskID int64, limit int) ([]reviewRunRow, error,
 		var cites, actions, conf string
 		if err := rows.Scan(&x.ID, &x.TaskID, &x.Trigger, &x.Status, &x.Verdict, &x.Body, &cites, &actions, &conf,
 			&x.Model, &x.CreatedAt, &x.FinishedAt, &x.Level, &x.ReasonClass, &x.SeenAt,
-			&x.AckStatus, &x.AckReason, &x.AutoApplied); err != nil {
+			&x.AckStatus, &x.AckReason, &x.AutoApplied, &x.AckDeadline); err != nil {
 			continue
 		}
 		_ = json.Unmarshal([]byte(cites), &x.Cites)
@@ -377,14 +387,16 @@ func (s *Server) reviewStateAPI(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.reviewStatePayload(r.Context(), taskID))
 }
 
-// reviewSetTier 设任务级档位（observe|lowrisk|auto|''=跟全局）。
+// reviewSetTier 设任务级档位（observe|lowrisk|auto|空=跟全局）。
 func (s *Server) reviewSetTier(w http.ResponseWriter, r *http.Request) {
 	t, ok := s.m.Task(r.PathValue("id"))
 	if !ok || t == nil {
 		writeErr(w, http.StatusNotFound, "task not found")
 		return
 	}
-	var body struct{ Tier string `json:"tier"` }
+	var body struct {
+		Tier string `json:"tier"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -423,7 +435,84 @@ func (s *Server) reviewListRuns(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"runs": rows})
 }
 
-// reviewApply 采纳动作（只允许三类）。
+// reviewAckWindow 是无人值守时的等待窗口（docs/14 §4：默认 90 秒）。
+const reviewAckWindow = 90 * time.Second
+
+// reviewPendingActions 数「还需要人点头」的动作：已在自动路径执行过的减浪费动作不计。
+func reviewPendingActions(g review.GateOut) int {
+	done := map[string]bool{}
+	for _, a := range g.AutoApplied {
+		done[fmt.Sprintf("%s:%d", a.Kind, a.Intent)] = true
+	}
+	n := 0
+	for _, a := range g.Actions {
+		if !done[fmt.Sprintf("%s:%d", a.Kind, a.Intent)] {
+			n++
+		}
+	}
+	return n
+}
+
+// setReviewAckDeadline 给「要动作的投递」开 ack 窗口。到点且 ack_status 为空 → reviewAckSweep
+// 置 escalated，再按档位执行（docs/14 §4）。
+func (s *Server) setReviewAckDeadline(ctx context.Context, runID int64, w time.Duration) {
+	if s.m == nil || s.m.pg == nil || runID <= 0 || w <= 0 {
+		return
+	}
+	if _, err := s.m.pg.ExecContext(ctx, `UPDATE review_runs
+		SET ack_deadline = now() + ($2 || ' seconds')::interval
+		WHERE id=$1 AND COALESCE(ack_status,'')=''`, runID, int(w.Seconds())); err != nil {
+		log.Printf("[review] set ack deadline run=%d: %v", runID, err)
+	}
+}
+
+// applyReviewActionsForRun 是「人点采纳」与「ack=accepted」共用的执行路径，
+// 保证手动/回执/自动三条路行为一致（docs/13 §1）。它永不改目标、永不收工。
+func (s *Server) applyReviewActionsForRun(ctx context.Context, t *Task, runID int64, actions []review.Action) (int, []string) {
+	applied := 0
+	notes := []string{}
+	for _, a := range actions {
+		switch a.Kind {
+		case "set_next_stage":
+			// 引擎没有"换阶段"接口：只记账，不假称已执行。
+			notes = append(notes, "换阶段需要你在任务设置里手动确认，已记录")
+			continue
+		case "propose_intent":
+			// 只提议：写成一条 hint 给主链路，不派生任务、不派活，并记 feedback=proposed。
+			text := proposeIntentText(a)
+			if ok, err := s.writeReviewHint(ctx, t, text, "审查官提议了一个新方向（只提议，未派活）"); err != nil {
+				log.Printf("[review] propose_intent hint task=%s: %v", t.ID, err)
+			} else if ok {
+				notes = append(notes, "已把新方向写成一条提示（未派活）")
+			}
+			if runID > 0 {
+				_, _ = s.m.pg.ExecContext(ctx, `INSERT INTO review_feedback(run_id,action,by_user) VALUES($1,'proposed','ui')`, runID)
+			}
+			continue
+		}
+		if ok, note := s.applyReviewAction(t, a); ok {
+			applied++
+			notes = append(notes, note)
+		}
+	}
+	if runID > 0 && applied > 0 {
+		_, _ = s.m.pg.ExecContext(ctx, `INSERT INTO review_feedback(run_id,action,by_user) VALUES($1,'applied','ui')`, runID)
+	}
+	return applied, notes
+}
+
+// proposeIntentText 把 propose_intent 渲染成一条可读的提示：新方向 + 依据 + 权责声明。
+func proposeIntentText(a review.Action) string {
+	dir := strings.TrimSpace(a.Why)
+	if dir == "" {
+		dir = "（没写具体方向，见审查官结论卡）"
+	}
+	return "审查官建议新方向（只提议，不是命令；它没有派活）：" + dir +
+		"\n依据：见审查官结论卡引用的 intent/finding 与经验命中。\n" +
+		"按协议：先核对现状；会改目标/改数据/收工的一律交给人。"
+}
+
+// reviewApply 采纳动作（只允许白名单里的四类；propose_intent 只写 hint）。
 func (s *Server) reviewApply(w http.ResponseWriter, r *http.Request) {
 	t, ok := s.m.Task(r.PathValue("id"))
 	if !ok || t == nil {
@@ -438,26 +527,84 @@ func (s *Server) reviewApply(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "actions 不能为空")
 		return
 	}
-	applied := 0
-	notes := []string{}
-	for _, a := range body.Actions {
-		if a.Kind == "set_next_stage" {
-			// 引擎没有"换阶段"接口：只记账，不假称已执行。
-			notes = append(notes, "换阶段需要你在任务设置里手动确认，已记录")
-			continue
-		}
-		if ok, note := s.applyReviewAction(t, a); ok {
-			applied++
-			notes = append(notes, note)
-		}
-	}
+	applied, notes := s.applyReviewActionsForRun(r.Context(), t, runID, body.Actions)
 	if runID > 0 {
-		_, _ = s.m.pg.Exec(`INSERT INTO review_feedback(run_id,action,by_user) VALUES($1,'applied','ui')`, runID)
-		// 人点了采纳 → 回执落库（docs/13 §5：accepted）
-		_, _ = s.m.pg.Exec(`UPDATE review_runs SET ack_status='accepted', ack_reason=$2 WHERE id=$1`,
-			runID, strings.Join(notes, "；"))
+		// 人点了采纳 → 回执落库（docs/13 §5：accepted），并关掉 ack 窗口。
+		_, _ = s.m.pg.ExecContext(r.Context(), `UPDATE review_runs SET ack_status='accepted', ack_at=now(),
+			ack_deadline=NULL, ack_reason=$2 WHERE id=$1`, runID, strings.Join(notes, "；"))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"applied": applied, "notes": notes})
+}
+
+// reviewAck 是人（或面板）对一条结论的显式回执（docs/14 §4）：
+//
+//	held     —— 我在，我自己处理：取消本次自动投递，红点保留（不动 seen_at）；
+//	accepted —— 采纳：走已有 apply 路径（动作取自该 run 的 actions）；
+//	rejected —— 不要：记 negative，触发已有降权逻辑（同类建议少发/只留红点）。
+func (s *Server) reviewAck(w http.ResponseWriter, r *http.Request) {
+	t, ok := s.m.Task(r.PathValue("id"))
+	if !ok || t == nil {
+		writeErr(w, http.StatusNotFound, "task not found")
+		return
+	}
+	if s.m.PG() == nil {
+		writeErr(w, http.StatusServiceUnavailable, "数据库不可用")
+		return
+	}
+	taskID, _ := strconv.ParseInt(t.ID, 10, 64)
+	runID, _ := strconv.ParseInt(r.PathValue("run"), 10, 64)
+	var body struct {
+		Action string `json:"action"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	action := strings.ToLower(strings.TrimSpace(body.Action))
+	switch action {
+	case "held", "accepted", "rejected":
+	default:
+		writeErr(w, http.StatusBadRequest, "action 只接受 held|accepted|rejected")
+		return
+	}
+	if runID <= 0 {
+		writeErr(w, http.StatusBadRequest, "run 不合法")
+		return
+	}
+
+	// run 必须属于该任务，防止跨任务改别人的结论。
+	var actionsRaw string
+	if err := s.m.pg.QueryRowContext(r.Context(), `SELECT COALESCE(actions::text,'[]')
+		FROM review_runs WHERE id=$1 AND task_id=$2 AND status='done'`, runID, taskID).Scan(&actionsRaw); err != nil {
+		writeErr(w, http.StatusNotFound, "结论不存在")
+		return
+	}
+
+	applied := 0
+	notes := []string{}
+	switch action {
+	case "held":
+		// 红点保留：seen_at 不动，只把本次自动处理取消。
+		_, _ = s.m.pg.ExecContext(r.Context(), `UPDATE review_runs SET ack_status='held', ack_at=now(),
+			ack_deadline=NULL, ack_reason=$2 WHERE id=$1`, runID, "人已接手，本次取消自动处理（红点保留）")
+		_, _ = s.m.pg.ExecContext(r.Context(), `INSERT INTO review_feedback(run_id,action,by_user) VALUES($1,'held','ui')`, runID)
+		notes = append(notes, "好，我不动（红点保留给你）")
+	case "rejected":
+		// negative → R4 降权：同 reason_class 再被拒 2 次后只留结论卡。
+		_, _ = s.m.pg.ExecContext(r.Context(), `UPDATE review_runs SET ack_status='rejected', ack_at=now(),
+			ack_deadline=NULL, ack_reason=$2 WHERE id=$1`, runID, "人明确不要这条建议")
+		_, _ = s.m.pg.ExecContext(r.Context(), `INSERT INTO review_feedback(run_id,action,by_user) VALUES($1,'rejected','ui')`, runID)
+		notes = append(notes, "已记下：同类建议将降权")
+	case "accepted":
+		var acts []review.Action
+		_ = json.Unmarshal([]byte(actionsRaw), &acts)
+		applied, notes = s.applyReviewActionsForRun(r.Context(), t, runID, acts)
+		_, _ = s.m.pg.ExecContext(r.Context(), `UPDATE review_runs SET ack_status='accepted', ack_at=now(),
+			ack_deadline=NULL, ack_reason=$2 WHERE id=$1`, runID, strings.Join(notes, "；"))
+	}
+
+	t.Notify()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "action": action, "applied": applied, "notes": notes})
 }
 
 // reviewNotes 返回当前评审笔记。

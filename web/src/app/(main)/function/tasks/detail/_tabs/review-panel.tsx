@@ -2,21 +2,58 @@
 
 import * as React from "react";
 
-import { ChevronDownIcon, Loader2Icon, RefreshCwIcon, SparklesIcon } from "lucide-react";
+import { ChevronRightIcon, Loader2Icon, RefreshCwIcon, SparklesIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { reviewapi, type ReviewAction, type ReviewRun, type ReviewState } from "@/lib/api";
+import { api, http, type ReviewAction, type ReviewRun, type ReviewState, reviewapi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-// 审查官（CARD-C01，原「审查官」）
+// 审查官（CARD-C01，原「复盘官」）
 //
-// 交互对齐「旁路提问」：**同一个右侧方框**里的面板（不是悬浮层），
-// 另配一个真正的开/关（持久化），开关 ≠ 是否打开面板。
+// 布局见 docs/14-复盘官-最终方案.md §5.0（定稿）：
+//   ① 头部（固定）  审查官 + 档位三选一 + 自动看过/自动处理 + 关闭
+//   ② 状态条（固定一行） 上次看过 HH:MM · 未读 N 条 · 笔记 vN
+//   ③ 内容区（flex-1 min-h-0 overflow-y-auto，**唯一滚动区**）
+//        主结论（只展开一条）+ 其余折叠 + 笔记折叠
+//   ④ 输入框（shrink-0 贴底，永不消失）
+// 空白只允许出现在 ③ 内部，④ 必须贴底。
 const VERDICT: Record<string, { label: string; chip: string }> = {
   continue: { label: "继续", chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
   pivot: { label: "转向", chip: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
   wrapup: { label: "该收口了", chip: "bg-rose-500/15 text-rose-600 dark:text-rose-400" },
 };
+
+const TIER_LABEL: Record<string, string> = {
+  observe: "只看",
+  lowrisk: "低风险自动",
+  auto: "全自动",
+};
+
+// docs/14 §6 的 ack 回执；后端暂未接线（只有 apply / rebut），下面做降级。
+type AckVerdict = "accepted" | "held" | "rejected";
+
+const ACK_MSG: Record<AckVerdict, string> = {
+  accepted: "已采纳",
+  held: "好，我不动",
+  rejected: "已忽略",
+};
+
+const TIER_HINT: Record<string, string> = {
+  observe: "只看：只留结论卡，不动任何方向",
+  lowrisk: "低风险自动：只自动做「重开被自己接口打断的」与「标死目标明确拒绝≥3次的」",
+  auto: "全自动：同上，配额更高（仍不碰目标/证据）",
+};
+
+// 后端可能已经/将要下发的字段（api.ts 还没声明，按约定不改 api.ts，用局部类型兜住）。
+type PanelRun = ReviewRun & {
+  ack_deadline?: string | number;
+  ack_deadline_at?: string | number;
+  ack_expires_at?: string | number;
+  ack_ttl?: number;
+};
+
+// 动作白名单未来会多一个 propose_intent（docs/14 §3），类型上先兜一层。
+type PanelAction = ReviewAction & { text?: string; target?: string; summary?: string };
 
 const LS_KEY = (taskId: string) => `artex.review.enabled.${taskId}`;
 
@@ -61,12 +98,6 @@ export function useReviewState(taskId: string) {
   return { state, reload };
 }
 
-const TIER_LABEL: Record<string, string> = {
-  observe: "只看",
-  lowrisk: "低风险自动",
-  auto: "全自动",
-};
-
 export function ReviewCapsule({
   taskId,
   open,
@@ -96,7 +127,9 @@ export function ReviewCapsule({
     >
       <SparklesIcon className="size-3.5" />
       审查官
-      {enabled && <span className="ml-1 rounded bg-emerald-500/15 px-1 text-[9px] font-semibold text-emerald-600">开</span>}
+      {enabled && (
+        <span className="ml-1 rounded bg-emerald-500/15 px-1 text-[9px] font-semibold text-emerald-600">开</span>
+      )}
       {tripped && <span className="ml-1 rounded bg-rose-500/15 px-1 text-[9px] font-semibold text-rose-600">熔断</span>}
       {unseen > 0 && (
         <span className="ml-1 inline-flex min-w-[14px] items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-bold text-white">
@@ -107,6 +140,111 @@ export function ReviewCapsule({
     </Button>
   );
 }
+
+// ── 小工具 ────────────────────────────────────────────────────────────────
+
+// created_at 是后端 to_char 出来的 "YYYY-MM-DD HH:MM"（本地时区）。
+function hhmm(ts?: string): string {
+  if (!ts) return "--:--";
+  const m = ts.match(/(\d{2}):(\d{2})\s*$/);
+  if (m) return `${m[1]}:${m[2]}`;
+  const d = new Date(ts);
+  if (!Number.isNaN(d.getTime())) {
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  return ts;
+}
+
+function oneLiner(body: string, max = 42): string {
+  const t = (body || "").replace(/\s+/g, " ").trim();
+  if (!t) return "（没写正文）";
+  const first = t.split(/[。！？!?；;]/)[0] || t;
+  return first.length > max ? `${first.slice(0, max)}…` : first;
+}
+
+function verdictMeta(v?: string) {
+  return VERDICT[v ?? ""] ?? VERDICT.continue;
+}
+
+// ack_deadline 可能是 RFC3339 / "YYYY-MM-DD HH:MM" / unix 秒 / unix 毫秒。
+function ackDeadlineOf(run: ReviewRun | null): number | null {
+  if (!run) return null;
+  const r = run as PanelRun;
+  const raw = r.ack_deadline ?? r.ack_deadline_at ?? r.ack_expires_at;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return raw > 1e12 ? raw : raw * 1000;
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const asNum = Number(raw);
+    if (Number.isFinite(asNum) && asNum > 0) return asNum > 1e12 ? asNum : asNum * 1000;
+    const t = Date.parse(raw.includes("T") ? raw : raw.replace(" ", "T"));
+    if (Number.isFinite(t)) return t;
+  }
+  if (typeof r.ack_ttl === "number" && r.ack_ttl > 0) {
+    const created = Date.parse((run.created_at || "").replace(" ", "T"));
+    return Number.isFinite(created) ? created + r.ack_ttl * 1000 : null;
+  }
+  return null;
+}
+
+function ackStatusOf(run: ReviewRun | null): string {
+  return ((run?.ack_status ?? "") as string).trim();
+}
+
+// useCountdown：给了 deadline 就每秒重算剩下的秒数；到 0 后停在 0。
+function useCountdown(deadline: number | null): number | null {
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (!deadline) return;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [deadline]);
+  if (!deadline) return null;
+  return Math.max(0, Math.ceil((deadline - now) / 1000));
+}
+
+// intent.payload 是 JSON（含 summary/text/description），非 JSON 就原样展示。
+function intentDetailText(payload?: string): string {
+  const raw = (payload ?? "").trim();
+  if (!raw) return "";
+  try {
+    const obj: unknown = JSON.parse(raw);
+    if (obj && typeof obj === "object") {
+      const o = obj as Record<string, unknown>;
+      for (const f of ["summary", "text", "description", "title"]) {
+        const v = o[f];
+        if (typeof v === "string" && v.trim()) return v.trim();
+      }
+    }
+  } catch {
+    return raw;
+  }
+  return raw;
+}
+
+function actionLabel(a: PanelAction): string {
+  if (a.kind === "kill_intent") return `放弃方向 #${a.intent ?? "?"}`;
+  if (a.kind === "retry_intent") return `重跑被打断的方向 #${a.intent ?? "?"}`;
+  if (a.kind === "set_next_stage") return "换阶段（需你手动确认）";
+  // propose_intent（docs/14 §3）：只提议，不自己派活
+  const t = (a.text ?? a.target ?? a.summary ?? "").trim();
+  return t ? `建议新方向：${t}` : "建议新方向（它没写具体方向）";
+}
+
+// 依据里「经验：<KB标题>」不是 cite（cites 只有 intent/finding/fact），
+// 只能从正文里取；取不到就整项省略（docs/14 §5.0：没有就省略）。
+function kbTitleOf(body: string): { title: string; line: string } | null {
+  const m = body.match(/经验[：:]\s*([^\n。；;]{2,40})/);
+  if (!m) return null;
+  const title = m[1].trim();
+  const line = body.split("\n").find((l) => l.includes(m[0])) ?? m[0];
+  return title ? { title, line: line.trim() } : null;
+}
+
+type QaItem = { key: string; question: string; answer: string; at: string };
+
+// ── 面板 ──────────────────────────────────────────────────────────────────
 
 export function ReviewPanel({
   taskId,
@@ -120,13 +258,27 @@ export function ReviewPanel({
   setEnabled: (v: boolean) => void;
 }) {
   const [busy, setBusy] = React.useState(false);
+  const [runs, setRuns] = React.useState<ReviewRun[]>([]);
   const [latest, setLatest] = React.useState<ReviewRun | null>(null);
+  const [selectedId, setSelectedId] = React.useState<number | null>(null);
   const [notesVersion, setNotesVersion] = React.useState(0);
   const [notes, setNotes] = React.useState("");
   const [showNotes, setShowNotes] = React.useState(false);
+  const [showHistory, setShowHistory] = React.useState(false);
   const [msg, setMsg] = React.useState("");
   const [rebut, setRebut] = React.useState("");
-  const [applied, setApplied] = React.useState<number[]>([]);
+  const [qa, setQa] = React.useState<QaItem[]>([]);
+
+  // 动作回执：key = `${runId}:${actionIndex}`
+  const [actionStates, setActionStates] = React.useState<Record<string, AckVerdict>>({});
+  const [actionBusy, setActionBusy] = React.useState<string | null>(null);
+  // ack 接口一次不通就整个会话降级，避免每次都打 404。
+  const [ackUnsupported, setAckUnsupported] = React.useState(false);
+
+  // 依据展开
+  const [openCite, setOpenCite] = React.useState<string | null>(null);
+  const [citeDetail, setCiteDetail] = React.useState<Record<string, { loading: boolean; text: string }>>({});
+  const [showKb, setShowKb] = React.useState(false);
 
   const { state, reload } = useReviewState(taskId);
 
@@ -134,17 +286,25 @@ export function ReviewPanel({
     reviewapi
       .latest(taskId)
       .then((r) => {
-        setLatest(r.run);
+        setLatest(r.run ?? null);
         setNotesVersion(r.notes_version ?? 0);
       })
+      .catch(() => void 0);
+    reviewapi
+      .runs(taskId, 20)
+      .then((r) => setRuns(r.runs ?? []))
       .catch(() => void 0);
   }, [taskId]);
 
   React.useEffect(() => {
     load();
+    // 结论/未读数保持新鲜（轻量接口，跟 state 一样 15s 一刷）
+    const t = setInterval(load, 15_000);
+    return () => clearInterval(t);
   }, [load]);
 
   // 面板打开 = 人看到了：把未读结论标记为已读（红点消），并刷新状态。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: latest?.id 函数体里用不到，但新结论出现时要重新标已读
   React.useEffect(() => {
     reviewapi
       .seen(taskId)
@@ -152,20 +312,98 @@ export function ReviewPanel({
       .catch(() => void 0);
   }, [taskId, latest?.id, reload]);
 
+  // 面板切换任务后，本地问答与回执不跨任务串味。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 只有 taskId 变化才需要重置这些本地状态
+  React.useEffect(() => {
+    setQa([]);
+    setActionStates({});
+    setAckUnsupported(false);
+    setOpenCite(null);
+  }, [taskId]);
+
+  // 新结论出现 → 自动展开最新那条（「只展开最新的一条结论」）。
+  const latestId = latest?.id ?? null;
+  const lastLatestRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (latestId == null) return;
+    if (lastLatestRef.current !== latestId) {
+      lastLatestRef.current = latestId;
+      setSelectedId(latestId);
+    }
+  }, [latestId]);
+
+  const main = React.useMemo(() => {
+    if (selectedId != null) {
+      const hit = runs.find((r) => r.id === selectedId);
+      if (hit) return hit;
+      if (latest && latest.id === selectedId) return latest;
+    }
+    return latest;
+  }, [runs, latest, selectedId]);
+
+  const others = React.useMemo(() => runs.filter((r) => r.id !== main?.id), [runs, main?.id]);
+  const unseen = state?.unseen ?? 0;
+  const tier = state?.tier ?? "lowrisk";
+  const tripped = state?.tripped;
+  const lastSeenAt = latest?.finished_at || latest?.created_at || "";
+  const vTone = verdictMeta(main?.verdict);
+  const isRunning = main?.status === "running";
+
+  const panelActions = (main?.actions ?? []) as PanelAction[];
+  // 依据去重（cites 里可能有重复的 kind#id，重了就没有稳定的 key）
+  const cites = React.useMemo(() => {
+    const out: Array<{ kind: string; id: number }> = [];
+    const seen = new Set<string>();
+    for (const c of main?.cites ?? []) {
+      const key = `${c.kind}#${c.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(c);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [main?.cites]);
+  const ackStatus = ackStatusOf(main);
+  // 整条结论级的回执（ack_status）也能当作每个动作的初始状态
+  const runAck: AckVerdict | undefined =
+    ackStatus === "accepted" || ackStatus === "held" || ackStatus === "rejected"
+      ? (ackStatus as AckVerdict)
+      : undefined;
+  const backendDeadline = ackDeadlineOf(main);
+  const localDeadlineRef = React.useRef<{ id: number; at: number } | null>(null);
+  // 后端还没下发 ack_deadline 时，用本地 90s 兜一个（提示里注明是前端估算）。
+  const localDeadline = React.useMemo(() => {
+    if (!main || backendDeadline) return null;
+    if (ackStatus) return null;
+    if (main.level !== "action") return null;
+    if (tier === "observe") return null;
+    const cur = localDeadlineRef.current;
+    if (cur && cur.id === main.id) return cur.at;
+    const at = Date.now() + 90_000;
+    localDeadlineRef.current = { id: main.id, at };
+    return at;
+  }, [main, backendDeadline, ackStatus, tier]);
+  const deadline = backendDeadline ?? localDeadline;
+  const left = useCountdown(deadline);
+  const expired = left === 0;
+
   const runOnce = React.useCallback(async () => {
     setBusy(true);
     setMsg("");
-    setApplied([]);
     try {
       const r = await reviewapi.run(taskId);
-      setLatest(r.run ?? null);
+      if (r.run) {
+        setLatest(r.run);
+        setSelectedId(r.run.id);
+      }
       setMsg(r.run?.model === "rule" ? "这次是规则版判断（模型暂时不可用）" : "看完了");
+      load();
     } catch {
       setMsg("它现在看不了（前面可能还有一个在评审，或任务已终止）");
     } finally {
       setBusy(false);
     }
-  }, [taskId]);
+  }, [taskId, load]);
 
   // 开关打开时：本页面停留期间每 10 分钟自动看一次
   React.useEffect(() => {
@@ -174,12 +412,13 @@ export function ReviewPanel({
     return () => clearInterval(t);
   }, [enabled, runOnce]);
 
-  async function apply(action: ReviewAction, idx: number) {
-    if (!latest) return;
+  // 降级路径：后端没接 ack 时，采纳仍然走原来的 apply，held/rejected 只本地忽略。
+  async function applyOnly(action: PanelAction, key: string) {
+    if (!main) return;
     try {
-      const r = await reviewapi.apply(taskId, latest.id, [action]);
+      const r = await reviewapi.apply(taskId, main.id, [action]);
       if (r.applied > 0) {
-        setApplied((a) => [...a, idx]);
+        setActionStates((s) => ({ ...s, [key]: "accepted" }));
         setMsg("已经照它说的做了");
       } else {
         setMsg("没能执行（这条方向的状态已经变了）");
@@ -189,15 +428,60 @@ export function ReviewPanel({
     }
   }
 
+  async function ackAction(action: PanelAction, idx: number, verdict: AckVerdict) {
+    if (!main) return;
+    const key = `${main.id}:${idx}`;
+    if (actionBusy === key) return;
+    setActionBusy(key);
+    setMsg("");
+    try {
+      // 1) 先按 docs/14 §6 打 ack（POST /review/{run}/ack, body {action}）
+      if (!ackUnsupported) {
+        try {
+          await http<{ ok: boolean }>(`/tasks/${encodeURIComponent(taskId)}/review/${main.id}/ack`, {
+            method: "POST",
+            body: JSON.stringify({ action: verdict }),
+          });
+          setActionStates((s) => ({ ...s, [key]: verdict }));
+          setMsg(ACK_MSG[verdict]);
+          return;
+        } catch {
+          // 接口不存在（404）或报错 → 本会话永久降级，不再重复尝试
+          setAckUnsupported(true);
+        }
+      }
+      // 2) 降级：采纳 → 老 apply；其余只本地忽略
+      if (verdict === "accepted") {
+        await applyOnly(action, key);
+        return;
+      }
+      setActionStates((s) => ({ ...s, [key]: verdict }));
+      setMsg("已忽略（后端未接）");
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
   async function sendRebut() {
-    if (!latest || !rebut.trim()) return;
+    const text = rebut.trim();
+    if (!main || !text) return;
+    const runId = main.id;
     setBusy(true);
     try {
-      const r = await reviewapi.rebut(taskId, latest.id, rebut.trim());
-      setLatest(r.run ?? null);
-      setApplied([]);
-      setMsg("它重新判了一遍");
+      const r = await reviewapi.rebut(taskId, runId, text);
+      const answer = (r.run?.body ?? "").trim() || "它重新判了一遍（点上面的「看一次」看最新结论）";
+      // 「你问 / 它答」两段追加到内容区顶部（本地状态即可）
+      setQa((prev) => [
+        { key: `${runId}:${Date.now()}`, question: text, answer, at: hhmm(new Date().toISOString()) },
+        ...prev,
+      ]);
+      if (r.run) {
+        setLatest(r.run);
+        setSelectedId(r.run.id);
+      }
       setRebut("");
+      setMsg("它重新判了一遍");
+      load();
     } catch {
       setMsg("反驳没送到（前面可能还有一个在评审）");
     } finally {
@@ -210,6 +494,7 @@ export function ReviewPanel({
       try {
         const n = await reviewapi.notes(taskId);
         setNotes(n.body || "");
+        if (n.version) setNotesVersion(n.version);
       } catch {
         /* ignore */
       }
@@ -217,167 +502,397 @@ export function ReviewPanel({
     setShowNotes((v) => !v);
   }
 
-  const v = latest?.verdict ?? "continue";
-  const tone = VERDICT[v] ?? VERDICT.continue;
+  async function toggleCite(kind: string, id: number) {
+    const key = `${kind}#${id}`;
+    setOpenCite((cur) => (cur === key ? null : key));
+    if (citeDetail[key]) return;
+    setCiteDetail((d) => ({ ...d, [key]: { loading: true, text: "" } }));
+    let text = "";
+    try {
+      if (kind === "finding") {
+        const f = await api.getFinding(String(id), taskId);
+        text = [f.name || f.vulnclass, f.summary].filter(Boolean).join(" · ");
+      } else if (kind === "intent") {
+        const r = await api.intentsPage(taskId, 0, 300);
+        const node = r.items.find((n) => n.id === String(id));
+        text = intentDetailText(node?.payload);
+        if (!text) text = "没找到这条方向（可能已归档或被清理）";
+      } else {
+        text = `这条依据（${kind}#${id}）后端还没有详情接口`;
+      }
+    } catch {
+      text = "详情拉不到（后端未提供或已删除）";
+    }
+    setCiteDetail((d) => ({ ...d, [key]: { loading: false, text: text || "这条依据没有可展示的详情" } }));
+  }
+
+  const kb = kbTitleOf(main?.body ?? "");
+  const citeDetailText = openCite ? citeDetail[openCite] : undefined;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* 头：开关 + 关闭（与旁路提问面板同一套） */}
-      <div className="flex items-center gap-2 border-b px-3 py-2">
-        <span className="flex size-5 items-center justify-center rounded bg-violet-500 text-[10px] font-bold text-white">复</span>
-        <div className="min-w-0 flex-1">
+      {/* ① 头部（固定不滚）：审查官 + 档位三选一 + 自动看过/处理 + 关闭 */}
+      <div className="shrink-0 border-b">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 pb-1 pt-2">
+          <span className="flex size-5 items-center justify-center rounded bg-violet-500 text-[10px] font-bold text-white">
+            复
+          </span>
           <div className="text-[12.5px] font-semibold">审查官</div>
-          <div className="text-[10px] text-muted-foreground">只读快照 + 自己的笔记 · 不跑命令</div>
-        </div>
-        <button
-          className={cn(
-            "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px]",
-            enabled ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "text-muted-foreground",
-          )}
-          onClick={() => setEnabled(!enabled)}
-          title={enabled ? "已开启：每 10 分钟自动看一次" : "已关闭：只在你点「现在看一次」时评审"}
-        >
-          <span className={cn("size-2 rounded-full", enabled ? "bg-emerald-500" : "bg-slate-300")} />
-          {enabled ? "已开启" : "已关闭"}
-        </button>
-        <button className="text-[11px] text-muted-foreground hover:text-foreground" onClick={onClose}>
-          关闭
-        </button>
-      </div>
-
-      <div className="flex items-center gap-2 border-b px-3 py-1.5">
-        <span className="text-[10px] text-muted-foreground">权限</span>
-        {(["observe", "lowrisk", "auto"] as const).map((t) => (
           <button
-            key={t}
+            type="button"
             className={cn(
-              "rounded-full border px-2 py-0.5 text-[10.5px]",
-              (state?.tier ?? "lowrisk") === t
-                ? "border-violet-500/50 bg-violet-500/10 text-violet-600"
-                : "text-muted-foreground hover:text-foreground",
+              "flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]",
+              enabled ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "text-muted-foreground",
             )}
-            title={
-              t === "observe"
-                ? "只看：只留结论卡，不动任何方向"
-                : t === "lowrisk"
-                  ? "低风险自动：只自动做「重开被自己接口打断的」与「标死目标明确拒绝≥3次的」"
-                  : "全自动：同上，配额更高（仍不碰目标/证据）"
-            }
-            onClick={() => {
-              reviewapi
-                .setTier(taskId, t)
-                .then(() => reload())
-                .catch(() => void 0);
-            }}
+            onClick={() => setEnabled(!enabled)}
+            title={enabled ? "已开启：每 10 分钟自动看一次" : "已关闭：只在你点「看一次」时评审"}
           >
-            {TIER_LABEL[t]}
+            <span className={cn("size-1.5 rounded-full", enabled ? "bg-emerald-500" : "bg-slate-300")} />
+            {enabled ? "已开启" : "已关闭"}
           </button>
-        ))}
-        <span className="ml-auto text-[10px] text-muted-foreground">
-          自动看过 {state?.interventions ?? 0} 次 · 自动处理 {state?.auto_actions ?? 0} 次
-        </span>
-      </div>
-      {state?.tripped && (
-        <div className="border-b bg-rose-500/10 px-3 py-1.5 text-[10.5px] text-rose-700">
-          已熔断转「只看」：{state.trip_reason || "自动动作没带来看得见的改善"}（点上面的档位可重新授权）
+          <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
+            自动看过 {state?.interventions ?? 0} 次 · 自动处理 {state?.auto_actions ?? 0} 次
+          </span>
+          <button
+            type="button"
+            className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
+            onClick={onClose}
+            title="关闭面板（不影响它是否继续看）"
+          >
+            关闭
+          </button>
         </div>
-      )}
-      <div className="flex items-center gap-2 border-b px-3 py-2">
-        <Button size="sm" variant="outline" onClick={runOnce} disabled={busy} className="flex-1">
-          {busy ? <Loader2Icon className="size-3.5 animate-spin" /> : <RefreshCwIcon className="size-3.5" />}
-          现在看一次
-        </Button>
-        <Button size="sm" variant="ghost" onClick={toggleNotes} className="shrink-0 text-[11px]">
-          笔记 {notesVersion > 0 ? `v${notesVersion}` : ""}
-          <ChevronDownIcon className={cn("size-3 transition-transform", showNotes && "rotate-180")} />
-        </Button>
+        <div className="flex flex-wrap items-center gap-1 px-3 pb-1.5">
+          <span className="text-[10px] text-muted-foreground">档位</span>
+          {(["observe", "lowrisk", "auto"] as const).map((t) => (
+            <button
+              type="button"
+              key={t}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[10.5px]",
+                tier === t
+                  ? "border-violet-500/50 bg-violet-500/10 text-violet-600"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              title={TIER_HINT[t]}
+              onClick={() => {
+                reviewapi
+                  .setTier(taskId, t)
+                  .then(() => reload())
+                  .catch(() => setMsg("改不了档位（后端未接档位设置）"));
+              }}
+            >
+              {TIER_LABEL[t]}
+            </button>
+          ))}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto h-6 shrink-0 gap-1 px-1.5 text-[10.5px]"
+            onClick={runOnce}
+            disabled={busy}
+            title="现在看一次"
+          >
+            {busy ? <Loader2Icon className="size-3 animate-spin" /> : <RefreshCwIcon className="size-3" />}
+            看一次
+          </Button>
+        </div>
       </div>
 
-      {showNotes && (
-        <pre className="max-h-28 overflow-auto whitespace-pre-wrap border-b bg-muted/40 px-3 py-2 text-[11px] leading-relaxed">
-          {notes || "它还没有笔记（每评审一次会更新）"}
-        </pre>
-      )}
+      {/* ② 状态条（固定一行）：● 上次看过 HH:MM · 还有 N 条未读 · 笔记 vN */}
+      <div className="flex shrink-0 items-center gap-1 overflow-hidden border-b px-3 py-1.5 text-[10.5px] text-muted-foreground">
+        <span
+          className={cn("size-1.5 shrink-0 rounded-full", unseen > 0 ? "bg-rose-500" : "bg-emerald-500")}
+          title={unseen > 0 ? "有没看过的结论" : "没有未读结论"}
+        />
+        <span className="shrink-0">上次看过 {hhmm(lastSeenAt)}</span>
+        <span className="shrink-0">· 还有 {unseen} 条未读</span>
+        <span className="shrink-0">· 笔记 v{notesVersion || 0}</span>
+        {tripped && (
+          <span
+            className="ml-auto shrink-0 truncate text-rose-600"
+            title={`已熔断转「只看」：${state?.trip_reason || "自动动作没带来看得见的改善"}（点上面的档位可重新授权）`}
+          >
+            · 已熔断
+          </span>
+        )}
+      </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-3 py-3">
-        {latest ? (
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-2">
-              <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold", tone.chip)}>{tone.label}</span>
-              <span className="text-[10.5px] text-muted-foreground">{latest.created_at}</span>
-              {latest.level === "action" && (
-                <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
-                  建议动任务
-                </span>
-              )}
-              {latest.auto_applied && (
-                <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600">
-                  它自己做了
-                </span>
-              )}
-              {latest.ack_status === "rejected" && (
-                <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] text-rose-600">已反驳</span>
-              )}
-              <span className="ml-auto rounded bg-slate-500/10 px-1.5 py-0.5 text-[10px] text-slate-600">
-                {latest.model === "rule" ? "规则版" : "模型版"}
-              </span>
-            </div>
-            <div className="whitespace-pre-wrap text-[12px] leading-relaxed">{latest.body}</div>
-            {latest.cites.length > 0 && (
-              <div className="text-[10.5px] text-muted-foreground">
-                依据 {latest.cites.length} 条：{latest.cites.slice(0, 5).map((c) => `${c.kind}:${c.id}`).join(" · ")}
-              </div>
-            )}
-            {latest.actions.length > 0 && (
-              <div className="space-y-1">
-                <div className="text-[10.5px] font-semibold text-muted-foreground">它可以替你做的动作</div>
-                {latest.actions.map((a, i) => (
-                  <div key={i} className="flex items-start gap-2 rounded-md border px-2 py-1.5 text-[11.5px]">
-                    <span className="flex-1">
-                      <span className="font-medium">
-                        {a.kind === "kill_intent" ? `放弃方向 #${a.intent}` : null}
-                        {a.kind === "retry_intent" ? `重跑被打断的方向 #${a.intent}` : null}
-                        {a.kind === "set_next_stage" ? "换阶段（需你手动确认）" : null}
-                      </span>
-                      <span className="ml-1 text-muted-foreground">{a.why}</span>
-                    </span>
-                    <button
-                      className={cn(
-                        "shrink-0 rounded border px-1.5 py-0.5 text-[10.5px]",
-                        applied.includes(i) ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700" : "hover:bg-accent",
-                      )}
-                      onClick={() => apply(a, i)}
-                      disabled={applied.includes(i)}
-                    >
-                      {applied.includes(i) ? "已采纳" : "采纳"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="border-t pt-2">
-              <div className="mb-1 text-[10.5px] text-muted-foreground">不同意？写一句理由让它重判</div>
-              <textarea
-                className="h-16 w-full resize-none rounded-md border bg-background p-2 text-[11.5px]"
-                placeholder="例如：入口 2 还有希望，它 8 分钟前还有新发现"
-                value={rebut}
-                onChange={(e) => setRebut(e.target.value)}
-              />
-              <Button size="sm" variant="outline" className="mt-1 w-full" onClick={sendRebut} disabled={busy || !rebut.trim()}>
-                提交反驳
-              </Button>
-            </div>
+      {/* ③ 内容区（唯一滚动区） */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2.5">
+        {/* 追问问答：最新一条在最上面 */}
+        {qa.map((q) => (
+          <div key={q.key} className="mb-2 rounded-md border bg-muted/30 px-2 py-1.5 text-[11.5px]">
+            <div className="text-[10px] text-muted-foreground">你问</div>
+            <div className="whitespace-pre-wrap break-words">{q.question}</div>
+            <div className="mt-1 text-[10px] text-muted-foreground">它答</div>
+            <div className="whitespace-pre-wrap break-words">{q.answer}</div>
           </div>
-        ) : (
-          <div className="rounded-lg border border-dashed px-4 py-10 text-center text-[11.5px] leading-relaxed text-muted-foreground">
+        ))}
+
+        {!main ? (
+          <div className="rounded-lg border border-dashed px-4 py-8 text-center text-[11.5px] leading-relaxed text-muted-foreground">
             它还没看过这个任务
             <br />
-            点「现在看一次」，它会读当前战果告诉你该不该继续
+            点上面的「看一次」，它会读当前战果告诉你该不该继续；有结论后你也能在下面问它。
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {/* 主结论卡（每次只展开这一条） */}
+            <div className="rounded-md border px-2 py-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold", vTone.chip)}>
+                  {isRunning ? "正在看…" : vTone.label}
+                </span>
+                <span className="text-[10.5px] text-muted-foreground">{main.created_at}</span>
+                <span className="rounded bg-slate-500/10 px-1.5 py-0.5 text-[10px] text-slate-600">
+                  {main.model === "rule" ? "规则版" : "模型版"}
+                </span>
+                {main.level === "action" && (
+                  <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
+                    建议动任务
+                  </span>
+                )}
+                {main.auto_applied && (
+                  <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600">
+                    它自己做了
+                  </span>
+                )}
+                {ackStatus === "accepted" && (
+                  <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-600">已采纳</span>
+                )}
+                {ackStatus === "held" && (
+                  <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] text-sky-600">你自己处理</span>
+                )}
+                {(ackStatus === "rejected" || ackStatus === "stale") && (
+                  <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] text-rose-600">
+                    {ackStatus === "stale" ? "已过期" : "已反驳"}
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-1.5 whitespace-pre-wrap break-words text-[12px] leading-relaxed">
+                {isRunning && !main.body ? "它正在读快照，结论马上出来…" : main.body || "（这次它没写正文）"}
+              </div>
+
+              {/* 依据：intent#70 · finding#31 · 经验：<KB标题>（没有就省略） */}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10.5px] text-muted-foreground">
+                <span>依据：</span>
+                {cites.length === 0 && <span>（它没给依据）</span>}
+                {cites.map((c) => {
+                  const key = `${c.kind}#${c.id}`;
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      className={cn(
+                        "rounded border px-1 py-0.5 text-[10px] hover:bg-accent",
+                        openCite === key && "border-violet-500/50 bg-violet-500/10 text-violet-600",
+                      )}
+                      onClick={() => void toggleCite(c.kind, c.id)}
+                      title="点开看这条依据的详情"
+                    >
+                      {c.kind}#{c.id}
+                    </button>
+                  );
+                })}
+                {kb && (
+                  <button
+                    type="button"
+                    className={cn(
+                      "max-w-full truncate rounded border px-1 py-0.5 text-[10px] hover:bg-accent",
+                      showKb && "border-violet-500/50 bg-violet-500/10 text-violet-600",
+                    )}
+                    onClick={() => setShowKb((v) => !v)}
+                    title={kb.title}
+                  >
+                    经验：{kb.title}
+                  </button>
+                )}
+              </div>
+              {showKb && kb && (
+                <div className="mt-1 rounded border bg-muted/40 px-2 py-1 text-[10.5px] leading-relaxed">{kb.line}</div>
+              )}
+              {citeDetailText && (
+                <div className="mt-1 rounded border bg-muted/40 px-2 py-1 text-[10.5px] leading-relaxed">
+                  {citeDetailText.loading ? "拉取中…" : citeDetailText.text}
+                </div>
+              )}
+
+              {/* 自动处理倒计时（有 ack_deadline 且未 ack 才显示） */}
+              {deadline != null && !ackStatus && !isRunning && (
+                <div
+                  className={cn(
+                    "mt-2 flex items-center gap-1.5 rounded border px-2 py-1 text-[10.5px]",
+                    expired
+                      ? "border-rose-500/40 bg-rose-500/10 text-rose-600"
+                      : "border-amber-500/40 bg-amber-500/10 text-amber-700",
+                  )}
+                  title={
+                    backendDeadline
+                      ? "到点后它按当前档位自动处理；点「我在，我自己处理」可取消"
+                      : "后端还没下发 ack_deadline，这里的倒计时是前端按 90s 估算的"
+                  }
+                >
+                  {expired ? "已自动处理，刷新查看" : `自动处理 ${left}s`}
+                </div>
+              )}
+
+              {/* 动作列表：每个动作一行 + 采纳 / 我在 / 不要 */}
+              {panelActions.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <div className="text-[10.5px] font-semibold text-muted-foreground">它可以替你做的动作</div>
+                  {panelActions.map((a, i) => {
+                    const key = `${main.id}:${i}`;
+                    const st = actionStates[key] ?? runAck;
+                    // held / rejected 只在本地隐藏（后端未接 ack 时唯一的「忽略」手段）
+                    if (st === "held" || st === "rejected") return null;
+                    return (
+                      <div
+                        key={key}
+                        className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-2 py-1.5"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] font-medium">{actionLabel(a)}</div>
+                          {a.why && (
+                            <div className="truncate text-[10.5px] text-muted-foreground" title={a.why}>
+                              {a.why}
+                            </div>
+                          )}
+                        </div>
+                        {st === "accepted" ? (
+                          <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-700">
+                            已采纳
+                          </span>
+                        ) : (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              className="rounded border px-1.5 py-0.5 text-[10px] hover:bg-accent disabled:opacity-50"
+                              onClick={() => void ackAction(a, i, "accepted")}
+                              disabled={actionBusy === key}
+                            >
+                              采纳
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded border px-1.5 py-0.5 text-[10px] hover:bg-accent disabled:opacity-50"
+                              onClick={() => void ackAction(a, i, "held")}
+                              disabled={actionBusy === key}
+                              title="我不在的时候才让它自己动；这次我自己处理"
+                            >
+                              我在，我自己处理
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent disabled:opacity-50"
+                              onClick={() => void ackAction(a, i, "rejected")}
+                              disabled={actionBusy === key}
+                            >
+                              不要
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 其余历史结论：折叠一行，展开是紧凑列表，点某条切换成主结论 */}
+            {others.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-1 rounded px-1 py-1 text-left text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                  onClick={() => setShowHistory((v) => !v)}
+                >
+                  <ChevronRightIcon
+                    className={cn("size-3 shrink-0 transition-transform", showHistory && "rotate-90")}
+                  />
+                  另外 {others.length} 条（{showHistory ? "点击折叠" : "点击展开"}）
+                </button>
+                {showHistory && (
+                  <div className="mt-1 space-y-1">
+                    {others.map((r) => {
+                      const t = verdictMeta(r.verdict);
+                      return (
+                        <button
+                          type="button"
+                          key={r.id}
+                          className="flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-left hover:bg-accent"
+                          onClick={() => {
+                            setSelectedId(r.id);
+                            setShowHistory(false);
+                            setOpenCite(null);
+                            setShowKb(false);
+                          }}
+                          title={r.body}
+                        >
+                          <span className="shrink-0 text-[10px] text-muted-foreground">{hhmm(r.created_at)}</span>
+                          <span className={cn("shrink-0 rounded px-1 py-0.5 text-[10px]", t.chip)}>
+                            {r.status === "running" ? "在看" : t.label}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-[11px]">{oneLiner(r.body)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 它的笔记：折叠 */}
+            <div>
+              <button
+                type="button"
+                className="flex w-full items-center gap-1 rounded px-1 py-1 text-left text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                onClick={() => void toggleNotes()}
+              >
+                <ChevronRightIcon className={cn("size-3 shrink-0 transition-transform", showNotes && "rotate-90")} />
+                它的笔记 v{notesVersion || 0}（{showNotes ? "点击折叠" : "点击展开"}）
+              </button>
+              {showNotes && (
+                <pre className="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded border bg-muted/40 px-2 py-1.5 text-[10.5px] leading-relaxed">
+                  {notes || "它还没有笔记（每评审一次会更新）"}
+                </pre>
+              )}
+            </div>
           </div>
         )}
       </div>
 
-      {msg && <div className="border-t bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">{msg}</div>}
+      {/* ④ 输入框（固定贴底，永远可见） */}
+      <div className="shrink-0 border-t bg-background px-2 py-2">
+        <div className="flex items-end gap-1.5">
+          <textarea
+            className="min-h-[38px] flex-1 resize-none rounded-md border bg-background px-2 py-1.5 text-[11.5px] leading-relaxed disabled:opacity-60"
+            rows={2}
+            placeholder={main ? "问它一个问题…（它只解释，不执行）" : "它还没看过这个任务，先点上面的「看一次」"}
+            value={rebut}
+            onChange={(e) => setRebut(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                void sendRebut();
+              }
+            }}
+            disabled={!main || busy}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={() => void sendRebut()}
+            disabled={!main || busy || !rebut.trim()}
+          >
+            {busy ? <Loader2Icon className="size-3.5 animate-spin" /> : null}
+            发送
+          </Button>
+        </div>
+        {msg && <div className="mt-1 text-[10.5px] text-muted-foreground">{msg}</div>}
+      </div>
     </div>
   );
 }

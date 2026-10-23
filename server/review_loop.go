@@ -8,6 +8,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Autumn-27/artex/agent"
@@ -150,7 +151,9 @@ func (s *Server) applyReviewAction(t *Task, a review.Action) (bool, string) {
 			}
 		}
 	case "retry_intent":
-		for _, from := range []string{"stopped", "blocked", "open"} {
+		// 只从「真的停过」的状态重开：已 open/running 的意图再“重开”是空转，
+		// 也会让 ack 超时路径把已经做过的动作再做一遍。
+		for _, from := range []string{"stopped", "blocked"} {
 			if err := transitionIntentState(t.Store, a.Intent, from, "open"); err == nil {
 				return true, fmt.Sprintf("已重开 #%d（依据：%s）", a.Intent, a.Why)
 			}
@@ -159,23 +162,34 @@ func (s *Server) applyReviewAction(t *Task, a review.Action) (bool, string) {
 	return false, ""
 }
 
-// deliverReviewAdvice 把 B 级建议投给主链路：写一条 hint（planner 会看到并把
-// "先核对现状再决定"当硬约束），并留一条 activity 供人看。它**不**直接执行任何动作。
-func (s *Server) deliverReviewAdvice(ctx context.Context, t *Task, runID int64, text string) {
-	if t == nil || t.Store == nil {
-		return
+// writeReviewHint 是审查官写 hint 的唯一入口：B 级建议与 propose_intent 共用。
+// AddHintOnce 会去重（同样的话不重复占提示位），并留一条 activity 供人看。
+// 它写的永远只是「建议」，不执行任何动作。
+func (s *Server) writeReviewHint(ctx context.Context, t *Task, text, summary string) (bool, error) {
+	if t == nil || t.Store == nil || strings.TrimSpace(text) == "" {
+		return false, nil
 	}
 	taskID, _ := strconv.ParseInt(t.ID, 10, 64)
 	tsx := agent.NewToolSet(t.Store, "adviser")
 	tsx.SetTaskID(taskID)
 	tsx.SetGoal(t.Goal)
-	if ok, err := tsx.AddHintOnce(ctx, text); err != nil {
-		log.Printf("[review] deliver advice task=%s: %v", t.ID, err)
-		return
-	} else if ok && s.engine != nil {
-		s.engine.emitActivity(t, db.Activity{Worker: "adviser", Kind: "text",
-			Summary: "审查官：给主链路的建议已投递（先核对现状再决定，不是命令）"})
+	ok, err := tsx.AddHintOnce(ctx, text)
+	if err != nil {
+		return false, err
+	}
+	if ok && s.engine != nil {
+		s.engine.emitActivity(t, db.Activity{Worker: "adviser", Kind: "text", Summary: summary})
 		t.Notify()
+	}
+	return ok, nil
+}
+
+// deliverReviewAdvice 把 B 级建议投给主链路：写一条 hint（planner 会看到并把
+// "先核对现状再决定"当硬约束），并留一条 activity 供人看。它**不**直接执行任何动作。
+func (s *Server) deliverReviewAdvice(ctx context.Context, t *Task, runID int64, text string) {
+	if _, err := s.writeReviewHint(ctx, t, text,
+		"审查官：给主链路的建议已投递（先核对现状再决定，不是命令）"); err != nil {
+		log.Printf("[review] deliver advice task=%s: %v", t.ID, err)
 	}
 }
 
@@ -220,19 +234,171 @@ func reviewCondHit(rep stall.Report) bool {
 	return len(rep.Stuck) >= 2
 }
 
-// reviewTicker 是「定时触发」：每分钟扫一次在跑的任务，距上次评审超过间隔就跑一次。
-// 与条件触发共用 reviewOnce（同一份快照/提示词/防抖），trigger='timer'。
+// reviewTicker 是「定时触发 + ack 扫描」：
+//
+//	每 20 秒：先扫 ack 窗口（到点没人回 → escalated → 按档位自动/只建议）
+//	每 60 秒：扫一遍在跑的任务，距上次评审超过间隔就跑一次
+//
+// ack 扫描必须不被长评审拖住，所以定时评审放后台 goroutine（reviewCondKick 自己带任务锁）。
 func (s *Server) reviewTicker(ctx context.Context) {
-	t := time.NewTicker(time.Minute)
+	t := time.NewTicker(20 * time.Second)
 	defer t.Stop()
+	tick := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			s.reviewTickOnce(ctx)
+			s.reviewAckSweep(ctx) // 20 秒粒度（docs/14 §4）
+			tick++
+			if tick%3 != 0 {
+				continue
+			}
+			if !reviewTickMu.TryLock() {
+				continue // 上一轮还没跑完，不堆叠
+			}
+			go func() {
+				defer reviewTickMu.Unlock()
+				s.reviewTickOnce(ctx)
+			}()
 		}
 	}
+}
+
+// reviewTickMu 保证定时评审不会因为上一轮超时而堆叠（ack 扫描不受它限制）。
+var reviewTickMu sync.Mutex
+
+// reviewAckSweep 扫「到点且没人回执」（ack_status 为空）的结论：先原子抢 escalated，
+// 抢到的那一方才有权执行（避免与人点击/多实例重复处理）。
+func (s *Server) reviewAckSweep(ctx context.Context) {
+	if s.m == nil || s.m.PG() == nil {
+		return
+	}
+	rows, err := s.m.pg.QueryContext(ctx, `SELECT id, task_id, COALESCE(actions::text,'[]'), COALESCE(reason_class,'')
+		FROM review_runs
+		WHERE status='done' AND COALESCE(ack_status,'')=''
+		  AND ack_deadline IS NOT NULL AND ack_deadline < now()
+		ORDER BY id LIMIT 20`)
+	if err != nil {
+		return
+	}
+	type due struct {
+		runID, taskID int64
+		actions       string
+		reasonClass   string
+	}
+	var list []due
+	for rows.Next() {
+		var x due
+		if rows.Scan(&x.runID, &x.taskID, &x.actions, &x.reasonClass) == nil {
+			list = append(list, x)
+		}
+	}
+	rows.Close()
+	for _, x := range list {
+		res, err := s.m.pg.ExecContext(ctx, `UPDATE review_runs SET ack_status='escalated', ack_at=now()
+			WHERE id=$1 AND COALESCE(ack_status,'')='' AND ack_deadline IS NOT NULL AND ack_deadline < now()`, x.runID)
+		if err != nil {
+			continue
+		}
+		if n, _ := res.RowsAffected(); n != 1 {
+			continue // 人刚好点了 / 另一个实例抢到了
+		}
+		log.Printf("[review] run=%d ack 超时（无人回应）→ 按档位处理", x.runID)
+		s.reviewEscalate(ctx, x.taskID, x.runID, x.actions)
+	}
+}
+
+// reviewEscalate 是「90 秒没人点」之后的处理（docs/14 §4）：
+//
+//	低风险减浪费动作（kill_intent / retry_intent）→ 复用自动路径 apply；
+//	需人确认的（propose_intent / set_next_stage）→ 只写一条 B 级建议给主链路。
+//
+// 绝不改目标、绝不收工；observe 档下一个也不动，全部降为建议。
+func (s *Server) reviewEscalate(ctx context.Context, taskID, runID int64, actionsRaw string) {
+	setReason := func(reason string) {
+		_, _ = s.m.pg.ExecContext(ctx, `UPDATE review_runs SET ack_reason=$2 WHERE id=$1`, runID, reason)
+	}
+	var actions []review.Action
+	_ = json.Unmarshal([]byte(actionsRaw), &actions)
+	if len(actions) == 0 {
+		setReason("窗口超时（90s）：没有要执行的动作")
+		return
+	}
+	t, ok := s.m.Task(strconv.FormatInt(taskID, 10))
+	if !ok || t == nil || t.Store == nil {
+		setReason("窗口超时（90s）：任务已不在运行，未执行任何动作")
+		return
+	}
+	rs := s.reviewSettings()
+	st := s.loadReviewState(ctx, taskID)
+	tier := s.reviewTierFor(taskID, st)
+	auto, suggest := review.EscalatePlan(actions)
+	if tier == review.TierObserve {
+		auto, suggest = nil, actions // 只看档：一个也不动
+	}
+
+	var done []string
+	var applied []review.Action
+	for _, a := range auto {
+		if reviewActionAlreadyDone(t, a) {
+			continue // 自动路径/人已经处理过，不重复说第二次
+		}
+		if st.AutoActions+len(applied) >= rs.MaxAuto {
+			suggest = append(suggest, a) // 配额用尽 → 降为建议
+			continue
+		}
+		if ok, note := s.applyReviewAction(t, a); ok {
+			applied = append(applied, a)
+			done = append(done, note)
+		} else {
+			suggest = append(suggest, a) // 改不动就让人看
+		}
+	}
+	if len(applied) > 0 {
+		st.AutoActions += len(applied)
+		s.saveReviewState(ctx, taskID, st, st.LastFacts)
+		_, _ = s.m.pg.ExecContext(ctx, `INSERT INTO review_feedback(run_id,action,by_user,outcome) VALUES($1,'applied','auto','')`, runID)
+		_, _ = s.m.pg.ExecContext(ctx, `UPDATE review_runs SET auto_applied=true WHERE id=$1`, runID)
+		if s.engine != nil {
+			s.engine.emitActivity(t, db.Activity{Worker: "adviser", Kind: "text",
+				Summary: "审查官等不到回应，按档位自行处理（只减浪费）：" + strings.Join(done, "；")})
+		}
+	}
+	if len(suggest) > 0 {
+		text := review.AdviceText("90 秒窗口内没人回应，审查官按档位处理：下面这些需要你核对后再决定，它没有动目标、没有收工。", suggest, nil)
+		s.deliverReviewAdvice(ctx, t, runID, text)
+	}
+
+	reason := "窗口超时（90s）："
+	if len(applied) > 0 {
+		reason += "自动处理 " + strings.Join(done, "；")
+	} else {
+		reason += "没有可自动执行的动作"
+	}
+	if len(suggest) > 0 {
+		reason += fmt.Sprintf("；%d 条只写成建议（未改目标/未收工）", len(suggest))
+	}
+	setReason(reason)
+	t.Notify()
+}
+
+// reviewActionAlreadyDone 判断这条动作的效果是否已经生效（避免超时路径重复处理）。
+func reviewActionAlreadyDone(t *Task, a review.Action) bool {
+	if t == nil || t.Store == nil || a.Intent <= 0 {
+		return false
+	}
+	n, err := t.Store.GetNode(a.Intent)
+	if err != nil || n == nil {
+		return false
+	}
+	switch a.Kind {
+	case "kill_intent":
+		return n.State == "stopped" || n.State == "deleted"
+	case "retry_intent":
+		return n.State == "open" || n.State == "running" || n.State == "active"
+	}
+	return false
 }
 
 func (s *Server) reviewTickOnce(ctx context.Context) {
