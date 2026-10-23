@@ -115,16 +115,24 @@ if [ "${ARTEX_SKIP_FRONTEND:-0}" = "1" ]; then
   [ -d server/webui/dist ] || die "ARTEX_SKIP_FRONTEND=1 但 server/webui/dist 不存在"
 else
   command -v npm >/dev/null 2>&1 || die "未检测到 npm（前端静态构建需要 Node.js/npm）"
-  command -v rsync >/dev/null 2>&1 || die "未检测到 rsync"
   info "构建前端静态资源"
   if [ "${ARTEX_SKIP_NPM_CI:-0}" != "1" ]; then
     # NODE_ENV=production 时裸 npm ci 会跳过 devDeps，next build 缺 typescript/@types 直接失败
     (cd web && NODE_ENV=development npm ci --include=dev --ignore-scripts)
   fi
-  (cd web && npm run build:static)
+  # 不走 `npm run build:static`：package.json 里是 `NEXT_EXPORT=1 next build`，
+  # Windows 上 npm 会把它交给 cmd.exe，`NEXT_EXPORT=1` 会被当成命令名直接报错。
+  # 在这里由 bash 导出环境变量再调 next，Linux/macOS/Git Bash 一套写法。
+  (cd web && NEXT_EXPORT=1 npx next build)
   info "同步前端资源到 server/webui/dist"
   mkdir -p server/webui/dist
-  rsync -a --delete web/out/ server/webui/dist/
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete web/out/ server/webui/dist/
+  else
+    # Git Bash / 精简容器里常常没有 rsync；cp 足够，--delete 的语义用先清空代替
+    rm -rf server/webui/dist && mkdir -p server/webui/dist
+    cp -a web/out/. server/webui/dist/
+  fi
 fi
 
 compress_binary() {
