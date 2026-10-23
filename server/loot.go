@@ -217,17 +217,20 @@ func lootPlain(key, label, why string, objects []lootObject, status string) stri
 	if status == "run" {
 		return "正在试：" + label
 	}
-	obj := strings.TrimSpace(label)
-	if len(objects) > 0 && strings.TrimSpace(objects[0].Name) != "" {
-		obj = objects[0].Name
-	}
+	names := lootObjectCNList(objects, 2)
 	switch key {
 	case "data":
-		return "能把它的" + obj + "拉出来"
+		if len(names) == 0 {
+			return "能读到它的业务数据"
+		}
+		return "能把它的" + strings.Join(names, "、") + "拉出来"
 	case "admin":
 		return "能改它的账号口令并登录进后台"
 	case "db":
-		return "能查它数据库里的" + obj
+		if len(names) == 0 {
+			return "能查它的数据库"
+		}
+		return "能查它数据库里的" + strings.Join(names, "、")
 	case "fileread":
 		return "能读它服务器上的文件"
 	case "filewrite":
@@ -297,47 +300,60 @@ func lootRowHash(key string, row lootRow, matched []lootFinding) string {
 
 // ───────────────────────── 确定性对象/字段抽取 ─────────────────────────
 
+// 对象只认两种来源，其余一律丢弃（避免把 ASP/VBScript 代码标识符当表名）：
+//  1. schema 限定名：库.dbo.表（例：acublog.dbo.users）
+//  2. 已知表名词表（大小写不敏感、整词匹配）
 var (
-	// 库名.dbo.表名 / xxx.users / schema.table
-	lootQualifiedRe = regexp.MustCompile(`(?i)\b[A-Za-z_][A-Za-z0-9_$#]*(?:\.[A-Za-z_][A-Za-z0-9_$#]*){1,3}`)
-	// SQL 里 from/join/update/table 后面的表名（也覆盖 dbo.users）。
-	lootSQLTableRe = regexp.MustCompile(`(?i)\b(?:from|join|into|update|table|describe|desc|show\s+tables\s+from)\s+([A-Za-z_][A-Za-z0-9_$#]*(?:\.[A-Za-z_][A-Za-z0-9_$#]*){0,3})`)
-	// 中文业务表名（可带后面的英文标识），例：用户表 users / 订单表 / 支付流水表。
-	lootCNTableRe = regexp.MustCompile(`((?:用户|会员|账号|账户|订单|卡密|商品|支付|交易|流水|订阅|客户|员工|管理员|地址|手机|邮箱|库存|财务|发票|优惠券|资金|资产|日志|文件|学生|教师|病历|患者|课程|成绩|评论|文章|消息|配置|后台|权限|角色|部门|公司|项目|合同|工单|设备|车辆|房源|保单|积分|红包|钱包|余额|银行卡)[\p{Han}]{0,6}表)\s*[（(]?\s*([A-Za-z_][A-Za-z0-9_$#]*(?:\.[A-Za-z_][A-Za-z0-9_$#]*){0,3})?`)
-	// 表名：users / 表 `users`
-	lootCNTableIdentRe = regexp.MustCompile(`(?:表名|数据表|表)\s*[：:（(]?\s*([A-Za-z_][A-Za-z0-9_$#]*(?:\.[A-Za-z_][A-Za-z0-9_$#]*){0,3})`)
-	// 英文表名后面直接跟中文“表/字段/包含”，例：users 表包含用户名、密码。
-	lootIdentTableRe = regexp.MustCompile(`(?i)\b([A-Za-z_][A-Za-z0-9_$#]*(?:\.[A-Za-z_][A-Za-z0-9_$#]*){0,3})\s*(?:表|字段|包含|里有|中的)`)
+	// schema 限定名：库名.dbo.表名
+	lootSchemaRe = regexp.MustCompile(`(?i)\b[A-Za-z_]\w*\.dbo\.[A-Za-z_]\w*\b`)
+	// 已知表名词表（最长优先，整词匹配）
+	lootKnownTableRe = regexp.MustCompile(`(?i)\b(?:` + strings.Join(lootKnownTables, "|") + `)\b`)
 )
 
+// lootKnownTables 是唯一允许的“裸表名”来源。
+var lootKnownTables = []string{
+	"order_list", "card_keys", "accounts", "payments", "threads", "forums",
+	"admins", "members", "orders", "cards", "posts", "users", "goods",
+	"logs", "user", "card", "admin", "forum",
+}
+
+// lootObjectBlacklist 是代码标识符/框架对象黑名单（按 . 分段精确比较，
+// 避免误伤 acublog 这类库名）。
+var lootObjectBlacklist = map[string]bool{
+	"conn": true, "connection": true, "request": true, "response": true,
+	"server": true, "session": true, "application": true, "recordset": true,
+	"rs": true, "cmd": true, "obj": true, "object": true, "document": true,
+	"window": true, "system": true, "string": true, "math": true,
+	"json": true, "asp": true, "sql": true,
+}
+
+// lootObjectMethodParts 出现在第二段及以后就丢弃（例：Request.QueryString）。
+var lootObjectMethodParts = map[string]bool{
+	"execute": true, "querystring": true, "form": true, "cookies": true,
+	"servervariables": true, "createobject": true, "mappath": true,
+	"write": true, "open": true, "close": true, "item": true,
+	"count": true, "value": true, "text": true,
+}
+
+// lootFieldWords 是字段白名单：只摘录这些中文词。
 var lootFieldWords = []string{
-	"用户名", "密码", "口令", "哈希", "手机号", "邮箱", "卡号", "订单", "卡密", "地址", "时间", "金额", "标题", "正文", "作者",
+	"用户名", "密码", "口令", "哈希", "手机号", "邮箱", "卡号", "订单", "卡密",
+	"地址", "金额", "时间", "标题", "正文", "作者", "账号", "凭据", "连接串",
 }
 
-var lootBadObjectNames = map[string]bool{
-	"select": true, "from": true, "where": true, "join": true, "into": true,
-	"update": true, "table": true, "values": true, "set": true, "and": true,
-	"or": true, "not": true, "null": true, "true": true, "false": true,
-	"the": true, "this": true, "that": true, "http": true, "https": true,
-	"request": true, "response": true, "information_schema": true,
-	"pg_catalog": true, "mysql": true, "sys": true, "master": true,
-	"tempdb": true, "msdb": true, "sql": true, "api": true, "url": true,
-	"uri": true, "html": true, "json": true, "xml": true, "php": true,
-}
+// lootFieldWindow 只从对象出现位置之后看这么多个字符（中文按字算）。
+const lootFieldWindow = 120
 
-var lootBadTails = map[string]bool{
-	"com": true, "net": true, "org": true, "cn": true, "io": true, "co": true,
-	"uk": true, "de": true, "jp": true, "ru": true, "info": true, "biz": true,
-	"top": true, "xyz": true, "online": true, "site": true, "app": true,
-	"dev": true, "cloud": true, "local": true, "lan": true, "internal": true,
-	"localhost": true, "html": true, "htm": true, "php": true, "asp": true,
-	"aspx": true, "jsp": true, "js": true, "css": true, "json": true,
-	"xml": true, "txt": true, "log": true, "exe": true, "dll": true,
-	"zip": true, "rar": true, "7z": true, "gz": true, "tar": true,
-	"pem": true, "key": true, "crt": true, "cer": true, "ini": true,
-	"cfg": true, "conf": true, "bak": true, "sql": true, "db": true,
-	"mdb": true, "md": true, "yaml": true, "yml": true, "go": true,
-	"py": true, "sh": true, "bat": true, "ps1": true,
+// lootObjectCNNames 是对象中文名映射（裸表名，小写）。
+var lootObjectCNNames = map[string]string{
+	"users": "用户表", "user": "用户表", "accounts": "用户表", "members": "用户表",
+	"orders": "订单表", "order_list": "订单表",
+	"cards": "卡密表", "card": "卡密表", "card_keys": "卡密表",
+	"admins": "管理员表", "admin": "管理员表",
+	"forum": "论坛帖子", "forums": "论坛帖子", "posts": "论坛帖子", "threads": "论坛帖子",
+	"goods":    "商品表",
+	"payments": "支付流水",
+	"logs":     "日志",
 }
 
 type lootObjCandidate struct {
@@ -355,68 +371,41 @@ func extractLootObjects(matched []lootFinding) []lootObject {
 		}
 		text = strings.NewReplacer("[", "", "]", "", "`", "").Replace(text)
 		for _, c := range lootObjectCandidates(text) {
-			name := strings.TrimSpace(c.name)
-			if name == "" {
-				continue
-			}
-			key := strings.ToLower(name)
-			fields := lootFieldsNear(text, c.start, c.end)
+			key := strings.ToLower(c.name)
+			fields := lootFieldsAfter(text, c.end)
 			if i, ok := index[key]; ok {
-				if out[i].Fields == "" && fields != "" {
-					out[i].Fields = fields
-				}
+				out[i].Fields = lootMergeFields(out[i].Fields, fields)
 				continue
 			}
 			if len(out) >= 5 {
 				continue
 			}
-			out = append(out, lootObject{Name: name, Fields: fields})
+			out = append(out, lootObject{Name: c.name, Fields: fields})
 			index[key] = len(out) - 1
 		}
 	}
 	return out
 }
 
+// lootObjectCandidates 只产出 schema 限定名与已知表名两种候选；
+// schema 限定名里包含的表名不会重复产出。
 func lootObjectCandidates(text string) []lootObjCandidate {
 	cands := make([]lootObjCandidate, 0)
-	add := func(name string, start, end int) {
-		name = strings.TrimSpace(name)
-		if !acceptLootObjectName(name) {
-			return
-		}
-		cands = append(cands, lootObjCandidate{name: name, start: start, end: end})
-	}
-
-	for _, m := range lootQualifiedRe.FindAllStringIndex(text, -1) {
-		add(text[m[0]:m[1]], m[0], m[1])
-	}
-	for _, m := range lootSQLTableRe.FindAllStringSubmatchIndex(text, -1) {
-		if len(m) >= 4 && m[2] >= 0 {
-			add(text[m[2]:m[3]], m[2], m[3])
+	ranges := make([][2]int, 0, 4)
+	for _, m := range lootSchemaRe.FindAllStringIndex(text, -1) {
+		ranges = append(ranges, [2]int{m[0], m[1]})
+		if c, ok := newLootObjCandidate(text[m[0]:m[1]], m[0], m[1]); ok {
+			cands = append(cands, c)
 		}
 	}
-	for _, m := range lootCNTableRe.FindAllStringSubmatchIndex(text, -1) {
-		if len(m) < 6 {
+	for _, m := range lootKnownTableRe.FindAllStringIndex(text, -1) {
+		if insideLootRanges(m[0], m[1], ranges) {
 			continue
 		}
-		if m[4] >= 0 && m[5] > m[4] {
-			// 中文表名后面跟了英文名时，以英文名作为对象（更适合展示/核对）。
-			add(text[m[4]:m[5]], m[4], m[5])
-			continue
-		}
-		add(text[m[2]:m[3]], m[2], m[3])
-	}
-	for _, m := range lootCNTableIdentRe.FindAllStringSubmatchIndex(text, -1) {
-		if len(m) >= 4 && m[2] >= 0 {
-			add(text[m[2]:m[3]], m[2], m[3])
+		if c, ok := newLootObjCandidate(text[m[0]:m[1]], m[0], m[1]); ok {
+			cands = append(cands, c)
 		}
 	}
-	for _, m := range lootIdentTableRe.FindAllStringSubmatchIndex(text, -1) {
-		if len(m) >= 4 && m[2] >= 0 {
-			add(text[m[2]:m[3]], m[2], m[3])
-		}
-	}
-
 	sort.SliceStable(cands, func(i, j int) bool {
 		if cands[i].start != cands[j].start {
 			return cands[i].start < cands[j].start
@@ -426,74 +415,135 @@ func lootObjectCandidates(text string) []lootObjCandidate {
 	return cands
 }
 
-func acceptLootObjectName(name string) bool {
-	name = strings.Trim(strings.TrimSpace(name), ".,;:()[]{}<>\"'")
-	if len(name) < 3 || len(name) > 80 {
-		return false
-	}
-	low := strings.ToLower(name)
-	if lootBadObjectNames[low] || strings.HasPrefix(low, "www.") {
-		return false
-	}
-	parts := strings.Split(low, ".")
-	last := parts[len(parts)-1]
-	if lootBadTails[last] || last == "" {
-		return false
-	}
-	allDigits := true
-	for _, r := range last {
-		if r < '0' || r > '9' {
-			allDigits = false
-			break
+func insideLootRanges(start, end int, ranges [][2]int) bool {
+	for _, r := range ranges {
+		if start >= r[0] && end <= r[1] {
+			return true
 		}
 	}
-	if allDigits {
+	return false
+}
+
+func newLootObjCandidate(name string, start, end int) (lootObjCandidate, bool) {
+	name = strings.Trim(strings.TrimSpace(name), ".,;:()[]{}<>\"'`")
+	if !acceptLootObjectName(name) {
+		return lootObjCandidate{}, false
+	}
+	return lootObjCandidate{name: name, start: start, end: end}, true
+}
+
+// acceptLootObjectName 只放行“裸表名”和“库.dbo.表”，其余（连接对象、方法调用等）丢弃。
+func acceptLootObjectName(name string) bool {
+	if name == "" || len(name) > 120 {
 		return false
+	}
+	parts := strings.Split(strings.ToLower(name), ".")
+	if len(parts) != 1 && len(parts) != 3 {
+		return false
+	}
+	for i, p := range parts {
+		if p == "" || lootObjectBlacklist[p] {
+			return false
+		}
+		if i > 0 && lootObjectMethodParts[p] {
+			return false
+		}
 	}
 	return true
 }
 
-// lootFieldsNear 只摘录证据里字面出现的中文白名单词，并排除表名自身。
-func lootFieldsNear(text string, start, end int) string {
-	lo := start - 80
-	if lo < 0 {
-		lo = 0
-	}
-	hi := end + 180
-	if hi > len(text) {
-		hi = len(text)
-	}
-	if lo >= hi {
+// lootFieldsAfter 只在对象结束位置之后 120 个字符内就近匹配字段白名单词，
+// 匹配不到就返回空串（不把全文的字段挂到每个对象上）。
+func lootFieldsAfter(text string, end int) string {
+	if end < 0 || end >= len(text) {
 		return ""
 	}
-	window := []byte(text[lo:hi])
-	maskStart, maskEnd := start-lo, end-lo
-	for i := maskStart; i < maskEnd && i < len(window); i++ {
-		window[i] = ' '
+	window := lootRunePrefix(text[end:], lootFieldWindow)
+	if window == "" {
+		return ""
 	}
-	masked := string(window)
-
-	type fieldPos struct {
+	type fieldHit struct {
 		word string
 		pos  int
 	}
-	found := make([]fieldPos, 0, len(lootFieldWords))
-	seen := map[string]bool{}
+	hits := make([]fieldHit, 0, len(lootFieldWords))
 	for _, w := range lootFieldWords {
-		if seen[w] {
-			continue
-		}
-		if p := strings.Index(masked, w); p >= 0 {
-			found = append(found, fieldPos{word: w, pos: p})
-			seen[w] = true
+		if p := strings.Index(window, w); p >= 0 {
+			hits = append(hits, fieldHit{word: w, pos: p})
 		}
 	}
-	sort.SliceStable(found, func(i, j int) bool { return found[i].pos < found[j].pos })
-	words := make([]string, 0, len(found))
-	for _, f := range found {
-		words = append(words, f.word)
+	sort.SliceStable(hits, func(i, j int) bool { return hits[i].pos < hits[j].pos })
+	words := make([]string, 0, len(hits))
+	for _, h := range hits {
+		words = append(words, h.word)
 	}
 	return strings.Join(words, "、")
+}
+
+// lootRunePrefix 取 s 的前 n 个字符（按 rune 计，中文按字算）。
+func lootRunePrefix(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	count := 0
+	for i := range s {
+		if count == n {
+			return s[:i]
+		}
+		count++
+	}
+	return s
+}
+
+// lootMergeFields 合并两次就近匹配到的字段（去重保序）。
+func lootMergeFields(a, b string) string {
+	seen := map[string]bool{}
+	out := make([]string, 0, 8)
+	for _, s := range []string{a, b} {
+		for _, w := range strings.Split(s, "、") {
+			w = strings.TrimSpace(w)
+			if w == "" || seen[w] {
+				continue
+			}
+			seen[w] = true
+			out = append(out, w)
+		}
+	}
+	return strings.Join(out, "、")
+}
+
+// lootObjectCN 映射对象中文名；schema 限定名取表名部分再映射，映射不到就用原名。
+func lootObjectCN(name string) string {
+	base := strings.TrimSpace(name)
+	if i := strings.LastIndex(base, "."); i >= 0 {
+		base = base[i+1:]
+	}
+	if cn, ok := lootObjectCNNames[strings.ToLower(base)]; ok {
+		return cn
+	}
+	return name
+}
+
+// lootObjectCNList 取对象中文名，去重后最多 max 个。
+func lootObjectCNList(objects []lootObject, max int) []string {
+	out := make([]string, 0, max)
+	seen := map[string]bool{}
+	for _, o := range objects {
+		n := strings.TrimSpace(o.Name)
+		if n == "" {
+			continue
+		}
+		cn := lootObjectCN(n)
+		if cn == "" || seen[cn] {
+			continue
+		}
+		seen[cn] = true
+		out = append(out, cn)
+		if len(out) >= max {
+			break
+		}
+	}
+	return out
 }
 
 // ───────────────────────── finding payload 文本化 ─────────────────────────
