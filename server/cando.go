@@ -24,6 +24,7 @@ import (
 //  1. 只读现有表（capabilities / findings / task_error_events / exploration_nodes）；
 //  2. 任何字段映射不出来就显示「未确认」，不猜；
 //  3. 唯一写入是 cando_annotations（AI 细化缓存）与 hint 节点（用户点「直接发给它」）。
+//
 // notImplemented 是 CARD-000 的占位响应（review.go 的 501 桩共用）。
 func notImplemented(w http.ResponseWriter) {
 	writeErr(w, http.StatusNotImplemented, "not implemented")
@@ -56,17 +57,34 @@ type candoOption struct {
 	Rec  bool   `json:"rec,omitempty"`
 }
 
+// candoEvidence 是卡片上可点开的证据（真实 finding 标题）。
+type candoEvidence struct {
+	Kind  string `json:"kind"`
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+}
+
+// candoNode 的语义按 kind 分别定义，**不要**用同一个状态枚举套所有节点：
+//
+//	entry   → 这条路线现在怎么样了（已打通 / 未试 / 封死）
+//	can     → 能不能做（已证实 / 待证实）
+//	data    → 拿到的东西核没核（已核实 / 未确认）
+//	next    → 建议/可选动作，**没有状态**，只标注它是建议
+//	blocked → 为什么堵（目标拒绝）
+//	excluded→ 负结论
 type candoNode struct {
-	ID      string        `json:"id"`
-	Kind    string        `json:"kind"` // entry|can|data|next|blocked|excluded
-	Title   string        `json:"title"`
-	Body    string        `json:"body"`
-	Chip    string        `json:"chip"`
-	State   string        `json:"state"` // attacking|taken|spinning|dead|self_fault|untried
-	Items   []candoItem   `json:"items,omitempty"`
-	Options []candoOption `json:"options,omitempty"`
-	Cites   []int64       `json:"cites,omitempty"`
-	Prompt  string        `json:"prompt,omitempty"`
+	ID       string          `json:"id"`
+	Kind     string          `json:"kind"` // entry|can|data|next|blocked|excluded
+	Title    string          `json:"title"`
+	Body     string          `json:"body"`
+	Badge    string          `json:"badge"`          // 该 kind 专用的一个词
+	Tone     string          `json:"tone"`           // success|info|warn|danger|muted
+	Live     bool            `json:"live,omitempty"` // 只有 entry 用：正在攻的呼吸点
+	Items    []candoItem     `json:"items,omitempty"`
+	Options  []candoOption   `json:"options,omitempty"`
+	Cites    []int64         `json:"cites,omitempty"`
+	Evidence []candoEvidence `json:"evidence,omitempty"`
+	Prompt   string          `json:"prompt,omitempty"`
 }
 
 type candoLane struct {
@@ -148,12 +166,15 @@ func (s *Server) candoGet(w http.ResponseWriter, r *http.Request) {
 		resp.Lanes = append(resp.Lanes, candoLane{Key: "neg", Nodes: []candoNode{*n}})
 	}
 
-	// 状态着色：正在攻 = 有 running 意图的摘要里出现该入口路径
+	// 正在攻：有 running 意图的摘要里出现该入口路径 → entry 呼吸点 + 徽标
 	for li := range resp.Lanes {
 		for ni := range resp.Lanes[li].Nodes {
 			n := &resp.Lanes[li].Nodes[ni]
-			if n.Kind == "entry" && summaryHits(runningSummaries, n.Title) && n.State != "dead" {
-				n.State = "attacking"
+			if n.Kind == "entry" && summaryHits(runningSummaries, n.Title) {
+				n.Live = true
+				if n.Tone != "success" {
+					n.Badge, n.Tone = "正在攻", "info"
+				}
 			}
 		}
 	}
@@ -198,54 +219,64 @@ func (s *Server) candoLanes(t *Task, caps []capability.Card, findings []*db.Node
 	for _, key := range order {
 		cs := groups[key]
 		lane := candoLane{Key: "ep:" + key}
-		state := "untried"
+		// 路线整体状态：只要有一条能力被证实，这条路就是“已打通”
+		anyProven := false
 		for _, c := range cs {
 			if capability.ProofRank(upgradeProof(c.Item, c.Can, c.ProofLevel, findings)) >= 2 {
-				state = "taken"
-			} else if state == "untried" && c.Confidence == "observed" {
-				state = "spinning"
+				anyProven = true
+				break
 			}
+		}
+		entryBadge, entryTone := "未试", "muted"
+		if anyProven {
+			entryBadge, entryTone = "已打通", "success"
 		}
 		lane.Nodes = append(lane.Nodes, candoNode{
 			ID: lane.Key, Kind: "entry", Title: key,
-			Body: "这条入口是从能力卡里读出来的（surface 字段）", Chip: chipForState(state), State: state,
+			Body:  "这条入口的地址 / 参数",
+			Badge: entryBadge, Tone: entryTone,
 		})
 		for _, c := range cs {
 			eff := upgradeProof(c.Item, c.Can, c.ProofLevel, findings)
-			cs2 := "untried"
-			if capability.ProofRank(eff) >= 2 {
-				cs2 = "taken"
-			}
-			chip := nz2(eff, "P?")
-			if eff != c.ProofLevel {
-				chip = "已证实"
+			proven := capability.ProofRank(eff) >= 2
+			canBadge, canTone := "待证实", "warn"
+			if proven {
+				canBadge, canTone = "已证实", "success"
 			}
 			lane.Nodes = append(lane.Nodes, candoNode{
 				ID: "cap:" + c.Item, Kind: "can",
 				Title: nz2(c.Can, "未命名能力"),
 				Body:  nz2(c.Plain, nz2(c.Evidence, "未确认")),
-				Chip:  chip, State: cs2,
-				Cites:  c.SourceNodeIDs,
-				Prompt: s.candoPrompt(t, c.Surface, nz2(c.NextIfApproved, c.Can)),
+				Badge: canBadge, Tone: canTone,
+				Cites:    c.SourceNodeIDs,
+				Evidence: evidenceFor(findings, c.SourceNodeIDs),
+				Prompt:   s.candoPrompt(t, c.Surface, nz2(c.NextIfApproved, c.Can)),
 			})
 			if strings.TrimSpace(c.Impact) != "" {
+				dataBadge, dataTone := "未确认", "muted"
+				if proven {
+					dataBadge, dataTone = "已核实", "success"
+				}
 				lane.Nodes = append(lane.Nodes, candoNode{
 					ID: "data:" + c.Item, Kind: "data", Title: "拿到了什么",
-					Body: c.Impact, Chip: "已证实", State: cs2, Cites: c.SourceNodeIDs,
+					Body:  c.Impact,
+					Badge: dataBadge, Tone: dataTone,
+					Cites: c.SourceNodeIDs, Evidence: evidenceFor(findings, c.SourceNodeIDs),
 				})
 			}
+			// “下一步”是建议，**不给状态**，避免出现“下一步 / 已做成”这种矛盾
 			if strings.TrimSpace(c.NextIfApproved) != "" {
 				lane.Nodes = append(lane.Nodes, candoNode{
-					ID: "next:" + c.Item, Kind: "next", Title: "下一步",
-					Body: c.NextIfApproved, Chip: "可以试", State: "taken",
+					ID: "next:" + c.Item, Kind: "next", Title: "下一步可以这么走",
+					Body: c.NextIfApproved, Badge: "建议", Tone: "info",
 				})
 			}
 		}
-		// 决策点：默认五类走法（对象现算，措辞固定）
-		if state == "taken" {
+		// 决策点：五类走法（只有已打通的路才需要选）
+		if anyProven {
 			lane.Nodes = append(lane.Nodes, candoNode{
-				ID: "opt:" + key, Kind: "next", Title: "到这里有几种走法（点开选）",
-				Body: "要证据就取样本；要规模就拉一部分；要权限就换方向", Chip: "决策点", State: "taken",
+				ID: "opt:" + key, Kind: "next", Title: "到这里有 5 种走法",
+				Body: "点开右侧，按「要证据 / 要规模 / 要权限」自己选", Badge: "5 选 1", Tone: "info",
 				Options: defaultOptions(),
 			})
 		}
@@ -259,7 +290,7 @@ func (s *Server) candoLanes(t *Task, caps []capability.Card, findings []*db.Node
 		lane := candoLane{Key: "findings"}
 		lane.Nodes = append(lane.Nodes, candoNode{
 			ID: "findings", Kind: "entry", Title: "发现（未归类到能力卡）",
-			Body: "能力卡还没派生出来，先按漏洞列表展示", Chip: "未归类", State: "untried",
+			Body: "能力卡还没派生出来，先按漏洞列表展示", Badge: "未归类", Tone: "muted",
 		})
 		for _, f := range findings {
 			var p struct {
@@ -273,8 +304,9 @@ func (s *Server) candoLanes(t *Task, caps []capability.Card, findings []*db.Node
 				ID: "f:" + strconv.FormatInt(f.ID, 10), Kind: "can",
 				Title: nz2(p.Name, nz2(p.VulnClass, "未命名漏洞")),
 				Body:  nz2(p.Summary, "未确认"),
-				Chip:  nz2(p.Severity, "info"), State: "untried",
-				Cites: []int64{f.ID},
+				Badge: nz2(p.Severity, "info"), Tone: "warn",
+				Cites:    []int64{f.ID},
+				Evidence: evidenceFor(findings, []int64{f.ID}),
 			})
 		}
 		return []candoLane{lane}
@@ -289,8 +321,8 @@ func (s *Server) candoBlockedNodes(counts map[string]int) []candoNode {
 	}
 	return []candoNode{{
 		ID: "err:target_blocked", Kind: "blocked", Title: "它明确拒绝了这些写法",
-		Body: fmt.Sprintf("目标侧拒绝 %d 次（403/405/Allow 不含等）。这是它说不，不是我打不通。", counts["target_blocked"]),
-		Chip: "封死", State: "dead",
+		Body:  fmt.Sprintf("目标侧拒绝 %d 次（403/405/Allow 不含等）。这是它说不，不是我打不通。", counts["target_blocked"]),
+		Badge: "目标拒绝", Tone: "danger",
 	}}
 }
 
@@ -303,7 +335,7 @@ func candoExcludedNode(negatives []string) *candoNode {
 		body = string([]rune(body)[:160]) + "…"
 	}
 	return &candoNode{ID: "neg", Kind: "excluded", Title: "已排除（下次别再试）",
-		Body: body, Chip: fmt.Sprintf("%d 项", len(negatives)), State: "dead"}
+		Body: body, Badge: fmt.Sprintf("%d 项", len(negatives)), Tone: "muted"}
 }
 
 // ─────────────────────── 小工具 ───────────────────────
@@ -414,6 +446,36 @@ func defaultOptions() []candoOption {
 		{Text: "改一条数据再改回去，证明能改", Cost: "5 分钟", Risk: "hi", Gain: "能证明破坏力，但会动对方数据（不建议）"},
 		{Text: "不碰数据，换方向冲更高目标", Cost: "30 分钟+", Risk: "hi", Gain: "只有真要权限时才值得"},
 	}
+}
+
+// evidenceFor 把节点引用的 id 变成「可点开的证据标题」。
+func evidenceFor(findings []*db.Node, ids []int64) []candoEvidence {
+	if len(ids) == 0 {
+		return nil
+	}
+	byID := map[int64]string{}
+	for _, f := range findings {
+		var p struct {
+			Name      string `json:"name"`
+			VulnClass string `json:"vulnclass"`
+			Summary   string `json:"summary"`
+		}
+		_ = json.Unmarshal(f.Payload, &p)
+		t := nz2(p.Name, nz2(p.VulnClass, "漏洞"))
+		if r := []rune(nz2(p.Summary, t)); len(r) > 40 {
+			t = string(r[:40]) + "…"
+		}
+		byID[f.ID] = t
+	}
+	out := make([]candoEvidence, 0, len(ids))
+	for _, id := range ids {
+		title, ok := byID[id]
+		if !ok {
+			title = fmt.Sprintf("节点 #%d", id)
+		}
+		out = append(out, candoEvidence{Kind: "finding", ID: id, Title: title})
+	}
+	return out
 }
 
 func chipForState(st string) string {

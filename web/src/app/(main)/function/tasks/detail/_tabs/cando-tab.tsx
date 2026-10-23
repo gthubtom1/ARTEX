@@ -53,13 +53,12 @@ const KIND_META: Record<Kind, KindMeta> = {
   excluded: { label: "已排除", icon: Layers, iconBg: "bg-slate-500", hex: "#64748b" },
 };
 
-const STATE_META: Record<string, { label: string; chip: string; dot: string }> = {
-  attacking: { label: "正在攻", chip: "bg-blue-500/15 text-blue-600 dark:text-blue-400", dot: "bg-blue-500" },
-  taken: { label: "已拿下", chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" },
-  spinning: { label: "有空转", chip: "bg-amber-500/15 text-amber-600 dark:text-amber-400", dot: "bg-amber-500" },
-  dead: { label: "封死", chip: "bg-rose-500/15 text-rose-600 dark:text-rose-400", dot: "bg-rose-500" },
-  self_fault: { label: "我方故障", chip: "bg-slate-500/15 text-slate-600 dark:text-slate-300", dot: "bg-slate-400" },
-  untried: { label: "未试", chip: "bg-slate-500/10 text-slate-500", dot: "bg-slate-300" },
+const TONE_META: Record<string, { chip: string; dot: string }> = {
+  success: { chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" },
+  info: { chip: "bg-blue-500/15 text-blue-600 dark:text-blue-400", dot: "bg-blue-500" },
+  warn: { chip: "bg-amber-500/15 text-amber-600 dark:text-amber-400", dot: "bg-amber-500" },
+  danger: { chip: "bg-rose-500/15 text-rose-600 dark:text-rose-400", dot: "bg-rose-500" },
+  muted: { chip: "bg-slate-500/10 text-slate-500", dot: "bg-slate-300" },
 };
 
 // 连线语义（与探索链路同一套写法：文字 + 颜色 + 箭头）
@@ -76,9 +75,10 @@ type CandoRFNode = Node<{ node: CandoNode }, "cando">;
 function CandoCard({ data, selected }: NodeProps<CandoRFNode>) {
   const n = data.node;
   const meta = KIND_META[n.kind] ?? KIND_META.can;
-  const st = STATE_META[n.state] ?? STATE_META.untried;
+  const tone = TONE_META[n.tone] ?? TONE_META.muted;
   const Icon = meta.icon;
-  const live = n.state === "attacking";
+  const live = !!n.live;
+  const taken = n.kind === "can" && n.tone === "success";
 
   return (
     <div
@@ -88,6 +88,11 @@ function CandoCard({ data, selected }: NodeProps<CandoRFNode>) {
       )}
     >
       <div className="group relative rounded-[14px] border border-black/[0.06] bg-white shadow-sm transition-shadow hover:shadow-lg dark:border-white/10 dark:bg-neutral-900">
+        {taken && (
+          <span className="absolute -top-2 left-2 z-10 rounded bg-emerald-500 px-1.5 py-0.5 text-[9.5px] font-bold text-white shadow-sm">
+            已拿下
+          </span>
+        )}
         <Handle type="target" position={Position.Left} className="!size-2 !border-2 !border-neutral-300 !bg-white opacity-0" />
         <div className="flex items-center gap-2 px-3 pb-1.5 pt-3">
           <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-lg shadow-sm", meta.iconBg)}>
@@ -100,7 +105,7 @@ function CandoCard({ data, selected }: NodeProps<CandoRFNode>) {
               <span className="relative inline-flex size-2 rounded-full bg-blue-500" />
             </span>
           )}
-          <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold", st.chip)}>{st.label}</span>
+          <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold", tone.chip)}>{n.badge}</span>
         </div>
 
         <div className="px-3 pb-1 text-[12.5px] font-medium leading-snug text-neutral-700 dark:text-neutral-200">
@@ -127,11 +132,11 @@ function CandoCard({ data, selected }: NodeProps<CandoRFNode>) {
 
         <div className="flex items-center justify-between gap-2 px-3 pb-2.5">
           <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500">
-            <span className={cn("size-1.5 rounded-full", st.dot)} />
-            <span className="truncate">{n.chip}</span>
+            <span className={cn("size-1.5 rounded-full", tone.dot)} />
+            {live ? <span>正在攻</span> : null}
           </span>
-          {(n.cites?.length ?? 0) > 0 && (
-            <span className="shrink-0 font-mono text-[10px] text-neutral-400">证据 {n.cites!.length}</span>
+          {(n.evidence?.length ?? 0) > 0 && (
+            <span className="shrink-0 font-mono text-[10px] text-neutral-400">证据 {n.evidence!.length}</span>
           )}
         </div>
         <Handle type="source" position={Position.Right} className="!size-2 !border-2 !border-neutral-300 !bg-white opacity-0" />
@@ -159,7 +164,7 @@ function buildFlow(data: CandoResponse): { nodes: CandoRFNode[]; edges: Edge[] }
       nodes.push({ id, type: "cando", position: { x: col, y: li * ROW + slot * 120 }, data: { node: n } });
       if (prev) {
         const rel = REL[n.kind] ?? REL.can;
-        const animated = n.state === "attacking";
+        const animated = !!n.live;
         edges.push({
           id: `${prev}->${id}`,
           source: prev,
@@ -411,8 +416,13 @@ export function CandoTab({ taskId }: { taskId: string }) {
                     {React.createElement(KIND_META[sel.kind]?.icon ?? Compass, { className: "size-3 text-white" })}
                   </span>
                   <span className="text-[11px] font-semibold text-muted-foreground">{KIND_META[sel.kind]?.label}</span>
-                  <span className={cn("ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold", (STATE_META[sel.state] ?? STATE_META.untried).chip)}>
-                    {(STATE_META[sel.state] ?? STATE_META.untried).label}
+                  <span
+                    className={cn(
+                      "ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                      (TONE_META[sel.tone] ?? TONE_META.muted).chip,
+                    )}
+                  >
+                    {sel.badge}
                   </span>
                 </div>
                 <div className="mt-1 text-[13px] font-semibold leading-snug">{sel.title}</div>
@@ -441,6 +451,22 @@ export function CandoTab({ taskId }: { taskId: string }) {
                         ))}
                       </tbody>
                     </table>
+                  </>
+                )}
+
+                {sel.evidence && sel.evidence.length > 0 && (
+                  <>
+                    <div className="mb-1 mt-3 text-[10.5px] font-semibold text-muted-foreground">依据（真实上报的漏洞）</div>
+                    <ul className="space-y-1">
+                      {sel.evidence.map((e) => (
+                        <li key={`${e.kind}-${e.id}`} className="rounded border px-2 py-1 text-[11px] leading-snug">
+                          <span className="text-muted-foreground">
+                            {e.kind} #{e.id}
+                          </span>{" "}
+                          {e.title}
+                        </li>
+                      ))}
+                    </ul>
                   </>
                 )}
 

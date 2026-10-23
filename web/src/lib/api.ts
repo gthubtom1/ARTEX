@@ -1715,16 +1715,25 @@ export interface CandoOption {
   rec?: boolean;
 }
 
+export interface CandoEvidence {
+  kind: string;
+  id: number;
+  title: string;
+}
+
+// 语义按 kind 分开：entry=路线状态 / can=能否做 / data=核实没 / next=建议（无状态）
 export interface CandoNode {
   id: string;
   kind: "entry" | "can" | "data" | "next" | "blocked" | "excluded";
   title: string;
   body: string;
-  chip: string;
-  state: "attacking" | "taken" | "spinning" | "dead" | "self_fault" | "untried";
+  badge: string;
+  tone: "success" | "info" | "warn" | "danger" | "muted";
+  live?: boolean;
   items?: CandoItem[];
   options?: CandoOption[];
   cites?: number[];
+  evidence?: CandoEvidence[];
   prompt?: string;
 }
 
