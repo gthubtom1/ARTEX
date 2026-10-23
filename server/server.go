@@ -33,6 +33,7 @@ import (
 	"github.com/Autumn-27/artex/internal/inject"
 	"github.com/Autumn-27/artex/internal/ledger"
 	"github.com/Autumn-27/artex/internal/netguard"
+	"github.com/Autumn-27/artex/internal/oast"
 	"github.com/Autumn-27/artex/internal/provision"
 	"github.com/Autumn-27/artex/internal/settings"
 	"github.com/Autumn-27/artex/internal/snapshot"
@@ -62,6 +63,7 @@ type Server struct {
 	settings         *settings.Store
 	auditLog         *audit.Logger
 	snapshots        *snapshot.Store
+	oastSrv          *oast.Server
 	netguard         *netguard.Guard
 	envDisc          *env.Discoverer
 	tools            atomic.Value // []env.Tool（后台扫描结果；未加载时为零值）
@@ -885,6 +887,10 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/audit", s.getAudit)
 	// 快照（写前留档）列表与回滚 —— D1/D2 审查后接线，见 server/snapshot_api.go
+	// 带外通道（OAST）：盲 SSRF / 盲命令注入的判据来源
+	mux.HandleFunc("GET /api/oast", s.getOAST)
+	mux.HandleFunc("PUT /api/oast", s.updateOAST)
+	mux.HandleFunc("POST /api/oast/test", s.testOAST)
 	mux.HandleFunc("GET /api/snapshots", s.listSnapshots)
 	mux.HandleFunc("GET /api/snapshots/{id}", s.getSnapshot)
 	mux.HandleFunc("POST /api/snapshots/{id}/restore", s.restoreSnapshot)
@@ -4369,6 +4375,7 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 			Preset:      s.settings.String("inject.preset", "on"),
 		}
 	}
+	s.startOAST() // 带外通道（盲 SSRF/RCE 判据）：未配置监听地址时自动关闭
 	s.snapshots = snapshot.New(filepath.Join(dataDir, "snapshots"))
 	// D2 审查：Prune 原来零调用 → data/snapshots 只增不减（每个写文件工具都留一份）。
 	// 启动时按"保留最近 500 份"清一次；Restore 仍未接线（见 docs/00 §7.6）。

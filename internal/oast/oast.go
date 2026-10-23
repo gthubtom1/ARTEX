@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -31,11 +32,14 @@ import (
 
 // Options 配置监听地址。端口 0 = 随机端口（测试用）。
 type Options struct {
-	HTTPAddr string       // 例：0.0.0.0:8888；空 = 不起 HTTP
-	DNSAddr  string       // 例：0.0.0.0:5353；空 = 不起 DNS
-	AnswerIP string       // DNS 应答的 A 记录地址（空则用 127.0.0.1）
-	MaxHits  int          // 每 token 最多保留多少条（默认 200）
-	TTL      time.Duration // token 有效期（默认 24h）
+	HTTPAddr string // 例：0.0.0.0:8888；空 = 不起 HTTP
+	DNSAddr  string // 例：0.0.0.0:5353；空 = 不起 DNS
+	AnswerIP string // DNS 应答的 A 记录地址（空则用 127.0.0.1）
+	// PublicBase 是"外部能访问到的"基地址，例如 http://1.2.3.4:8888 或 https://oast.example.com。
+	// 必须填，否则 Token.HTTPURL 会用监听地址（0.0.0.0:8888）拼 —— 那个地址目标访问不到。
+	PublicBase string
+	MaxHits    int           // 每 token 最多保留多少条（默认 200）
+	TTL        time.Duration // token 有效期（默认 24h）
 }
 
 // Token 是一次带外探测的句柄。
@@ -129,8 +133,26 @@ func (s *Server) NewToken() Token {
 	id := randHex(8)
 	t := Token{ID: id, CreatedAt: time.Now()}
 	s.mu.Lock()
-	if s.httpAddr != "" {
-		t.HTTPURL = fmt.Sprintf("http://%s/%s", s.httpAddr, id)
+	// 优先用外部可见的 PublicBase（VPS 回填的就是这个）；没填才退到监听地址。
+	if base := strings.TrimRight(strings.TrimSpace(s.opts.PublicBase), "/"); base != "" {
+		t.HTTPURL = base + "/" + id
+		if u, err := url.Parse(base); err == nil && u.Host != "" {
+			t.DNSHost = fmt.Sprintf("%s.%s", id, u.Hostname())
+		}
+	} else if s.httpAddr != "" {
+		host, port, err := net.SplitHostPort(s.httpAddr)
+		if err == nil && (host == "0.0.0.0" || host == "::" || host == "") {
+			host = "127.0.0.1" // 仅本机自测可达，日志会提示回填 PublicBase
+		}
+		if err == nil {
+			if port == "80" {
+				t.HTTPURL = fmt.Sprintf("http://%s/%s", host, id)
+			} else {
+				t.HTTPURL = fmt.Sprintf("http://%s:%s/%s", host, port, id)
+			}
+		} else {
+			t.HTTPURL = fmt.Sprintf("http://%s/%s", s.httpAddr, id)
+		}
 	}
 	if s.dnsAddr != "" {
 		host, port, err := net.SplitHostPort(s.dnsAddr)

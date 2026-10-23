@@ -293,6 +293,29 @@ export interface SnapshotRow {
   sample_paths: string[];
 }
 
+export interface OASTHit {
+  token_id: string;
+  proto: string;
+  source: string;
+  detail: string;
+  at: string;
+}
+
+export interface OASTToken {
+  id: string;
+  http_url?: string;
+  dns_host?: string;
+  created_at?: string;
+}
+
+export interface OASTStatus {
+  http_addr: string;
+  public_base: string;
+  enabled: boolean;
+  listen_addr?: string;
+  hits: OASTHit[];
+}
+
 export const api = {
   // 后端应用版本号（release 时由 ldflags 注入，默认 "dev"）。
   health: () => get<{ ok: boolean; service: string; version: string }>("/health"),
@@ -303,6 +326,12 @@ export const api = {
   initPassword: (password: string) => post<{ token: string }>("/auth/init", { password }),
   changePassword: (oldPassword: string, newPassword: string) =>
     post<{ ok: boolean }>("/auth/change-password", { old_password: oldPassword, new_password: newPassword }),
+
+  // ---- 带外通道（OAST）：盲 SSRF / 盲命令注入的唯一判据 ----
+  oastStatus: () => get<OASTStatus>("/oast").then((r) => ({ ...r, hits: arr(r.hits) })),
+  saveOAST: (httpAddr: string, publicBase: string) =>
+    put<{ ok: boolean; enabled: boolean }>("/oast", { http_addr: httpAddr, public_base: publicBase }),
+  oastTest: () => post<OASTToken>("/oast/test", {}),
 
   // ---- snapshots（写前留档 / 回滚）----
   snapshots: (taskId?: number, limit = 100) => {

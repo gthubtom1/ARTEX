@@ -615,7 +615,8 @@ func (s *Server) agentsForTask(t *Task) *taskAgentBundle {
 	tx := transcript.NewStore(filepath.Join(s.m.dir, "transcripts"))
 	window := workerRuntime.CompactionWindow()
 	wkProvider := agent.WrapProvider(workerRuntime, func() string { return t.Goal })
-	wk := agent.NewWorker(wkProvider, "task-router", s.m.dir, tx, window, s.agentMaxTurns("worker"))
+	// 带外通道启用时额外挂两个工具（oast_new_url / oast_hits）；未启用时为空，不占预算。
+	wk := agent.NewWorker(wkProvider, "task-router", s.m.dir, tx, window, s.agentMaxTurns("worker"), s.oastTools()...)
 	wk.SetFindingRecorder(s.evidenceStore())
 	wk.SetCompactionWindowResolver(workerRuntime.CompactionWindow)
 	wk.SetNonStreaming(workerRuntime.nonStreaming) // 按任务当前激活 profile 的流式开关(每轮读)

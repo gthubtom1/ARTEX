@@ -19,6 +19,11 @@ import (
 // Defaults 是可调运行参数的默认值。改这里等于改出厂设置。
 var Defaults = map[string]string{
 	"workers": "3", // 同时运行的 worker 数（运行时真键；work.workers 已删）
+	// 带外通道（OAST）：盲 SSRF / 盲命令注入的唯一判据来源。
+	// 空 = 不启动（Kali/NAT 环境就是这样，零开销）。有了公网 VPS 再回填。
+	"oast.http_addr":   "", // 监听地址，例 ":8888"
+	"oast.public_base": "", // 外部可达基址，例 "http://1.2.3.4:8888"
+
 	// 出口（netguard）
 	"net.verify_every_s": "300",
 	"net.verify_urls":    "https://api.ipify.org,https://ifconfig.me",
