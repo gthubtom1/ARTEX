@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ArrowUpIcon, MessageCircleQuestionIcon, SquareIcon, Trash2Icon, XIcon } from "lucide-react";
 
 import { Markdown } from "@/components/markdown";
+import { QuickPhrases } from "@/components/quick-phrases";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -62,6 +63,17 @@ function SidePanel({
 }) {
   const inlineComposer = composerLayout === "inline";
   const [confirm, setConfirm] = useState(false);
+  const composer = useRef<HTMLDivElement>(null);
+  // 常用语点选后只填词、不发送：写进 draft 并把光标送回输入框末尾。
+  const pickPhrase = (text: string) => {
+    side.setDraft((v) => (v ? `${v}\n${text}` : text));
+    requestAnimationFrame(() => {
+      const el = composer.current?.querySelector("textarea");
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  };
   const viewport = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const tail = side.items.at(-1);
@@ -163,7 +175,7 @@ function SidePanel({
             <AlertDescription>{side.error || side.snapshot?.reason}</AlertDescription>
           </Alert>
         )}
-        <InputGroup className={inlineComposer ? "min-h-10" : "min-h-9"}>
+        <InputGroup ref={composer} className={inlineComposer ? "min-h-10" : "min-h-9"}>
           <InputGroupTextarea
             rows={1}
             className={cn("overflow-y-auto", inlineComposer ? "max-h-40 min-h-0" : "max-h-36 min-h-9")}
@@ -182,28 +194,29 @@ function SidePanel({
           />
           <InputGroupAddon align={inlineComposer ? "inline-end" : "block-end"}>
             {!inlineComposer && <span className="text-muted-foreground text-xs">独立问答 · 无工具执行</span>}
-            {side.running ? (
-              <InputGroupButton
-                className="ml-auto"
-                variant="destructive"
-                size="icon-xs"
-                onClick={() => void side.stop()}
-                aria-label="停止旁路回答"
-              >
-                <SquareIcon />
-              </InputGroupButton>
-            ) : (
-              <InputGroupButton
-                className="ml-auto"
-                variant="default"
-                size="icon-xs"
-                onClick={() => void side.ask(side.draft)}
-                disabled={side.busy || !side.draft.trim() || !side.snapshot?.available}
-                aria-label="发送旁路问题"
-              >
-                <ArrowUpIcon />
-              </InputGroupButton>
-            )}
+            <div className="ml-auto flex items-center gap-1">
+              <QuickPhrases onPick={pickPhrase} />
+              {side.running ? (
+                <InputGroupButton
+                  variant="destructive"
+                  size="icon-xs"
+                  onClick={() => void side.stop()}
+                  aria-label="停止旁路回答"
+                >
+                  <SquareIcon />
+                </InputGroupButton>
+              ) : (
+                <InputGroupButton
+                  variant="default"
+                  size="icon-xs"
+                  onClick={() => void side.ask(side.draft)}
+                  disabled={side.busy || !side.draft.trim() || !side.snapshot?.available}
+                  aria-label="发送旁路问题"
+                >
+                  <ArrowUpIcon />
+                </InputGroupButton>
+              )}
+            </div>
           </InputGroupAddon>
         </InputGroup>
         {suggestions?.length ? (

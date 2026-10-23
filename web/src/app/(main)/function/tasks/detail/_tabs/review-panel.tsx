@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { ChevronRightIcon, Loader2Icon, RefreshCwIcon, SparklesIcon } from "lucide-react";
 
+import { QuickPhrases } from "@/components/quick-phrases";
 import { Button } from "@/components/ui/button";
 import { api, http, type ReviewAction, type ReviewRun, type ReviewState, reviewapi } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -328,6 +329,7 @@ export function ReviewPanel({
   const [showHistory, setShowHistory] = React.useState(false);
   const [msg, setMsg] = React.useState("");
   const [rebut, setRebut] = React.useState("");
+  const rebutRef = React.useRef<HTMLTextAreaElement>(null);
   const [qa, setQa] = React.useState<QaItem[]>([]);
 
   // 动作回执：key = `${runId}:${actionIndex}`
@@ -987,6 +989,7 @@ export function ReviewPanel({
       <div className="shrink-0 border-t bg-background px-2 py-2">
         <div className="flex items-end gap-1.5">
           <textarea
+            ref={rebutRef}
             className="min-h-[38px] flex-1 resize-none rounded-md border bg-background px-2 py-1.5 text-[11.5px] leading-relaxed disabled:opacity-60"
             rows={2}
             placeholder={main ? "问它一个问题…（它只解释，不执行）" : "它还没看过这个任务，先点上面的「看一次」"}
@@ -999,6 +1002,20 @@ export function ReviewPanel({
               }
             }}
             disabled={!main || busy}
+          />
+          <QuickPhrases
+            size="sm"
+            variant="outline"
+            className="h-[38px] px-2"
+            onPick={(text) => {
+              setRebut((v) => (v ? `${v}\n${text}` : text));
+              requestAnimationFrame(() => {
+                const el = rebutRef.current;
+                if (!el) return;
+                el.focus();
+                el.setSelectionRange(el.value.length, el.value.length);
+              });
+            }}
           />
           <Button
             size="sm"

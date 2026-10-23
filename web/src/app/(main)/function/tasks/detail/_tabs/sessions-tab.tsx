@@ -29,9 +29,8 @@ import { toast } from "sonner";
 
 import { ApprovalExecutionFocus, useApprovalFocus, useApprovalHistory } from "@/components/approval-execution-focus";
 import { MentionTextarea } from "@/components/mention-textarea";
+import { QuickPhrases } from "@/components/quick-phrases";
 import { SideQuestionButton, SideQuestionWorkspace } from "@/components/side-question-workspace";
-import { ReviewCapsule, ReviewPanel, useReviewEnabled } from "./review-panel";
-import { LootCapsule, LootPanel } from "./loot-panel";
 import { TodoPopover } from "@/components/todo-popover";
 import { Transcript } from "@/components/transcript";
 import {
@@ -46,6 +45,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupButton } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
@@ -62,6 +70,7 @@ import type {
   ChatAttachment,
   IntentAsset,
   InterceptApprovalRow,
+  LLMProfile,
   Session,
   SessionStatus,
   SessionTokenUsage,
@@ -72,11 +81,24 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+import { LootCapsule, LootPanel } from "./loot-panel";
+import { ReviewCapsule, ReviewPanel, useReviewEnabled } from "./review-panel";
+
 // resolutionLabel names the LLM a session runs on. The badge shows this alone and
 // keeps the model id in its tooltip. Env-backed configs can arrive without a name,
 // so fall back to the model id rather than rendering an empty badge.
 function resolutionLabel(r: TaskLLMResolution): string {
   return r.name || r.model || "未命名配置";
+}
+
+// 会话头部模型胶囊 → 下拉绑定：session 的角色就是 agents.key（mainagent/planner/worker）。
+// "跟随任务/全局" 用哨兵值表示，对应后端 llm_profile_id = null（解绑）。
+const INHERIT_BINDING = "__inherit__";
+const AGENT_LABEL: Record<string, string> = { mainagent: "主 Agent", planner: "规划者", worker: "Worker" };
+
+function sessionAgentKey(role: Session["role"]): string | null {
+  if (role === "mainagent" || role === "planner" || role === "worker") return role;
+  return null;
 }
 
 // fmtBytes renders a human file size for attachment chips (mirrors transcript.tsx).
@@ -555,6 +577,8 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
   const [hasLoadedOlderIntentsPage, setHasLoadedOlderIntentsPage] = React.useState(false);
   const [loadingOlderIntents, setLoadingOlderIntents] = React.useState(false);
   const [input, setInput] = React.useState("");
+  // 主 Agent 输入区（常用语回填后把光标送回输入框末尾用）
+  const mainComposerRef = React.useRef<HTMLDivElement>(null);
   const [sending, setSending] = React.useState(false);
   const [stopping, setStopping] = React.useState(false);
   const [mainChatRunning, setMainChatRunning] = React.useState<boolean | null>(null);
@@ -663,6 +687,13 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
   const [taskTokens, setTaskTokens] = React.useState<TokenTotal | null>(null);
   const [sessionTokens, setSessionTokens] = React.useState<Record<string, SessionTokenUsage>>({});
   const [llmResolutions, setLLMResolutions] = React.useState<TaskLLMResolutions | null>(null);
+  // Agent 级 LLM 绑定（头部模型胶囊下拉）：可选 profile 列表 + 乐观选中值 + 保存中。
+  const [llmProfiles, setLLMProfiles] = React.useState<LLMProfile[]>([]);
+  const [bindingOverride, setBindingOverride] = React.useState<{
+    agentKey: string;
+    profileId: number | null;
+  } | null>(null);
+  const [bindingSaving, setBindingSaving] = React.useState(false);
   // Pending intercept requests for this task — used to show warning icons on sessions.
   const [pendingIntercepts, setPendingIntercepts] = React.useState<InterceptApprovalRow[]>([]);
 
@@ -867,6 +898,22 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
       clearInterval(timer);
     };
   }, [taskId]);
+
+  // 头部胶囊下拉的候选：所有 LLM 配置（一次拉取；失败就只留“跟随任务/全局”）。
+  React.useEffect(() => {
+    let alive = true;
+    api
+      .llmProfiles()
+      .then((list) => {
+        if (alive) setLLMProfiles(list);
+      })
+      .catch(() => {
+        // 拉不到就只显示“跟随任务/全局”，不伪造选项
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     let alive = true;
@@ -1528,6 +1575,40 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
     void api.stopChat(taskId).finally(() => setStopping(false));
   }
 
+  // 头部胶囊下拉：把当前会话的角色 agent 绑定到某个 LLM 配置（null = 跟随任务/全局）。
+  // 乐观选中 → 失败 toast 并回滚到上一次值，绝不留下“看起来生效”的假状态。
+  async function bindAgentLLM(agentKey: string, profileId: number | null) {
+    if (bindingSaving) return;
+    const prev = bindingOverride;
+    setBindingOverride({ agentKey, profileId });
+    setBindingSaving(true);
+    try {
+      await api.saveAgentConfig(agentKey, { llm_profile_id: profileId });
+      const name = llmProfiles.find((p) => Number(p.id) === profileId)?.name;
+      toast.success(
+        profileId == null ? `${AGENT_LABEL[agentKey] ?? agentKey} 已改为跟随任务/全局配置` : `已绑定：${name ?? `#${profileId}`}`,
+      );
+      const value = await api.taskLLMResolution(taskId).catch(() => null);
+      if (value) setLLMResolutions(value);
+    } catch (e) {
+      setBindingOverride(prev); // 回滚：显示回上一次（解析结果）
+      toast.error(`保存模型绑定失败：${(e as Error).message || "请稍后重试"}`);
+    } finally {
+      setBindingSaving(false);
+    }
+  }
+
+  // 常用语回填：追加而不是覆盖（保留用户已输入内容），随后聚焦到末尾。
+  function pickPhraseIntoMain(text: string) {
+    setInput((v) => (v ? `${v}\n${text}` : text));
+    requestAnimationFrame(() => {
+      const el = mainComposerRef.current?.querySelector("textarea");
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  }
+
   function send() {
     const text = input.trim();
     const atts = attachments;
@@ -1595,6 +1676,14 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
     return llmResolutions.worker;
   };
   const activeResolution = resolutionForSession(active);
+  // 当前会话的 agent key（绑定主体）与当前绑定值：agent_binding 才是显式绑定，其余视为“跟随”。
+  const activeAgentKey = sessionAgentKey(active.role);
+  const boundProfileId =
+    bindingOverride && bindingOverride.agentKey === activeAgentKey
+      ? bindingOverride.profileId
+      : activeResolution?.source === "agent_binding"
+        ? (activeResolution.profile_id ?? null)
+        : null;
   const activeAssets =
     active.role === "worker" && active.intent_id ? intentAssetsByID.get(active.intent_id) : undefined;
 
@@ -1826,27 +1915,59 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
                   setLootOpen((v) => !v);
                 }}
               />
-              {activeResolution && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge
+              {activeResolution && activeAgentKey && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
                       variant="outline"
-                      className="max-w-28 shrink-0 font-normal"
-                      aria-label={
-                        activeResolution.available ? `当前配置：${resolutionLabel(activeResolution)}` : "模型不可用"
-                      }
+                      size="sm"
+                      className="h-6 max-w-40 shrink-0 gap-1 px-1.5 font-normal text-[11px]"
+                      disabled={bindingSaving}
+                      title={`${AGENT_LABEL[activeAgentKey] ?? activeAgentKey} 的模型：${
+                        activeResolution.available ? resolutionLabel(activeResolution) : "模型不可用"
+                      }｜点击切换绑定`}
+                      aria-label="切换模型绑定"
                     >
                       <span className="truncate">
-                        {activeResolution.available ? resolutionLabel(activeResolution) : "模型不可用"}
+                        {activeResolution.available
+                          ? boundProfileId != null
+                            ? `${resolutionLabel(activeResolution)} · 已绑定`
+                            : resolutionLabel(activeResolution)
+                          : "模型不可用"}
                       </span>
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-xs [overflow-wrap:anywhere]">
-                    {activeResolution.available
-                      ? [resolutionLabel(activeResolution), activeResolution.model].filter(Boolean).join(" / ")
-                      : activeResolution.reason || "没有可用的 LLM 配置"}
-                  </TooltipContent>
-                </Tooltip>
+                      <ChevronDownIcon className="size-3 shrink-0 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuLabel>
+                      {AGENT_LABEL[activeAgentKey] ?? activeAgentKey} 的模型
+                    </DropdownMenuLabel>
+                    <p className="px-1.5 pb-1 text-[11px] text-muted-foreground">
+                      {activeResolution.available
+                        ? [resolutionLabel(activeResolution), activeResolution.model].filter(Boolean).join(" / ")
+                        : activeResolution.reason || "没有可用的 LLM 配置"}
+                    </p>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioGroup
+                      value={boundProfileId == null ? INHERIT_BINDING : String(boundProfileId)}
+                      onValueChange={(value) =>
+                        void bindAgentLLM(activeAgentKey, value === INHERIT_BINDING ? null : Number(value))
+                      }
+                    >
+                      <DropdownMenuRadioItem value={INHERIT_BINDING}>跟随任务/全局</DropdownMenuRadioItem>
+                      {llmProfiles.map((profile) => (
+                        <DropdownMenuRadioItem key={profile.id} value={String(profile.id)} title={profile.model}>
+                          <span className="truncate">{profile.name || profile.model || `#${profile.id}`}</span>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                    {llmProfiles.length === 0 && (
+                      <p className="px-1.5 py-1 text-[11px] text-muted-foreground">
+                        没拉到可选配置，去系统设置里的模型页看看。
+                      </p>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               {activeAssets && activeAssets.length > 0 && <WorkerAssetBadge assets={activeAssets} />}
               {active.inherited && active.source_task_id && (
@@ -2010,7 +2131,7 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
                   className="hidden"
                   onChange={(e) => void pickFiles(e.target.files)}
                 />
-                <InputGroup className="min-h-9 has-disabled:opacity-100">
+                <InputGroup ref={mainComposerRef} className="min-h-9 has-disabled:opacity-100">
                   <MentionTextarea
                     inputGroup
                     rows={1}
@@ -2039,36 +2160,37 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
                     >
                       {uploading ? <Loader2Icon className="animate-spin" /> : <PaperclipIcon />}
                     </InputGroupButton>
-                    {mainBusy && isBtwCommand(input) && (
-                      <InputGroupButton size="icon-xs" onClick={send} aria-label="发送旁路问题">
-                        <ArrowUpIcon />
-                      </InputGroupButton>
-                    )}
-                    {mainBusy ? (
-                      <InputGroupButton
-                        className="ml-auto"
-                        size="icon-xs"
-                        variant="destructive"
-                        onClick={stop}
-                        disabled={stopping}
-                        title="停止当前执行"
-                        aria-label="停止当前执行"
-                      >
-                        {stopping ? <Loader2Icon className="animate-spin" /> : <SquareIcon />}
-                      </InputGroupButton>
-                    ) : (
-                      <InputGroupButton
-                        className="ml-auto"
-                        size="icon-xs"
-                        variant="default"
-                        onClick={send}
-                        disabled={(!input.trim() && attachments.length === 0) || sending}
-                        title="发送消息"
-                        aria-label="发送消息"
-                      >
-                        {sending ? <Loader2Icon className="animate-spin" /> : <ArrowUpIcon />}
-                      </InputGroupButton>
-                    )}
+                    <div className="ml-auto flex items-center gap-1">
+                      <QuickPhrases onPick={pickPhraseIntoMain} disabled={sending} />
+                      {mainBusy && isBtwCommand(input) && (
+                        <InputGroupButton size="icon-xs" onClick={send} aria-label="发送旁路问题">
+                          <ArrowUpIcon />
+                        </InputGroupButton>
+                      )}
+                      {mainBusy ? (
+                        <InputGroupButton
+                          size="icon-xs"
+                          variant="destructive"
+                          onClick={stop}
+                          disabled={stopping}
+                          title="停止当前执行"
+                          aria-label="停止当前执行"
+                        >
+                          {stopping ? <Loader2Icon className="animate-spin" /> : <SquareIcon />}
+                        </InputGroupButton>
+                      ) : (
+                        <InputGroupButton
+                          size="icon-xs"
+                          variant="default"
+                          onClick={send}
+                          disabled={(!input.trim() && attachments.length === 0) || sending}
+                          title="发送消息"
+                          aria-label="发送消息"
+                        >
+                          {sending ? <Loader2Icon className="animate-spin" /> : <ArrowUpIcon />}
+                        </InputGroupButton>
+                      )}
+                    </div>
                   </InputGroupAddon>
                 </InputGroup>
               </div>
