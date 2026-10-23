@@ -63,3 +63,72 @@ SELECT $1,$2,'open'
 WHERE NOT EXISTS (SELECT 1 FROM assumptions WHERE task_id=$1 AND text=$2)`, taskID, txt)
 	return err
 }
+
+// ───────────── 能力级别升级 / 立足点登记（CARD-D01 H3 / H5）─────────────
+
+// ProofKeyword 把漏洞类别映射到能力卡上的关键词；映射不出来返回空串（不升级）。
+// 只做"有证据就把未证实提到已证实"，不猜测级别高低。
+func ProofKeyword(vulnClass, name string) string {
+	t := vulnClass + " " + name
+	switch {
+	case containsAny(t, "文件读取", "路径穿越", "目录穿越", "LFI", "path_traversal", "file read"):
+		return "文件"
+	case containsAny(t, "哈希", "hash", "MD5", "NTLM", "口令"):
+		return "口令"
+	case containsAny(t, "命令执行", "代码执行", "RCE", "webshell", "后门"):
+		return "命令"
+	case containsAny(t, "SQL", "注入", "injection"):
+		return "注入"
+	case containsAny(t, "后台", "登录接管", "弱口令", "默认口令"):
+		return "后台"
+	}
+	return ""
+}
+
+// IsFootholdSignal 判断这条 finding 是否意味着"有立足点"（可登记台账）。
+func IsFootholdSignal(vulnClass, name string) bool {
+	return containsAny(vulnClass+" "+name, "命令执行", "代码执行", "RCE", "webshell", "后门", "反弹", "shell")
+}
+
+func containsAny(hay string, needles ...string) bool {
+	up := strings.ToUpper(hay)
+	for _, n := range needles {
+		if strings.Contains(up, strings.ToUpper(n)) {
+			return true
+		}
+	}
+	return false
+}
+
+// BumpCapabilityProof 把该任务里命中的能力项从未证实提到"已证实"（P2 / observed）。
+// keyword 为空则不动。只升不降，且不改 severity/impact 等其它字段。
+func (s *ExplorationStore) BumpCapabilityProof(ctx context.Context, taskID int64, keyword string) error {
+	if s == nil || s.db == nil || taskID <= 0 || strings.TrimSpace(keyword) == "" {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx, `
+UPDATE capabilities
+   SET proof_level = 'P2', confidence = 'observed', updated_at = now()
+ WHERE task_id = $1
+   AND (proof_level IS NULL OR proof_level IN ('', 'P1'))
+   AND can ILIKE '%' || $2 || '%'`, taskID, keyword)
+	return err
+}
+
+// RegisterFoothold 在有立足点信号时登记持有台账（幂等：asset_key = 'asset:<id>'）。
+func (s *ExplorationStore) RegisterFoothold(ctx context.Context, taskID, assetID int64, accessType, note string) error {
+	if s == nil || s.db == nil || taskID <= 0 || assetID <= 0 {
+		return nil
+	}
+	if accessType == "" {
+		accessType = "webshell"
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO assets_owned (asset_key, asset_id, access_type, privilege, status, first_task_id, last_verified_at, evidence)
+SELECT 'asset:' || a.id, a.id, $2, 'user', 'verified', $1, now(), $3
+  FROM assets a
+ WHERE a.id = $4
+   AND NOT EXISTS (SELECT 1 FROM assets_owned WHERE asset_key = 'asset:' || a.id)`,
+		taskID, accessType, note, assetID)
+	return err
+}

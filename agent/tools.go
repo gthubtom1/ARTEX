@@ -1388,6 +1388,14 @@ func (t *ToolSet) addFinding() actool.CoreTool {
 		t.writes.Findings++
 		// CARD-D01 钩子：漏洞入库即写证据时间线（实测该表曾 45 分钟 0 行）
 		_ = t.ts.NoteEvidence(ctx, t.taskID, "finding", fmt.Sprintf("finding:%d", recorded.FindingID), t.worker, recorded.NodeID, recorded.FindingID)
+		// H3：有真实漏洞就把它对应的能力项从“未证实”提到“已证实”
+		_ = t.ts.BumpCapabilityProof(ctx, t.taskID, db.ProofKeyword(a.VulnClass, a.Name))
+		// H5：命令执行 / webshell 类漏洞意味着有立足点 → 登记持有台账
+		if db.IsFootholdSignal(a.VulnClass, a.Name) {
+			for _, aid := range pidList(a.AssetIDs) {
+				_ = t.ts.RegisterFoothold(ctx, t.taskID, aid, "webshell", a.Summary)
+			}
+		}
 		// Keep the first line's node-ID contract for existing reporter triggers.
 		for i := range recorded.Traffic.Bindings {
 			recorded.Traffic.Bindings[i].Snapshot.ReqHead = ""
