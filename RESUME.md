@@ -35,6 +35,9 @@
 - `install.sh` / `update.sh` 按镜像来源分流（本地 build / 远程 pull），ASM 扫描节点锁 `1.9.1`。
 - `scripts/stub-bootstrap.sh` 在没有 docker 的机器上把 bootstrap 全流程跑一遍（`STUB_RESULT PASS`）；它抓出并修掉了两个真 bug：`USER` 未定义时 `set -u` 直接崩、`status.sh` 迁移判据写死 `0010`。
 - `docs/08-详设` 已作废。
+- **Release `v0.7.4-p9` 已发**（2026-10-23）：assets = `artex-windows-amd64.zip`（稳定名，`releases/latest/download/` 直接可下）、
+  `artex-v0.7.4-p9-windows-amd64.zip`、`SHA256SUMS`。包内含 exe/start.bat/启动.bat/部署.bat/skills/kb/四份文档。
+  `部署.bat` 三条兜底：本地 `distrtex-windows-amd64rtex.exe` → 稳定名下载 → 解析最新 tag 下载 → 有 Go+Node 就本地构建。
 
 ---
 

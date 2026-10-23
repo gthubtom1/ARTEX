@@ -14,6 +14,11 @@
 | B-09 | 命中率做成页面 | 可选 | 只是排查不便，一条 SQL 也能看 | 页面上能看 16 表数字 | ✅（`/system/hitrate` + 侧边栏「命中率」） |
 | B-10 | 干净机器实跑 `deploy/bootstrap.sh --with-asm` | **我**（需能跑 docker 的机器） | “一条命令装两套”只是静态通过，没被真证 | 新机器 `status.sh` 输出 `STATUS PASS` 且 MCP 工具数 >0 | ⚠ 一半：stub 全流程 PASS（`scripts/stub-bootstrap.sh`），**真机未跑**（本机无 docker） |
 
+### 发版（2026-10-23，B-11）
+- `v0.7.4-p9` 已发布：`artex-windows-amd64.zip`（稳定名，供 `部署.bat` 无脑下载）+ `artex-v0.7.4-p9-windows-amd64.zip` + `SHA256SUMS`。
+- `build.sh` 打包补齐 kb/部署.bat/启动.bat/三份文档，无 zip 时用 python 兜底；`部署.bat` 下载失败且本机有 Go+Node 时自动本地构建。
+- CI：`release.yml` 只跑正式 semver（带 `-` 的标签跳过），`demo.yml` 需 `DEMO_ENABLED=true` 才跑——不再因缺 secrets 留红。
+
 **现在只剩 2 件需要人**：B-03（判断审查官留不留，不做也照样用）、B-10（一台能跑 docker 的干净机器，一条命令即可收尾）。
 
 ---

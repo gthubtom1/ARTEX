@@ -30,6 +30,6 @@ grep -q '^var version = ' cmd/artex/main.go || {
   echo "[!] cmd/artex/main.go 里没有 'var version = ...'，-ldflags -X main.version 会失效"
   exit 1
 }
-go build -tags embedui -ldflags "-X main.version=${VER}" -o "$OUT" ./cmd/artex
+go build -tags embedui -trimpath -ldflags "-s -w -X main.version=${VER}" -o "$OUT" ./cmd/artex
 ls -lh "$OUT"
 echo "[+] 成品：$OUT（前端已内嵌；运行时仍需 PostgreSQL + LLM 配置）"

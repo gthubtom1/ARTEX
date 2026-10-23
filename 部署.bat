@@ -94,10 +94,27 @@ notepad "config.json"
 pause & exit /b 1
 
 :no_bin
+rem 下载不通时（国内网络常见：github 可达但 Release CDN 被墙），有 Go+Node 就本地构建
+where go >nul 2>&1
+if errorlevel 1 goto :no_bin_help
+where node >nul 2>&1
+if errorlevel 1 goto :no_bin_help
+where bash >nul 2>&1
+if errorlevel 1 goto :no_bin_help
+if not exist "scripts@BS@package_local.sh" goto :no_bin_help
+echo.
+echo [*] 下载不通，但本机有 Go+Node：改为本地构建（首次约 5-10 分钟）...
+bash scripts@BS@package_local.sh v0.7.4-p9
+if exist "dist@BS@artex.exe" copy /y "dist@BS@artex.exe" "%EXE%" >nul
+if exist "%EXE%" (echo [+] 本地构建完成 & goto :have_bin)
+
+:no_bin_help
 echo [x] 没拿到 artex.exe。
-echo     1) 检查网络能否访问 github.com（或设代理）
+echo     1) 检查网络能否访问 github.com 与 release-assets.githubusercontent.com（或设代理）
 echo     2) 手动到 Releases 页下载 artex-windows-amd64.zip（或 artex-*-windows-amd64.zip），解压后把 artex.exe 放到本目录
-echo     3) 或从源码构建：cd web ^&^& npm ci ^&^& set NEXT_EXPORT=1 ^&^& npx next build ^&^& cd .. ^&^& go build -tags embedui -o artex.exe ./cmd/artex
+echo     3) 从源码构建（需要 Go + Node）：先装 Git for Windows，再在 Git Bash 里执行
+echo          cd web ^&^& npm ci ^&^& NEXT_EXPORT=1 npx next build ^&^& cd ..
+echo          go build -tags embedui -o artex.exe ./cmd/artex
 pause & exit /b 1
 
 :start
