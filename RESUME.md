@@ -149,7 +149,7 @@ C:\Users\toti\pi-cwd\20261020\artex-分析\mirror
 ## 验证（新会话开工前先跑一遍，确认交接没坏）
 
 ```bash
-cd /c/Users/toti/pi-cwd/20261020/artex-分析/mirror
+cd <仓库根目录>
 go build ./...
 go test ./internal/... ./db/... ./guard/... ./agent/...
 ```
