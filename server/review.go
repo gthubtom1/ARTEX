@@ -130,11 +130,17 @@ func (s *Server) runReview(w http.ResponseWriter, r *http.Request, trigger, rebu
 	var v review.Verdict
 	modelName := "rule"
 	rt := &taskLLMRuntime{s: s, taskID: t.ID, agentKey: "adviser"}
-	raw, lerr := collectText(ctx, rt, true, sys, user, 2400)
+	raw, lerr := collectText(ctx, rt, true, sys, user, 4000)
 	if lerr == nil {
 		if parsed, perr := review.Parse(raw); perr == nil {
 			v = parsed
 			modelName = "adviser"
+		} else if salv, ok := review.ParseLenient(raw); ok {
+			v = salv
+			modelName = "adviser"
+			log.Printf("[review] json 不完整，已抢救正文（%d 字）", len(salv.Body))
+		} else {
+			log.Printf("[review] 输出无法解析: %v", perr)
 		}
 	}
 	if modelName == "rule" {

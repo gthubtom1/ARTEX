@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	pgdb "github.com/Autumn-27/artex/db"
@@ -39,7 +40,6 @@ ON CONFLICT (task_id) DO UPDATE
 WHERE $3 <= 0 OR review_notes.version = $3
 RETURNING version`, taskID, body, expectVersion).Scan(&ver)
 	if err != nil {
-		// 版本冲突：基于最新版本重写
 		var cur int
 		if e2 := d.QueryRowContext(ctx, `SELECT version FROM review_notes WHERE task_id=$1`, taskID).Scan(&cur); e2 == nil {
 			if e3 := d.QueryRowContext(ctx, `
@@ -60,8 +60,6 @@ func clampNotes(s string) string {
 	}
 	return s
 }
-
-// ───────────────────────── 结论 ─────────────────────────
 
 // Action 是允许下发到引擎的动作（docs/09 §6：只有这三类）。
 type Action struct {
@@ -90,12 +88,12 @@ type Verdict struct {
 // SystemPrompt 是复盘官的人设：外部评估者 + 不信前判断 + 只给三类动作。
 const SystemPrompt = `你是这次渗透任务请来的「外部评估者」。你不参与执行，不跑命令，只读一份结构化快照和你自己上次的笔记。
 
-你的判断对象只有一件：**整条方向还成不成立**。不是某条漏洞真假，也不是某条命令对不对。
+你的判断对象只有一件：整条方向还成不成立。不是某条漏洞真假，也不是某条命令对不对。
 
 硬规矩：
 1. 只信快照里的结构化事实；快照里没写的东西不许推测，写"未确认"；
-2. 每条结论后面用 [intent:ID] 或 [finding:ID] 或 [fact:ID] 标注依据；没有依据的句子删掉；
-3. 区分两件事：**目标侧明确拒绝**（这类是死路）与 **我方故障**（self_error/env_error，这类没真正试过，应建议重跑）；
+2. 每条结论后面用 [intent:ID] / [finding:ID] / [fact:ID] 标注依据；没有依据的句子删掉；
+3. 区分两件事：目标侧明确拒绝（死路）与 我方故障（self_error/env_error，没真正试过，应建议重跑）；
 4. 只允许三类动作：kill_intent（标死已被证死的路）、retry_intent（重跑被我方故障打断的路）、set_next_stage（换阶段）。任何"改目标/改数据/收工"都不是你的动作；
 5. 输出必须是一个 JSON 对象，不要 Markdown 代码块，字段：
    {"verdict":"continue|pivot|wrapup","body":"给完全不懂技术的人看的 3-6 句","cites":[{"kind":"intent","id":20}],
@@ -124,7 +122,6 @@ func Parse(raw string) (Verdict, error) {
 	if v.Confidence == "" {
 		v.Confidence = "low"
 	}
-	// 只保留允许的动作
 	kept := v.Actions[:0]
 	for _, a := range v.Actions {
 		switch a.Kind {
@@ -136,18 +133,32 @@ func Parse(raw string) (Verdict, error) {
 	return v, nil
 }
 
+// ParseLenient 在 JSON 不完整（常见于输出被 max_tokens 截断）时抢救正文。
+func ParseLenient(raw string) (Verdict, bool) {
+	pattern := `(?s)"body"\s*:\s*"((?:[^"\\]|\\.)*)"`
+	re := regexp.MustCompile(pattern)
+	m := re.FindStringSubmatch(raw)
+	if len(m) < 2 || strings.TrimSpace(m[1]) == "" {
+		return Verdict{}, false
+	}
+	body := m[1]
+	body = strings.ReplaceAll(body, "\\n", "\n")
+	body = strings.ReplaceAll(body, "\\\"", "\"")
+	if len([]rune(body)) < 12 {
+		return Verdict{}, false
+	}
+	return Verdict{Verdict: "continue", Body: body, Confidence: "low"}, true
+}
+
 // RuleBased 是模型不可用时的确定性兜底（不烧 token、不编造）。
 func RuleBased(s *Snapshot) Verdict {
-	var selfFault, dead, spinning []int64
+	var selfFault, dead []int64
 	for _, it := range s.Intents {
 		switch it.LastError {
 		case "self_error", "env_error":
 			selfFault = append(selfFault, it.ID)
 		case "target_blocked":
 			dead = append(dead, it.ID)
-		}
-		if it.State == "stopped" || it.State == "blocked" {
-			spinning = append(spinning, it.ID)
 		}
 	}
 	var b strings.Builder
@@ -159,7 +170,7 @@ func RuleBased(s *Snapshot) Verdict {
 	if len(dead) > 0 {
 		fmt.Fprintf(&b, "另外 %d 条方向是目标明确拒绝的，别再试。", len(dead))
 	}
-	if b.Len() < 20 {
+	if b.Len() < 40 {
 		b.WriteString("暂时没有明显走偏的迹象。")
 	}
 	v := Verdict{Verdict: "continue", Body: b.String(), Confidence: "low"}
