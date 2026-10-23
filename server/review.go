@@ -125,7 +125,9 @@ func (s *Server) runReview(w http.ResponseWriter, r *http.Request, trigger, rebu
 	if rebuttal != "" {
 		user = fmt.Sprintf("用户不同意你上次的判断，理由是：%s\n请重新判一遍；如果你改口，必须写明「旧结论 + 被哪条证据推翻」。\n\n%s", rebuttal, user)
 	}
-	sys := s.agentPromptOrConst("adviser", review.SystemPrompt)
+	// 必须用复盘官自己的提示词（要求 JSON 输出）。Agent 页的「顾问」提示词是给 runtime
+	// adviser 用的，它不要求 JSON；用它会让评审输出散文，解析必然失败（已踩）。
+	sys := review.SystemPrompt
 
 	var v review.Verdict
 	modelName := "rule"
