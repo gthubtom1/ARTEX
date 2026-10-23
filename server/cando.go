@@ -127,7 +127,7 @@ func (s *Server) candoGet(w http.ResponseWriter, r *http.Request) {
 	errCounts := s.candoErrorCounts(taskID)
 	runningSummaries := s.candoRunningIntents(taskID)
 
-	resp := candoResponse{Annotations: map[string]candoAnnotation{}}
+	resp := candoResponse{Annotations: map[string]candoAnnotation{}, Loot: []candoLoot{}, Lanes: []candoLane{}}
 	resp.Banner = candoBanner{Goal: strings.TrimSpace(t.Goal)}
 	if resp.Banner.Goal == "" {
 		resp.Banner.Goal = "（这个任务没有写目标）"
