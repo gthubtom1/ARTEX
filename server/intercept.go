@@ -208,6 +208,44 @@ func reviewCompletion(ctx context.Context, prov llm.Provider, prompt string, inp
 	return streamCollectText(ctx, prov, prompt, string(user))
 }
 
+// collectText 是一次性取文本的通用入口：
+//   - nonStreaming=true 时走 Complete（openai-responses 等流式不稳定的端点用这条）；
+//   - 否则走 Stream 累积 SETextDelta。
+// 与 streamCollectText 的区别只有"传输方式"，提示词与预算由调用方给。
+func collectText(ctx context.Context, prov llm.Provider, nonStreaming bool, system, user string, maxTokens int) (string, error) {
+	temp := 0.0
+	if maxTokens <= 0 || maxTokens > 2048 {
+		maxTokens = 1024
+	}
+	req := llm.CompletionRequest{
+		System:      []string{system},
+		Messages:    []llm.Message{llm.UserText(user)},
+		MaxTokens:   maxTokens,
+		Temperature: &temp,
+		Thinking:    "disabled",
+	}
+	if nonStreaming {
+		msg, stop, _, err := prov.Complete(ctx, req)
+		if err != nil {
+			return "", err
+		}
+		if stop == "max_tokens" || stop == "length" {
+			return "", fmt.Errorf("模型输出达到上限")
+		}
+		return strings.TrimSpace(msg.Text()), nil
+	}
+	var sb strings.Builder
+	for ev, err := range prov.Stream(ctx, req) {
+		if err != nil {
+			return "", err
+		}
+		if ev.Type == llm.SETextDelta {
+			sb.WriteString(ev.Text)
+		}
+	}
+	return sb.String(), nil
+}
+
 // streamCollectText runs a single non-streaming-style completion (thinking off,
 // low temperature, bounded output) and returns the concatenated text. The
 // budget includes the explanation and complete closing JSON delimiters.

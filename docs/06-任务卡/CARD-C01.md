@@ -11,8 +11,10 @@
 
 ## ③ 必读事实（不要重新推理）
 1. 复用 `agentKey=adviser`（不新建 agent 行）：模型在「系统 → Agent」页绑定，走既有优先级链。
-2. **顾问提示词是代码常量** `adviserSystemPrompt`（`server/adviser_llm.go`），Agent 页那份对它**不生效** —— 本卡必须改成「先读 `agent_prompts` 当前版本，取不到回退常量」，否则用户改了以为生效。
-3. 冷却器已有：`adviserGate`（`server/adviser_llm.go`），按任务冷却，可直接复用。
+2. **顾问提示词是代码常量** `adviserSystemPrompt`（`server/adviser_llm.go
+server/intercept.go`），Agent 页那份对它**不生效** —— 本卡必须改成「先读 `agent_prompts` 当前版本，取不到回退常量」，否则用户改了以为生效。
+3. 冷却器已有：`adviserGate`（`server/adviser_llm.go
+server/intercept.go`），按任务冷却，可直接复用。
 4. 规则版兜底已有：`internal/adviser`（`Diagnose`）+ `internal/stall`，模型失败时用它们出「规则版」结论。
 5. `pause` 会打断流式输出并留 `aborted_streaming` 坏账（实测 3 条）→「停下来聊」用**软停**（不再派新意图），**不许调 pause**。
 6. 表已由 CARD-000 建好（`review_notes` / `review_runs` / `review_feedback`）。
@@ -39,6 +41,7 @@
 server/review.go
 server/server.go
 server/adviser_llm.go
+server/intercept.go
 internal/review/snapshot.go
 internal/review/notes.go
 web/src/app/(main)/function/tasks/detail/_tabs/review-panel.tsx
