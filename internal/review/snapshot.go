@@ -126,7 +126,7 @@ func BuildWithKB(ctx context.Context, d *pgdb.DB, taskID int64, notes, kbRoot st
 		Scan(&s.RoundNo)
 	if timeout > 0 {
 		var leftSec float64
-		_ = d.QueryRowContext(ctx, `SELECT EXTRACT(EPOCH FROM (COALESCE(first_run_at,created_at) + ($2||' seconds')::interval - now()))
+		_ = d.QueryRowContext(ctx, `SELECT EXTRACT(EPOCH FROM (COALESCE(first_run_at,created_at) + make_interval(secs => $2) - now()))
 			FROM tasks WHERE id=$1`, taskID, timeout).Scan(&leftSec)
 		if leftSec < 0 {
 			s.BudgetLeft = "已超时"
@@ -136,15 +136,15 @@ func BuildWithKB(ctx context.Context, d *pgdb.DB, taskID int64, notes, kbRoot st
 	}
 
 	// 先取最近的错误事件（用于给意图标注错误类；避免在 SQL 里做大数字拼接）
-	type errEv struct{ class, detail string }
-	var errs []errEv
-	if erows, eerr := d.QueryContext(ctx, `SELECT COALESCE(class,''), COALESCE(detail,'')
+	// intent_id：0=旧数据/归属未知，>0=精确归属到某条意图。
+	var errs []errorEvent
+	if erows, eerr := d.QueryContext(ctx, `SELECT COALESCE(class,''), COALESCE(detail,''), COALESCE(intent_id,0)
 		FROM task_error_events WHERE task_id=$1 AND ts > now() - interval '6 hours'
-		ORDER BY ts DESC LIMIT 200`, taskID); eerr == nil {
+		ORDER BY ts DESC, id DESC LIMIT 200`, taskID); eerr == nil {
 		defer erows.Close()
 		for erows.Next() {
-			var e errEv
-			if erows.Scan(&e.class, &e.detail) == nil {
+			var e errorEvent
+			if erows.Scan(&e.class, &e.detail, &e.intentID) == nil {
 				errs = append(errs, e)
 			}
 		}
@@ -171,16 +171,9 @@ func BuildWithKB(ctx context.Context, d *pgdb.DB, taskID int64, notes, kbRoot st
 		if len([]rune(it.Summary)) > 80 {
 			it.Summary = string([]rune(it.Summary)[:80]) + "…"
 		}
-		// 错误类：detail 里出现该意图 id 即认为相关
-		idStr := fmt.Sprintf("%d", it.ID)
-		for _, e := range errs {
-			if strings.Contains(e.detail, idStr) {
-				it.LastError = e.class
-				break
-			}
-		}
 		s.Intents = append(s.Intents, it)
 	}
+	attributeErrors(s.Intents, errs)
 
 	// 漏洞（顺带记下 vulnclass：它是 KB 检索词的第二来源）
 	var vulnClasses []string
@@ -331,6 +324,60 @@ func BuildWithKB(ctx context.Context, d *pgdb.DB, taskID int64, notes, kbRoot st
 		}
 	}
 	return s, nil
+}
+
+// errorEvent 是一条任务级错误事件在快照侧的投影。
+// intentID=0 表示归属未知（0010 之前的历史行 / 平台级事件）。
+type errorEvent struct {
+	class, detail string
+	intentID      int64
+}
+
+// attributeErrors 给每条意图挑一个错误类。
+//
+// 优先级：intent_id 精确匹配（0010 起 errev 写入时带上 worker 的意图 id）>
+// 旧数据的 detail 子串兜底（只有 intent_id=0 的历史行参与）。
+//
+// 为什么要保留兜底：升级前的行没有意图 id，全丢掉等于历史经验归零。
+// 为什么只对 intent_id=0 生效：精确行不需要猜；而且子串猜中的大多数是
+// IP/端口数字撞上了意图 id（实测 task#2 run#19 把 70/43/17 判成重开，
+// 真正 blocked 的是 20/47/53）。
+func attributeErrors(intents []IntentBrief, errs []errorEvent) {
+	if len(intents) == 0 || len(errs) == 0 {
+		return
+	}
+	// errs 已按 ts DESC 排好：首次写入即「最新一条」。
+	exact := make(map[int64]string, len(errs))
+	legacy := make([]errorEvent, 0, len(errs))
+	for _, e := range errs {
+		if e.intentID > 0 {
+			if _, ok := exact[e.intentID]; !ok {
+				exact[e.intentID] = e.class
+			}
+			continue
+		}
+		legacy = append(legacy, e)
+	}
+	for i := range intents {
+		it := &intents[i]
+		if it.ID <= 0 {
+			continue
+		}
+		if cls, ok := exact[it.ID]; ok {
+			it.LastError = cls
+			continue
+		}
+		if len(legacy) == 0 {
+			continue
+		}
+		idStr := fmt.Sprintf("%d", it.ID)
+		for _, e := range legacy {
+			if strings.Contains(e.detail, idStr) {
+				it.LastError = e.class
+				break
+			}
+		}
+	}
 }
 
 // kbQueries 从快照生成检索词（最多 2 个）：最频繁的错误类 + 最近漏洞的类型词。

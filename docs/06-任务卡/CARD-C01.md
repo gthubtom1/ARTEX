@@ -21,7 +21,13 @@ server/intercept.go`），按任务冷却，可直接复用。
 
 ## ④ 改哪
 - 新增：`server/review.go`（8 个 handler：review 提交/latest/runs/apply/rebut/notes）
-- 新增：`internal/review/snapshot.go`（快照生成，**不含对话/thinking/推理**）
+- 新增：`internal/review/snapshot.go
+internal/review/snapshot_error_test.go
+internal/errev/errev.go
+internal/errev/errev_test.go
+server/engine.go
+server/errev_sink.go
+db/migrations/0010_error_intent.sql`（快照生成，**不含对话/thinking/推理**）
 - 新增：`internal/review/notes.go`（笔记读写 + 乐观锁 version）
 - 新增：`web/src/app/(main)/function/tasks/detail/_tabs/review-panel.tsx`（胶囊 + 左栏行 + 结论卡）
 - 修改：`server/server.go`（把 501 占位换成真实 handler，仅那 5–8 条）

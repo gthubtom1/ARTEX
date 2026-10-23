@@ -1190,7 +1190,7 @@ func (e *Engine) runIntent(ctx context.Context, t *Task, name string, worker *ag
 		case errev.LooksLikeTargetBlocked(err.Error()):
 			evClass = errev.ClassTargetBlocked
 		}
-		errev.Emit(ctx, wTaskID, evClass, "worker:"+name, err.Error())
+		errev.EmitIntent(ctx, wTaskID, intent.ID, evClass, "worker:"+name, err.Error())
 		if e.audit != nil {
 			e.audit.LogFail(context.Background(), wTaskID, "worker:"+name, "intent", "", "run", err.Error(), nil)
 		}

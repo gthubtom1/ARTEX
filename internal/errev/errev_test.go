@@ -27,13 +27,13 @@ func TestNormalizeClass(t *testing.T) {
 
 func TestEmitTruncatesAndNormalizes(t *testing.T) {
 	var got struct {
-		taskID          int64
-		class, tool, dt string
+		taskID, intentID int64
+		class, tool, dt  string
 	}
 	prev := Sink
 	t.Cleanup(func() { Sink = prev })
-	Sink = func(ctx context.Context, taskID int64, class, tool, detail string) {
-		got.taskID, got.class, got.tool, got.dt = taskID, class, tool, detail
+	Sink = func(ctx context.Context, taskID, intentID int64, class, tool, detail string) {
+		got.taskID, got.intentID, got.class, got.tool, got.dt = taskID, intentID, class, tool, detail
 	}
 
 	long := strings.Repeat("啊", 900) + "\n第二行"
@@ -41,6 +41,9 @@ func TestEmitTruncatesAndNormalizes(t *testing.T) {
 
 	if got.taskID != 42 {
 		t.Fatalf("taskID=%d", got.taskID)
+	}
+	if got.intentID != 0 {
+		t.Fatalf("没有 IntentIDOf 时意图 id 应写 0，实际 %d", got.intentID)
 	}
 	if got.class != ClassSelfError {
 		t.Fatalf("未知分类应归到 self_error，实际 %q", got.class)
@@ -61,6 +64,33 @@ func TestEmitNilSinkIsNoop(t *testing.T) {
 	t.Cleanup(func() { Sink = prev })
 	Sink = nil
 	Emit(context.Background(), 1, ClassEnvError, "curl", "boom") // 不应 panic
+}
+
+// 意图 id 从 ctx 注入的钩子解析；EmitIntent 则显式覆盖。
+func TestEmitResolution(t *testing.T) {
+	var gotIntent int64
+	prevSink, prevOf := Sink, IntentIDOf
+	t.Cleanup(func() { Sink, IntentIDOf = prevSink, prevOf })
+	Sink = func(ctx context.Context, taskID, intentID int64, class, tool, detail string) {
+		gotIntent = intentID
+	}
+
+	IntentIDOf = nil
+	Emit(context.Background(), 4, ClassSelfError, "w", "x")
+	if gotIntent != 0 {
+		t.Fatalf("未注入钩子时应写 0，实际 %d", gotIntent)
+	}
+
+	IntentIDOf = func(context.Context) int64 { return 92 }
+	Emit(context.Background(), 4, ClassSelfError, "w", "x")
+	if gotIntent != 92 {
+		t.Fatalf("应从 ctx 解析出意图 92，实际 %d", gotIntent)
+	}
+
+	EmitIntent(context.Background(), 4, -7, ClassSelfError, "w", "x")
+	if gotIntent != 0 {
+		t.Fatalf("负数意图 id 应归 0，实际 %d", gotIntent)
+	}
 }
 
 func TestClassifyHTTP(t *testing.T) {

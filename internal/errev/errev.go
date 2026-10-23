@@ -29,18 +29,45 @@ const (
 )
 
 // Sink 由 server 注入（写 task_error_events）。未注入时静默丢弃（测试/无库场景）。
-var Sink func(ctx context.Context, taskID int64, class, tool, detail string)
+// intentID=0 表示归属未知（历史行 / 平台级事件 / 非 worker 调用）。
+var Sink func(ctx context.Context, taskID, intentID int64, class, tool, detail string)
+
+// IntentIDOf 由 server 注入：从 ctx 里取当前意图 id（取不到返回 0）。
+// 单独一个钩子而不是直接 import agent —— guard 已经 import 本包，
+// 本包再 import agent 会形成 errev → agent → guard → errev 的循环。
+var IntentIDOf func(context.Context) int64
 
 // maxDetail 是 detail 的截断长度。
 const maxDetail = 500
 
 // Emit 记录一条错误事件。taskID<=0 表示平台级事件（不属于某个任务）。
+// 意图 id 由 ctx 里的 RunInfo 解析（见 IntentIDOf）；解析不到写 0。
 func Emit(ctx context.Context, taskID int64, class, tool, detail string) {
+	EmitIntent(ctx, taskID, intentIDFrom(ctx), class, tool, detail)
+}
+
+// EmitIntent 记录一条已知意图归属的错误事件（调用方手里有 intent.ID 时用这个，
+// 不要依赖 ctx 里有没有 RunInfo）。intentID<=0 一律按 0（归属未知）落库。
+func EmitIntent(ctx context.Context, taskID, intentID int64, class, tool, detail string) {
 	if Sink == nil {
 		return
 	}
+	if intentID < 0 {
+		intentID = 0
+	}
 	class = NormalizeClass(class)
-	Sink(ctx, taskID, class, clip(tool, 64), clip(detail, maxDetail))
+	Sink(ctx, taskID, intentID, class, clip(tool, 64), clip(detail, maxDetail))
+}
+
+// intentIDFrom 从 ctx 取意图 id；未注入钩子或取不到时返回 0（绝不 panic）。
+func intentIDFrom(ctx context.Context) int64 {
+	if IntentIDOf == nil {
+		return 0
+	}
+	if id := IntentIDOf(ctx); id > 0 {
+		return id
+	}
+	return 0
 }
 
 // NormalizeClass 把未知分类归到 self_error，保证面板只有 5 个桶。

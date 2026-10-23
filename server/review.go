@@ -469,7 +469,7 @@ func (s *Server) setReviewAckDeadline(ctx context.Context, runID int64, w time.D
 		return
 	}
 	if _, err := s.m.pg.ExecContext(ctx, `UPDATE review_runs
-		SET ack_deadline = now() + ($2 || ' seconds')::interval
+		SET ack_deadline = now() + make_interval(secs => $2)
 		WHERE id=$1 AND COALESCE(ack_status,'')=''`, runID, int(w.Seconds())); err != nil {
 		log.Printf("[review] set ack deadline run=%d: %v", runID, err)
 	}
@@ -482,7 +482,7 @@ func (s *Server) setReviewObserveWindow(ctx context.Context, runID int64, w time
 		return
 	}
 	if _, err := s.m.pg.ExecContext(ctx, `UPDATE review_runs
-		SET observe_until = now() + ($2 || ' seconds')::interval
+		SET observe_until = now() + make_interval(secs => $2)
 		WHERE id=$1 AND COALESCE(outcome,'')=''`, runID, int(w.Seconds())); err != nil {
 		log.Printf("[review] set observe window run=%d: %v", runID, err)
 	}
