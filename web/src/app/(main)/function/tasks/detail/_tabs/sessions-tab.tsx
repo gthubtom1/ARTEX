@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { ApprovalExecutionFocus, useApprovalFocus, useApprovalHistory } from "@/components/approval-execution-focus";
 import { MentionTextarea } from "@/components/mention-textarea";
 import { SideQuestionButton, SideQuestionWorkspace } from "@/components/side-question-workspace";
+import { ReviewCapsule } from "./review-panel";
 import { TodoPopover } from "@/components/todo-popover";
 import { Transcript } from "@/components/transcript";
 import {
@@ -1779,6 +1780,7 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
                 );
               })()}
               <SideQuestionButton side={side} />
+              <ReviewCapsule taskId={taskId} />
               {activeResolution && (
                 <Tooltip>
                   <TooltipTrigger asChild>

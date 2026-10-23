@@ -50,7 +50,8 @@ func (s *Server) tryLLMAdviser(ctx context.Context, t *Task, rep stall.Report,
 	rt := &taskLLMRuntime{s: s, taskID: t.ID, agentKey: "adviser"}
 	c, cancel := context.WithTimeout(ctx, 75*time.Second)
 	defer cancel()
-	raw, err := streamCollectText(c, rt, adviserSystemPrompt, adviser.Prompt(t.Goal, rep, led, neg))
+	sys := s.agentPromptOrConst("adviser", adviserSystemPrompt)
+	raw, err := streamCollectText(c, rt, sys, adviser.Prompt(t.Goal, rep, led, neg))
 	if err != nil {
 		return adviser.Diagnosis{}, false
 	}

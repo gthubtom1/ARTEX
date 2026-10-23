@@ -1782,6 +1782,7 @@ export interface ReviewRun {
   cites: Array<{ kind: string; id: number }>;
   actions: ReviewAction[];
   confidence?: string;
+  model?: string;
   created_at: string;
   finished_at?: string;
 }
@@ -1798,7 +1799,7 @@ export const reviewapi = {
   apply: (taskId: string, runId: number, actions: ReviewAction[]) =>
     post<{ applied: number }>(`/tasks/${encodeURIComponent(taskId)}/review/${runId}/apply`, { actions }),
   rebut: (taskId: string, runId: number, text: string) =>
-    post<{ run_id: number }>(`/tasks/${encodeURIComponent(taskId)}/review/${runId}/rebut`, { text }),
+    post<{ run_id: number; run?: ReviewRun }>(`/tasks/${encodeURIComponent(taskId)}/review/${runId}/rebut`, { text }),
   notes: (taskId: string) =>
     get<{ version: number; body: string }>(`/tasks/${encodeURIComponent(taskId)}/review/notes`),
 };
