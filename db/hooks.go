@@ -132,3 +132,41 @@ SELECT 'asset:' || a.id, a.id, $2, 'user', 'verified', $1, now(), $3
 		taskID, accessType, note, assetID)
 	return err
 }
+
+// ───────────── L3-lite：侦察意图有没有用结构化工具（断言→记录，不阻断）─────────────
+
+var reconKeywords = []string{"端口", "指纹", "存活", "目录", "服务", "技术栈", "banner", "扫描", "枚举"}
+
+// AssertReconUsedTool 检查“这条侦察事实所属的意图”有没有调用过结构化工具；
+// 没有的话记一条 assumption（幂等）——这是度量与提醒，**不阻断任务**。
+//
+// 为什么不做阻断版（docs/06 冻结表 E01）：intent 没有 stage 字段，且模型很少主动
+// 调结构化工具，硬阻断会让侦察意图永远收不了尾。先记录、观察，再决定是否升硬约束。
+func (s *ExplorationStore) AssertReconUsedTool(ctx context.Context, taskID, intentID int64, summary string) error {
+	if s == nil || s.db == nil || taskID <= 0 || intentID <= 0 {
+		return nil
+	}
+	if !containsAny(summary, reconKeywords...) {
+		return nil
+	}
+	var n int
+	if err := s.db.QueryRowContext(ctx, `
+SELECT count(*) FROM tool_usage
+ WHERE intent_id = $1
+   AND tool_key IN ('nmap_scan','httpx_probe','nuclei_scan','ffuf','ffuf_dir')`, intentID).Scan(&n); err != nil {
+		return nil
+	}
+	if n > 0 {
+		return nil
+	}
+	txt := summary
+	if len([]rune(txt)) > 80 {
+		txt = string([]rune(txt)[:80]) + "…"
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO assumptions (task_id, text, status)
+SELECT $1, $2, 'open'
+WHERE NOT EXISTS (SELECT 1 FROM assumptions WHERE task_id=$1 AND text=$2)`,
+		taskID, "侦察未使用结构化工具："+txt)
+	return err
+}

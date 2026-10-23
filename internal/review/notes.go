@@ -138,17 +138,35 @@ func Parse(raw string) (Verdict, error) {
 func ParseLenient(raw string) (Verdict, bool) {
 	pattern := `(?s)"body"\s*:\s*"((?:[^"\\]|\\.)*)"`
 	re := regexp.MustCompile(pattern)
-	m := re.FindStringSubmatch(raw)
-	if len(m) < 2 || strings.TrimSpace(m[1]) == "" {
+	if m := re.FindStringSubmatch(raw); len(m) >= 2 {
+		if body := unescapeBody(m[1]); len([]rune(body)) >= 12 {
+			return Verdict{Verdict: "continue", Body: body, Confidence: "low"}, true
+		}
+	}
+	// 未闭合（输出被 max_tokens 截断）：从 "body" 后面一直取到末尾。
+	i := strings.Index(raw, `"body"`)
+	if i < 0 {
 		return Verdict{}, false
 	}
-	body := m[1]
-	body = strings.ReplaceAll(body, "\\n", "\n")
-	body = strings.ReplaceAll(body, "\\\"", "\"")
-	if len([]rune(body)) < 12 {
+	rest := raw[i+len(`"body"`):]
+	j := strings.Index(rest, `"`)
+	if j < 0 {
 		return Verdict{}, false
 	}
-	return Verdict{Verdict: "continue", Body: body, Confidence: "low"}, true
+	rest = rest[j+1:]
+	if k := strings.Index(rest, `",`); k > 0 {
+		rest = rest[:k]
+	}
+	if body := unescapeBody(strings.TrimRight(rest, `\\`)); len([]rune(body)) >= 12 {
+		return Verdict{Verdict: "continue", Body: body, Confidence: "low"}, true
+	}
+	return Verdict{}, false
+}
+
+func unescapeBody(s string) string {
+	s = strings.ReplaceAll(s, `\n`, "\n")
+	s = strings.ReplaceAll(s, `\"`, `"`)
+	return strings.TrimSpace(s)
 }
 
 // ProsePrompt 是「只要一段人话」的变体：结构化动作由规则引擎给，

@@ -1514,6 +1514,12 @@ func (t *ToolSet) recordFact() actool.CoreTool {
 				// CARD-D01 钩子：证据时间线 + 否定结论沉成假设（失败不影响主流程）
 				_ = t.ts.NoteEvidence(ctx, t.taskID, "fact", fmt.Sprintf("fact:%d", id), t.worker, id, 0)
 				_ = t.ts.NoteAssumptionIfNegative(ctx, t.taskID, it.Summary)
+				// CARD-E01 L3-lite：侦察类事实若没用结构化工具，记一条假设（不阻断）
+				intentForFact := pid(it.IntentID)
+				if intentForFact <= 0 {
+					intentForFact = defaultIntent
+				}
+				_ = t.ts.AssertReconUsedTool(ctx, t.taskID, intentForFact, it.Summary)
 				if intelligenceEnabled() {
 					if len(it.Intelligence) > 20 {
 						errs[strconv.Itoa(i)] = "事实已保存，情报每次最多 20 条"
