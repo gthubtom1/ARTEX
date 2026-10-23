@@ -33,6 +33,7 @@ func (s *Server) registerCandoRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/tasks/{id}/cando/annotate", s.candoAnnotate)
 	mux.HandleFunc("GET /api/tasks/{id}/cando/annotate", s.candoAnnotateStatus)
 	mux.HandleFunc("POST /api/tasks/{id}/cando/send", s.candoSendHint)
+	mux.HandleFunc("GET /api/system/hitrate", s.candoHitrate)
 }
 
 // ───────────────────────────── DTO ─────────────────────────────
@@ -158,9 +159,10 @@ func (s *Server) candoGet(w http.ResponseWriter, r *http.Request) {
 
 	// loot：已证实（P2/P3）的能力项
 	for _, c := range caps {
-		if capability.ProofRank(c.ProofLevel) >= 2 && strings.TrimSpace(c.Can) != "" {
+		eff := upgradeProof(c.Item, c.Can, c.ProofLevel, findings)
+		if capability.ProofRank(eff) >= 2 && strings.TrimSpace(c.Can) != "" {
 			resp.Loot = append(resp.Loot, candoLoot{
-				Label: c.Can, Count: proofLabel(c.ProofLevel),
+				Label: c.Can, Count: proofLabel(eff),
 				NodeKey: "cap:" + c.Item,
 			})
 		}
@@ -197,7 +199,7 @@ func (s *Server) candoLanes(t *Task, caps []capability.Card, findings []*db.Node
 		lane := candoLane{Key: "ep:" + key}
 		state := "untried"
 		for _, c := range cs {
-			if capability.ProofRank(c.ProofLevel) >= 2 && c.Confidence == "observed" {
+			if capability.ProofRank(upgradeProof(c.Item, c.Can, c.ProofLevel, findings)) >= 2 {
 				state = "taken"
 			} else if state == "untried" && c.Confidence == "observed" {
 				state = "spinning"
@@ -208,15 +210,20 @@ func (s *Server) candoLanes(t *Task, caps []capability.Card, findings []*db.Node
 			Body: "这条入口是从能力卡里读出来的（surface 字段）", Chip: chipForState(state), State: state,
 		})
 		for _, c := range cs {
+			eff := upgradeProof(c.Item, c.Can, c.ProofLevel, findings)
 			cs2 := "untried"
-			if capability.ProofRank(c.ProofLevel) >= 2 && c.Confidence == "observed" {
+			if capability.ProofRank(eff) >= 2 {
 				cs2 = "taken"
+			}
+			chip := nz2(eff, "P?")
+			if eff != c.ProofLevel {
+				chip = "已证实"
 			}
 			lane.Nodes = append(lane.Nodes, candoNode{
 				ID: "cap:" + c.Item, Kind: "can",
 				Title: nz2(c.Can, "未命名能力"),
 				Body:  nz2(c.Plain, nz2(c.Evidence, "未确认")),
-				Chip:  nz2(c.ProofLevel, "P?"), State: cs2,
+				Chip:  chip, State: cs2,
 				Cites:  c.SourceNodeIDs,
 				Prompt: s.candoPrompt(t, c.Surface, nz2(c.NextIfApproved, c.Can)),
 			})
@@ -603,4 +610,109 @@ func (s *Server) candoSendHint(w http.ResponseWriter, r *http.Request) {
 	}
 	t.NotifyHint([]string{strings.TrimSpace(body.Text)})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": id})
+}
+
+// ───────────────── 证明级别就地升级（显示层，不改库）─────────────────
+
+// candoCapKeywords 把能力项映射到漏洞关键词。命中即认为"这条能力被真实证明了"。
+// 只覆盖常见项；未列出的能力保持原级别（宁可不升级，也不虚报）。
+var candoCapKeywords = map[string][]string{
+	"任意文件读取": {"任意文件读取", "文件读取", "路径穿越", "path_traversal", "LFI", "目录穿越"},
+	"口令哈希":   {"哈希", "hash", "MD5", "NTLM", "口令"},
+	"命令执行":   {"命令执行", "RCE", "代码执行", "cmd", "webshell", "后门"},
+	"SQL注入":  {"SQL", "注入", "injection", "堆叠", "盲注"},
+	"数据读取":   {"跨库", "数据读取", "拖库", "用户表", "订单", "卡密"},
+	"后台登录":   {"后台", "登录接管", "弱口令", "默认口令", "管理员"},
+	"目录枚举":   {"目录", "枚举", "扫描"},
+}
+
+// upgradeProof 返回该能力项应有的证明级别：原级别更高则保留原级别。
+func upgradeProof(capItem, capCan, proof string, findings []*db.Node) string {
+	if capability.ProofRank(proof) >= 2 {
+		return proof
+	}
+	text := capItem + " " + capCan
+	for _, kw := range candoCapKeywords {
+		matched := false
+		for _, k := range kw {
+			if strings.Contains(text, k) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		// 关键词组命中：看是否有对应 finding 带证据
+		for _, f := range findings {
+			var p struct {
+				Name      string `json:"name"`
+				VulnClass string `json:"vulnclass"`
+				Evidence  string `json:"evidence"`
+			}
+			_ = json.Unmarshal(f.Payload, &p)
+			hay := p.Name + " " + p.VulnClass
+			for _, k := range kw {
+				if strings.Contains(hay, k) && strings.TrimSpace(p.Evidence) != "" {
+					return "P2"
+				}
+			}
+		}
+	}
+	return proof
+}
+
+// ───────────────── 机制命中率看板（E01 度量，只读）─────────────────
+
+// hitrateTables 是"二开机制有没有真的被写"的 16 张表（docs/00 §1）。
+var hitrateTables = []string{
+	"capabilities", "assets_owned", "asset_checks", "assumptions", "routes",
+	"evidence_timeline", "finding_traffic_bindings", "finding_cases",
+	"creds_vault", "recheck_state", "task_intelligence", "skill_usage",
+	"tool_usage", "cando_annotations", "review_runs", "review_notes",
+}
+
+// candoHitrate 返回某任务的机制命中情况 + 工具使用比。
+// 用途：每轮真实任务跑完看一眼，任一项为 0 说明对应机制仍是"空表"。
+func (s *Server) candoHitrate(w http.ResponseWriter, r *http.Request) {
+	t, ok := s.m.Task(r.URL.Query().Get("task"))
+	if !ok || t == nil {
+		writeErr(w, http.StatusNotFound, "task not found")
+		return
+	}
+	taskID, _ := strconv.ParseInt(t.ID, 10, 64)
+	out := map[string]int{}
+	for _, tb := range hitrateTables {
+		var n int
+		var q string
+		switch tb {
+		case "review_notes":
+			q = `SELECT count(*) FROM review_notes WHERE task_id=$1`
+		case "assets_owned":
+			q = `SELECT count(*) FROM assets_owned WHERE first_task_id=$1`
+		case "tool_usage":
+			q = `SELECT count(*) FROM tool_usage WHERE task_id=$1`
+		default:
+			q = `SELECT count(*) FROM ` + tb + ` WHERE task_id=$1`
+		}
+		if err := s.m.pg.QueryRow(q, taskID).Scan(&n); err == nil {
+			out[tb] = n
+		}
+	}
+	// 工具使用比（activity 里 tool_use 的顶词分布）
+	tools := map[string]int{}
+	if rows, err := s.m.pg.Query(`SELECT substring(summary from '^[A-Za-z_]+') AS name, count(*)
+		FROM activity WHERE kind='tool_use'
+		  AND exploration_id = (SELECT exploration_id FROM tasks WHERE id=$1)
+		GROUP BY name ORDER BY 2 DESC LIMIT 20`, taskID); err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var name string
+			var n int
+			if rows.Scan(&name, &n) == nil {
+				tools[name] = n
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tables": out, "tools": tools})
 }
