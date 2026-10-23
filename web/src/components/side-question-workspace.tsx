@@ -253,6 +253,9 @@ export function SideQuestionWorkspace({
   placeholder,
   className,
   mainClassName,
+  altActive = false,
+  altNode,
+  altLabel = "审查官",
 }: {
   side: SideQuestions;
   label: string;
@@ -262,9 +265,15 @@ export function SideQuestionWorkspace({
   placeholder?: string;
   className?: string;
   mainClassName?: string;
+  // altNode：与旁路提问**同一个右侧方框**里的另一个面板（如审查官），
+  // 两者互斥：旁路提问优先；关掉它后审查官占用同一位置，不再悬浮遮挡。
+  altActive?: boolean;
+  altNode?: ReactNode;
+  altLabel?: string;
 }) {
   const mobile = useIsMobile();
   const desktopSideOpen = side.open && side.enabled && !mobile;
+  const desktopAltOpen = !desktopSideOpen && altActive && !mobile;
   return (
     <>
       {desktopSideOpen ? (
@@ -285,6 +294,22 @@ export function SideQuestionWorkspace({
               suggestions={suggestions}
               placeholder={placeholder}
             />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : desktopAltOpen ? (
+        <ResizablePanelGroup orientation="horizontal" className={cn("min-h-0 min-w-0 flex-1", className)}>
+          <ResizablePanel
+            id="main-conversation"
+            minSize="35%"
+            className={cn("flex min-h-0 min-w-0 flex-col", mainClassName)}
+          >
+            {children}
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel id="alt-panel" defaultSize="38%" minSize="280px" maxSize="65%">
+            <section className="flex h-full min-h-0 flex-col bg-background" aria-label={altLabel}>
+              {altNode}
+            </section>
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (

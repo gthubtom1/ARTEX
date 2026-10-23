@@ -12,6 +12,7 @@ import (
 	"github.com/Autumn-27/artex/agent"
 	"github.com/Autumn-27/artex/db"
 	"github.com/Autumn-27/artex/internal/adviser"
+	"github.com/Autumn-27/artex/internal/review"
 	"github.com/Autumn-27/artex/internal/stall"
 )
 
@@ -26,6 +27,12 @@ func (s *Server) shouldConsultLLMAdviser(rep stall.Report) bool {
 // settings 为 nil 时也按关处理（宁可不调，也不能凭空花 token）。
 func (s *Server) adviserLLMEnabled() bool {
 	return s.settings != nil && s.settings.Bool("adviser.enabled", false)
+}
+
+// reviewCondEnabled 读审查官「条件触发」开关（docs/13：条件默认开）。
+// 关着时 progressHook 完全不碰 review 路径（零 LLM、零 DB 写入）。
+func (s *Server) reviewCondEnabled() bool {
+	return s.reviewSettings().CondOn
 }
 
 // progressHook 是每轮规划之后的反跑偏闭环（best-effort）：
@@ -63,6 +70,14 @@ func (s *Server) progressHook(m *Manager) func(context.Context, *Task) error {
 				d = llmD
 			}
 		}
+		// 审查官「条件触发」（docs/13 §0/§4）：命中条件就让它自己看一次，结论写 review_runs（A 级），
+		// 有动作时按档位自动执行或给主链路建议（B 级）。
+		// 条件：连续 3 轮无新 fact / 同类我方故障反复 / 预算过半没新洞 / 某路反复失败。
+		// 冷却/配额/去重/熔断由 review.Decide 兜（trigger=cond），这里只判"要不要跑一次"。
+		if s.reviewCondEnabled() && reviewCondHit(rep) && s.reviewCondGate.allow(t.ID, s.reviewSettings().Cooldown) {
+			go s.reviewCondKick(t, taskID, review.TriggerCond)
+		}
+
 		// 一行诊断：把本轮两个实验角色的开关状态写进日志。D2 默认关，
 		// 出问题时能直接看出是“没检测到停顿”还是“开关没开”，不必猜。
 		log.Printf("[progress] task %s 停顿=%v adviser_llm=%v verifier_llm=%v",
@@ -79,7 +94,7 @@ func (s *Server) progressHook(m *Manager) func(context.Context, *Task) error {
 				src = "LLM"
 			}
 			s.engine.emitActivity(t, db.Activity{Worker: "adviser", Kind: "text",
-				Summary: fmt.Sprintf("顾问(%s)：注入 %d 条纠正提示（%s）", src, wrote, strings.Join(rep.Stuck, ","))})
+				Summary: fmt.Sprintf("审查官(%s)：注入 %d 条纠正提示（%s）", src, wrote, strings.Join(rep.Stuck, ","))})
 			t.Notify()
 		}
 

@@ -1771,8 +1771,8 @@ export const candoapi = {
     ),
 };
 
-// ───────────────────────── 复盘官（CARD-C01）─────────────────────────
-// 后端规格：docs/09-详设-C01-复盘官.md
+// ───────────────────────── 审查官（CARD-C01，原「审查官」）─────────────────────────
+// 后端规格：docs/09-详设-C01-审查官.md
 export type ReviewVerdict = "continue" | "pivot" | "wrapup";
 
 export interface ReviewAction {
@@ -1794,6 +1794,25 @@ export interface ReviewRun {
   model?: string;
   created_at: string;
   finished_at?: string;
+  // docs/13：分级投递 / 回执 / 自动执行
+  level?: "read" | "action";
+  reason_class?: string;
+  seen_at?: string;
+  ack_status?: "accepted" | "rejected" | "stale" | "";
+  ack_reason?: string;
+  auto_applied?: boolean;
+}
+
+// ReviewState 是面板顶部那一行：生效档位 / 介入与自动次数 / 熔断 / 未读数。
+export interface ReviewState {
+  tier: "observe" | "lowrisk" | "auto" | string;
+  tier_override: string;
+  global_tier: string;
+  interventions: number;
+  auto_actions: number;
+  tripped: boolean;
+  trip_reason: string;
+  unseen: number;
 }
 
 export const reviewapi = {
@@ -1802,7 +1821,13 @@ export const reviewapi = {
     { trigger: "manual" },
   ),
   latest: (taskId: string) =>
-    get<{ run: ReviewRun | null; notes_version: number }>(`/tasks/${encodeURIComponent(taskId)}/review/latest`),
+    get<{ run: ReviewRun | null; notes_version: number; state?: ReviewState }>(
+      `/tasks/${encodeURIComponent(taskId)}/review/latest`,
+    ),
+  state: (taskId: string) => get<ReviewState>(`/tasks/${encodeURIComponent(taskId)}/review/state`),
+  seen: (taskId: string) => post<{ ok: boolean }>(`/tasks/${encodeURIComponent(taskId)}/review/seen`, {}),
+  setTier: (taskId: string, tier: string) =>
+    put<ReviewState>(`/tasks/${encodeURIComponent(taskId)}/review/tier`, { tier }),
   runs: (taskId: string, limit = 20) =>
     get<{ runs: ReviewRun[] }>(`/tasks/${encodeURIComponent(taskId)}/review/runs?limit=${limit}`),
   apply: (taskId: string, runId: number, actions: ReviewAction[]) =>
@@ -1819,3 +1844,25 @@ export const candoSend = (taskId: string, text: string, nodeKey: string) =>
     text,
     node_key: nodeKey,
   });
+
+// ───────────────────────── 能做到什么 · 战果表 ─────────────────────────
+export interface LootRow {
+  key: string;
+  label: string;
+  status: "done" | "run" | "tried" | "blank";
+  why: string;
+  hint?: string;
+  evidence?: CandoEvidence[];
+}
+
+export interface LootResponse {
+  goal: string;
+  done: number;
+  total: number;
+  findings: number;
+  rows: LootRow[];
+}
+
+export const lootapi = {
+  get: (taskId: string) => get<LootResponse>(`/tasks/${encodeURIComponent(taskId)}/loot`),
+};

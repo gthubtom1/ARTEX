@@ -215,11 +215,12 @@ var builtinAgents = []builtinAgent{
 	{"auto", "Auto", "assistant", "平台操作助手：用工具管理任务(建/看/暂停/给提示)与资产，并可创建/修改 skill、自定义工具、MCP。", nil, false, nil},
 	// 校验:独立模型专判已上报漏洞的证据是否成立(不与 planner/worker 共用视角)。
 	{"verifier", "校验", "assistant", "独立复核员：只看证据判断 finding 是否成立，输出 verified/inferred/rejected，证据不足即降级。", nil, false, nil},
-	// 顾问:不派意图、不跑命令,只把停顿诊断翻译成可执行纠偏(可单独绑强模型)。
-	{"adviser", "顾问", "assistant", "资深渗透负责人视角：诊断跑偏/绕圈/只打前端，出换层建议与纠偏，不派意图。", []promptVar{
-		{"Goal", "任务总目标", "拿下 example.com 的管理员权限", "exploration"},
-		{"StallReport", "停顿检测报告(JSON)", `{"no_progress_rounds":4,"layer_gap":["host"]}`, "runtime"},
-	}, false, nil},
+	// 审查官(=原「顾问」，会话页原叫「复盘官」):不派意图、不跑命令,
+	// 只把「任务快照 / 停顿诊断」翻译成可执行结论(可单独绑强模型)。
+	// 两条调用路径共用一个可编辑提示词(见 agent/promptcatalog.go),事实全部走 user 消息,
+	// 因此这里不再注册 {{.Goal}}/{{.StallReport}} 占位符——注册了反而会诱使模板写占位符,
+	// 而 agentPromptOrConst 见到 "{{" 会整体回落到代码常量,改了也不生效。
+	{"adviser", "审查官", "assistant", "全局审查官（原「顾问 / 复盘官」）：读任务快照与停顿诊断，判断整条方向该继续、转向还是收口，出人话结论与换层建议；不派意图、不动证据。", nil, false, nil},
 	// 渗透测试:内置「独立渗透」agent。经对话页驱动,一人从侦察到收尾走完整条渗透链,自己规划自己执行自己验证。默认开启交互式 shell。
 	{"pentest", "渗透测试", "assistant", "独立渗透 agent：一人从侦察→找攻击面→深入利用→验证→收尾走完整条链，自己规划、自己执行、自己对抗式验证。", nil, true, intp(0)},
 }
@@ -253,6 +254,15 @@ ON CONFLICT (agent_id, var_name) DO UPDATE
 	// 会与全局项撞名(前端变量列表 key 重复);一并清掉。
 	if _, err := d.Exec(`DELETE FROM agent_prompt_vars WHERE var_name IN ('EngagementTitle', 'CoverageGaps', 'Now')`); err != nil {
 		return fmt.Errorf("cleanup renamed vars: %w", err)
+	}
+	// 审查官(adviser)的输入一律走 user 消息(任务快照 / 停顿诊断包)，模板不再支持占位符；
+	// 清掉旧库遗留的两条目录行，否则 Agent 页会继续把 {{.Goal}}/{{.StallReport}}
+	// 当可用变量宣传——写了这两个占位符的模板会被 agentPromptOrConst 整体丢弃并回落常量
+	// (改了等于没改，最坏的假旋钮)。
+	if _, err := d.Exec(`DELETE FROM agent_prompt_vars
+		WHERE var_name IN ('Goal','StallReport')
+		  AND agent_id = (SELECT id FROM agents WHERE key='adviser')`); err != nil {
+		return fmt.Errorf("cleanup adviser vars: %w", err)
 	}
 	// Default-on interactive_shell for the runtime agents (planner/worker/mainagent/auto)
 	// ONCE — respects a later user toggle-off (guarded by a settings flag). goals(one-shot

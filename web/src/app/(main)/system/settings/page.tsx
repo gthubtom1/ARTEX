@@ -51,6 +51,9 @@ export default function SystemSettingsPage() {
   // 实验角色（D2）：adviser / verifier 默认关，关掉时零额外 LLM 调用。
   const [adviserEnabled, setAdviserEnabled] = React.useState(false);
   const [verifierEnabled, setVerifierEnabled] = React.useState(false);
+  const [reviewCond, setReviewCond] = React.useState(true);
+  const [reviewTier, setReviewTier] = React.useState("lowrisk");
+  const [reviewInterval, setReviewInterval] = React.useState("10");
   const [autoDecide, setAutoDecide] = React.useState<"off" | "reviewer" | "allow_all">("off");
   // 纯前端偏好：不走 /api/settings，直接读写 localStorage。
   const sendMode = useChatSendMode();
@@ -73,6 +76,9 @@ export default function SystemSettingsPage() {
     setNoaCompaction(!!s.noa_compaction);
     setAdviserEnabled(!!s.adviser_enabled);
     setVerifierEnabled(!!s.verifier_enabled);
+    setReviewCond(s.review_cond !== false);
+    setReviewTier((s.review_tier as string) ?? "lowrisk");
+    setReviewInterval(String(s.review_interval_min ?? 10));
     setAutoDecide((s.intercept_auto_decide as "off" | "reviewer" | "allow_all") ?? "off");
   }, []);
 
@@ -219,6 +225,21 @@ export default function SystemSettingsPage() {
       })
       .catch((e) => {
         setVerifierEnabled(!v); // revert on failure
+        toast.error(`保存失败：${(e as Error).message}`);
+      });
+  };
+
+  // 审查官「常驻」：停顿命中时自动评审一次并留结论卡（会话页可见）。
+  const toggleReviewCond = (v: boolean) => {
+    setReviewCond(v); // optimistic
+    api
+      .setSettings({ review_cond: v })
+      .then((s) => {
+        apply(s);
+        toast.success(v ? "已开启审查官常驻（停顿命中自动评审）" : "已关闭审查官常驻（默认）");
+      })
+      .catch((e) => {
+        setReviewCond(!v); // revert on failure
         toast.error(`保存失败：${(e as Error).message}`);
       });
   };
@@ -491,6 +512,96 @@ export default function SystemSettingsPage() {
                 打开后每 5 分钟最多一次（每轮规划后）会对已上报的 finding 做一次额外 LLM 复核，并可能据此降档能力卡，
                 增加 token 消耗；report_finding 的三门校验不依赖它，默认关不影响质量。
               </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="review-cond" className="text-sm font-normal text-muted-foreground">
+                  审查官·条件触发{reviewCond ? " · 已开启" : " · 已关闭"}
+                </Label>
+                <Switch
+                  id="review-cond"
+                  aria-describedby="review-cond-description"
+                  checked={reviewCond}
+                  disabled={!loaded}
+                  onCheckedChange={toggleReviewCond}
+                />
+              </div>
+              <p id="review-cond-description" className="text-muted-foreground text-xs">
+                打开后，停顿检测命中时审查官（Agent 页同名 agent，key=adviser）会自己看一次并写一张结论卡到任务会话页，
+                每任务 10 分钟最多一次；模型不可用时自动出规则版结论。它与上面的「LLM 顾问」互不影响：顾问改的是执行方向，
+                审查官留的是给人看的判断。
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">权限</span>
+                {[
+                  { v: "observe", label: "只看" },
+                  { v: "lowrisk", label: "低风险自动" },
+                  { v: "auto", label: "全自动" },
+                ].map((t) => (
+                  <button
+                    key={t.v}
+                    className={
+                      "rounded-full border px-2.5 py-0.5 text-xs " +
+                      (reviewTier === t.v
+                        ? "border-violet-500/50 bg-violet-500/10 text-violet-600"
+                        : "text-muted-foreground hover:text-foreground")
+                    }
+                    onClick={() => {
+                      const prev = reviewTier;
+                      setReviewTier(t.v);
+                      api
+                        .setSettings({ review_tier: t.v as "observe" | "lowrisk" | "auto" })
+                        .then((r) => {
+                          apply(r);
+                          toast.success(`审查官权限已设为「${t.label}」`);
+                        })
+                        .catch((e) => {
+                          setReviewTier(prev);
+                          toast.error(`保存失败：${(e as Error).message}`);
+                        });
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-muted-foreground text-xs">
+                只看＝只出结论不动任务；低风险自动＝只重开「被自己接口打断的」、只标死「目标明确拒绝≥3次的」；
+                全自动＝同上但配额更高。三档都不碰目标/证据/收工（硬约束）。
+              </p>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="review-interval" className="text-xs font-normal text-muted-foreground">
+                  定时触发间隔（分钟）
+                </Label>
+                <input
+                  id="review-interval"
+                  className="w-16 rounded border bg-background px-2 py-0.5 text-xs"
+                  value={reviewInterval}
+                  disabled={!loaded}
+                  onChange={(e) => setReviewInterval(e.target.value)}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!loaded}
+                  onClick={() => {
+                    const n = Number(reviewTier === "never" ? 0 : reviewInterval);
+                    if (!Number.isInteger(n) || n < 1 || n > 720) {
+                      toast.error("间隔需是 1..720 的整数分钟");
+                      return;
+                    }
+                    api
+                      .setSettings({ review_interval_min: n })
+                      .then((r) => {
+                        apply(r);
+                        toast.success(`审查官定时间隔已设为 ${n} 分钟`);
+                      })
+                      .catch((e) => toast.error(`保存失败：${(e as Error).message}`));
+                  }}
+                >
+                  保存
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

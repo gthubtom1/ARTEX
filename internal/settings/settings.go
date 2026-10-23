@@ -49,6 +49,17 @@ var Defaults = map[string]string{
 	"adviser.enabled":  "false", // LLM 顾问：停顿检测命中后额外问一次强模型
 	"verifier.enabled": "false", // LLM 复核：每轮规划后对 finding 做对抗式复核
 
+	// 审查官「常驻」（A2，docs/13）：条件/定时自己看，结论写 review_runs，会话页可见。
+	// 与 adviser.enabled 相互独立：
+	//   adviser.enabled = 要不要把纠偏 hint 写进图并唤醒 planner（执行侧）
+	//   review.cond     = 条件命中（连续无产出 / 同类我方故障 / 预算过半无洞）时让它自己看一次
+	//   review.tier     = 三档权限：observe(只看) | lowrisk(低风险自动,默认) | auto
+	// 模型不可用时走规则版兜底；防抖（去重/冷却/配额/熔断）在 internal/review/gate.go。
+	"review.cond":         "true",
+	"review.tier":         "lowrisk",
+	"review.interval_min": "10",
+	"review.cooldown_min": "5",
+
 	// 复查
 	"asset.recheck_hours":   "24",
 	"asset.recheck_minutes": "60", // 复查执行器轮询间隔（0=关闭）

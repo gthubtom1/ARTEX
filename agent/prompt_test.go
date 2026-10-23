@@ -80,3 +80,30 @@ func TestRenderSystemOverrideAndFallback(t *testing.T) {
 		t.Fatalf("worker without proxy must NOT inject trafficTool: %q", noProxy)
 	}
 }
+
+// 审查官(adviser) 与校验(verifier) 的提示词必须可播种、且**不含模板占位符**：
+// 这两条调用路径（停顿诊断 / 全局复盘 / 单条复核）都把事实塞在 user 消息里，
+// server.agentPromptOrConst 见到 "{{" 会整体回落到代码常量——模板若带占位符，
+// Agent 页改了也不生效（最坏的假旋钮）。
+func TestBuiltinPromptSeedsAdviserVerifier(t *testing.T) {
+	seeds := BuiltinPromptSeeds()
+	for _, key := range []string{"adviser", "verifier"} {
+		tmpl, ok := seeds[key]
+		if !ok {
+			t.Fatalf("%s 必须有可播种的默认提示词（否则 Agent 页是空白、恢复默认失败）", key)
+		}
+		if len([]rune(tmpl)) < 40 {
+			t.Fatalf("%s 的默认提示词太短（%d 字），不足以约束角色", key, len([]rune(tmpl)))
+		}
+		if strings.Contains(tmpl, "{{") {
+			t.Fatalf("%s 的默认提示词含 {{ 占位符：agentPromptOrConst 会整体回落常量，Agent 页的编辑变成假旋钮", key)
+		}
+	}
+	// 审查官必须两种输入模式都写清，否则同一份提示词喂两条路径会有一条跑偏。
+	adv := seeds["adviser"]
+	for _, want := range []string{"no_progress_rounds", "goal", "格式 A", "格式 B"} {
+		if !strings.Contains(adv, want) {
+			t.Fatalf("审查官默认提示词缺少 %q（双模式分支不完备）", want)
+		}
+	}
+}

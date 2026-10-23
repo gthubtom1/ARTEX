@@ -140,7 +140,7 @@ func (s *Server) verifierPassNow(ctx context.Context, t *Task) int {
 		c, cancel := context.WithTimeout(ctx, 60*time.Second)
 		// 把 retester 的复测结论喂给复核员（两条线合流：复测给事实，复核做判断）。
 		retest, retestNote := s.latestRetest(ctx, f.ID)
-		raw, cerr := streamCollectText(c, rt, verifier.SystemPrompt,
+		raw, cerr := streamCollectText(c, rt, s.agentPromptOrConst("verifier", verifier.SystemPrompt),
 			verifier.Prompt(t.Goal, verifier.Input{FindingID: f.ID, Title: f.Title, Severity: f.Severity,
 				Surface: f.Surface, Evidence: f.Evidence, Retest: retest, RetestNote: retestNote}))
 		cancel()

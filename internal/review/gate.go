@@ -1,0 +1,344 @@
+package review
+
+// 本文件是审查官的「门」：投递前的自检五问 + 分级（read/action）+ 自动动作筛选 + 8 条防抖。
+//
+// 唯一事实源：docs/13-复盘官-闭环与防抖.md（§3 自检五问、§4 防抖 R1–R8）。
+// 设计纪律：这里**全是纯函数**——不碰 DB、不碰 LLM、不碰意图状态。调用方（server/review.go）
+// 只负责把事实读进来、把 Decide 的结论写回去，因此每条规则都能被单测钉住。
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+)
+
+// 三档权限（docs/09 A2、docs/13 §6）。
+const (
+	TierObserve = "observe" // 只看：只留结论卡，不动任务
+	TierLowRisk = "lowrisk" // 低风险自动（默认）：只做"减浪费"两类动作
+	TierAuto    = "auto"    // 全自动：同上，但配额更高、冷却更短
+)
+
+// 投递分级：read=只读结论（A 级），action=要动任务（B 级，需主 Agent 核对）。
+const (
+	LevelRead   = "read"
+	LevelAction = "action"
+)
+
+// 触发原因（落 review_runs.reason）。
+const (
+	TriggerCond   = "cond"
+	TriggerTimer  = "timer"
+	TriggerManual = "manual"
+	TriggerRebut  = "rebut"
+)
+
+// 自动动作只允许这两类"减浪费"（docs/13 R5）。
+const (
+	ClassRetrySelfFault = "retry:self_fault"    // 我方故障（self_error/env_error），没真正试过
+	ClassKillRejected   = "kill:target_blocked" // 目标侧明确拒绝，且已试够次数
+)
+
+// RunBrief 是最近一次评审的摘要（去重 / 降权判定用）。
+type RunBrief struct {
+	DedupeKey   string
+	Level       string
+	ReasonClass string
+	AckStatus   string // accepted|rejected|stale|''
+}
+
+// State 是 review_state 的一行。
+type State struct {
+	Tier          string // ''=跟全局
+	Interventions int
+	AutoActions   int
+	LastSentAt    time.Time
+	LastFacts     int
+	Tripped       bool
+	TripReason    string
+}
+
+// GateIn 是 Decide 的全部输入。
+type GateIn struct {
+	Snap             Snapshot
+	Verdict          Verdict
+	State            State
+	Recent           []RunBrief // 最近 N 条（新→旧），建议 30
+	Now              time.Time
+	Trigger          string // cond|timer|manual|rebut
+	DefaultTier      string // 全局设置（task 未覆盖时用它）
+	Cooldown         time.Duration
+	MaxInterventions int // 0=默认 10
+	MaxAuto          int // 0=默认 5
+	// FactCount 是本次介入时的 fact 数（R6 判"有没有变好"）。
+	FactCount int
+}
+
+// GateOut 是 Decide 的结论。
+type GateOut struct {
+	Drop        string   // 非空=不投递（只进内部日志，不进主会话、不亮红点）
+	Notes       []string // 判定过程（写日志、给面板"为什么没说"）
+	Level       string   // read|action
+	DedupeKey   string
+	ReasonClass string
+	Actions     []Action // 允许下发的动作（已剔除过期/无依据/超权限）
+	AutoApplied []Action // 本次由它自己执行的动作（tier!=observe 且有可自动动作）
+	NeedHuman   bool     // 结论涉及收口/换目标：必须人决定（红点不消）
+	Trip        bool     // 本次触发熔断 → tier 转 observe
+	TripReason  string
+}
+
+// Decide 实现投递前的全部判定。顺序即优先级：
+// 过期/无依据（Q2/Q3）→ 去重（R1/Q1）→ 降权（R4/Q5）→ 冷却（R2）→ 配额（R3）→ 分级与自动（R5）→ 熔断（R6）。
+func Decide(in GateIn) GateOut {
+	var out GateOut
+	now := in.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+	maxInt, maxAuto := in.MaxInterventions, in.MaxAuto
+	if maxInt <= 0 {
+		maxInt = 10
+	}
+	if maxAuto <= 0 {
+		maxAuto = 5
+	}
+
+	tier := strings.TrimSpace(in.State.Tier)
+	if tier == "" {
+		tier = strings.TrimSpace(in.DefaultTier)
+	}
+	if tier == "" {
+		tier = TierLowRisk
+	}
+	if in.State.Tripped {
+		tier = TierObserve
+		out.Notes = append(out.Notes, "熔断生效中 → 只看")
+	}
+
+	// ── Q3 有依据吗 + Q2 过期吗：先清洗动作 ──
+	// 动作必须①指向快照里真实存在的 intent；②该 intent 的状态/错误类仍支持这个动作；
+	// ③在 cites 里被引用过（否则等于没依据）。
+	cited := map[int64]bool{}
+	for _, c := range in.Verdict.Cites {
+		if c.Kind == "intent" {
+			cited[c.ID] = true
+		}
+	}
+	byID := map[int64]IntentBrief{}
+	for _, it := range in.Snap.Intents {
+		byID[it.ID] = it
+	}
+	var kept []Action
+	var classes []string
+	for _, a := range in.Verdict.Actions {
+		it, ok := byID[a.Intent]
+		if !ok || a.Intent == 0 {
+			out.Notes = append(out.Notes, fmt.Sprintf("剔除动作 %s#%d：快照里没有这条意图（已过期）", a.Kind, a.Intent))
+			continue
+		}
+		if !cited[a.Intent] {
+			out.Notes = append(out.Notes, fmt.Sprintf("剔除动作 %s#%d：没被 cites 引用（Q3 无依据）", a.Kind, a.Intent))
+			continue
+		}
+		switch a.Kind {
+		case "retry_intent":
+			if it.LastError != "self_error" && it.LastError != "env_error" {
+				out.Notes = append(out.Notes, fmt.Sprintf("剔除 retry#%d：错误类=%s，不是我方故障", a.Intent, it.LastError))
+				continue
+			}
+			classes = append(classes, ClassRetrySelfFault)
+		case "kill_intent":
+			if it.LastError != "target_blocked" {
+				out.Notes = append(out.Notes, fmt.Sprintf("剔除 kill#%d：错误类=%s，不是目标拒绝", a.Intent, it.LastError))
+				continue
+			}
+			if it.Attempts < 3 {
+				out.Notes = append(out.Notes, fmt.Sprintf("剔除 kill#%d：只试了 %d 次，未到 3 次", a.Intent, it.Attempts))
+				continue
+			}
+			classes = append(classes, ClassKillRejected)
+		case "set_next_stage":
+			// 引擎没有"换阶段"接口：只能记账 + 抛给人，永远不自动执行。
+			out.NeedHuman = true
+		default:
+			out.Notes = append(out.Notes, fmt.Sprintf("剔除未知动作 %q", a.Kind))
+			continue
+		}
+		kept = append(kept, a)
+	}
+	out.Actions = kept
+	out.ReasonClass = reasonClass(classes)
+
+	// 收口/转向这类会改目标或结束任务的结论，一律要人拍板（docs/13 §2 第 3 步）。
+	if in.Verdict.Verdict == "wrapup" || in.Verdict.Verdict == "pivot" {
+		out.NeedHuman = true
+	}
+
+	// ── R1/Q1 只对变化说话：去重键 = 动作类型 + 目标 + 该目标当前状态 ──
+	out.DedupeKey = dedupeKey(kept, byID)
+	if out.DedupeKey != "" {
+		for _, r := range in.Recent {
+			if r.DedupeKey == out.DedupeKey && r.AckStatus != "stale" {
+				out.Drop = "重复：同一动作与同一状态已经说过"
+				out.Notes = append(out.Notes, out.Drop+"（R1/Q1）")
+				return out
+			}
+		}
+	}
+
+	// ── R4/Q5 说了有用吗：同类建议被拒 ≥2 次 → 降为只读，不再推 B 级 ──
+	downweighted := false
+	if out.ReasonClass != "" {
+		rejected := 0
+		for _, r := range in.Recent {
+			if r.ReasonClass == out.ReasonClass && r.AckStatus == "rejected" {
+				rejected++
+			}
+		}
+		if rejected >= 2 {
+			downweighted = true
+			out.Notes = append(out.Notes, fmt.Sprintf("同类建议已被拒 %d 次 → 只留结论卡（R4）", rejected))
+			out.Actions = nil
+			out.NeedHuman = false
+		}
+	}
+
+	// ── R2 冷却（手动/反驳不受限：那是人主动要的）──
+	if in.Trigger != TriggerManual && in.Trigger != TriggerRebut && in.Cooldown > 0 && !in.State.LastSentAt.IsZero() {
+		if now.Sub(in.State.LastSentAt) < in.Cooldown {
+			out.Drop = fmt.Sprintf("冷却中：距上次投递 %s < %s", now.Sub(in.State.LastSentAt).Round(time.Second), in.Cooldown)
+			out.Notes = append(out.Notes, out.Drop+"（R2）")
+			return out
+		}
+	}
+
+	// ── R3 配额：介入次数上限（手动路径同样受限，避免人反复点烧钱）──
+	if in.State.Interventions >= maxInt {
+		out.Drop = fmt.Sprintf("配额用尽：已投递 %d 次/上限 %d", in.State.Interventions, maxInt)
+		out.Notes = append(out.Notes, out.Drop+"（R3）")
+		return out
+	}
+
+	// ── R6 无改善即收声（先于执行判定：熔断当次就不再动手）──
+	// 自动动作已经做过 ≥3 个，而 fact 数没有比上次介入时增加 → 它没帮上忙，闭嘴转 observe。
+	if in.State.AutoActions >= 3 && in.State.LastFacts > 0 && in.FactCount <= in.State.LastFacts {
+		out.Trip = true
+		out.TripReason = fmt.Sprintf("自动动作 %d 次后仍无新 fact（%d→%d），转只看",
+			in.State.AutoActions, in.State.LastFacts, in.FactCount)
+		out.Notes = append(out.Notes, out.TripReason+"（R6）")
+	}
+
+	// ── R5 分级与自动执行 ──
+	out.Level = LevelRead
+	if len(out.Actions) > 0 && !downweighted {
+		out.Level = LevelAction
+	}
+	if len(out.Actions) > 0 && tier != TierObserve && !downweighted && !out.Trip {
+		if in.State.AutoActions >= maxAuto {
+			out.Notes = append(out.Notes, fmt.Sprintf("自动动作已达上限 %d → 本次只提建议（R3）", maxAuto))
+		} else {
+			for _, a := range out.Actions {
+				if isAutoSafe(a, byID[a.Intent]) {
+					out.AutoApplied = append(out.AutoApplied, a)
+					if len(out.AutoApplied)+in.State.AutoActions >= maxAuto {
+						break
+					}
+				}
+			}
+			if len(out.AutoApplied) > 0 {
+				out.Notes = append(out.Notes, fmt.Sprintf("按 %s 档自动执行 %d 个减浪费动作（R5）", tier, len(out.AutoApplied)))
+			}
+		}
+	}
+	if tier == TierObserve && len(out.Actions) > 0 {
+		out.Notes = append(out.Notes, "只看档：动作只展示，不执行（R5）")
+	}
+
+	return out
+}
+
+// isAutoSafe 判定单个动作是否可以由它自己执行：只允许两类减浪费，且必须满足证据门槛。
+func isAutoSafe(a Action, it IntentBrief) bool {
+	switch a.Kind {
+	case "retry_intent":
+		return it.LastError == "self_error" || it.LastError == "env_error"
+	case "kill_intent":
+		return it.LastError == "target_blocked" && it.Attempts >= 3
+	}
+	return false // set_next_stage 等一律不自动
+}
+
+// dedupeKey 把动作集合压成一个稳定键：kind:id:state|...（排序后拼接）。
+// 状态进键里，所以"同一条意图重新出问题"会被当成新情况再说一次。
+func dedupeKey(actions []Action, byID map[int64]IntentBrief) string {
+	if len(actions) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(actions))
+	for _, a := range actions {
+		it := byID[a.Intent]
+		parts = append(parts, fmt.Sprintf("%s:%d:%s:%s", a.Kind, a.Intent, it.State, it.LastError))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "|")
+}
+
+func reasonClass(classes []string) string {
+	if len(classes) == 0 {
+		return ""
+	}
+	uniq := map[string]bool{}
+	var out []string
+	for _, c := range classes {
+		if !uniq[c] {
+			uniq[c] = true
+			out = append(out, c)
+		}
+	}
+	sort.Strings(out)
+	return strings.Join(out, ",")
+}
+
+// AdviceText 生成 B 级投递给主 Agent 的建议正文（明确写"建议不是命令"）。
+func AdviceText(body string, actions []Action, autoApplied []Action) string {
+	var b strings.Builder
+	b.WriteString("审查官建议（**建议不是命令**，收到后先核对现状再决定）：\n")
+	if s := strings.TrimSpace(body); s != "" {
+		b.WriteString(s)
+		b.WriteString("\n")
+	}
+	if len(actions) > 0 {
+		b.WriteString("拟动作：")
+		for i, a := range actions {
+			if i > 0 {
+				b.WriteString("；")
+			}
+			switch a.Kind {
+			case "kill_intent":
+				fmt.Fprintf(&b, "标死 #%d（%s）", a.Intent, a.Why)
+			case "retry_intent":
+				fmt.Fprintf(&b, "重开 #%d（%s）", a.Intent, a.Why)
+			case "set_next_stage":
+				fmt.Fprintf(&b, "换阶段 %s（%s）", a.Stage, a.Why)
+			default:
+				fmt.Fprintf(&b, "%s #%d（%s）", a.Kind, a.Intent, a.Why)
+			}
+		}
+		b.WriteString("\n")
+	}
+	if len(autoApplied) > 0 {
+		b.WriteString("它已按低风险档自行处理的：")
+		for i, a := range autoApplied {
+			if i > 0 {
+				b.WriteString("；")
+			}
+			fmt.Fprintf(&b, "%s #%d", a.Kind, a.Intent)
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("按协议：①读 graph_overview/list_findings 核对现状 ②一致才继续，过期就回「已过期，当前是 X」")
+	b.WriteString(" ③会改目标/改数据/收工 → 不许自己执行，连理由抛给人 ④回执三行：结论 / 依据（真实 id+状态）/ 动作。")
+	return b.String()
+}

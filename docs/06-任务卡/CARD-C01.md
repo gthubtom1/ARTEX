@@ -39,14 +39,32 @@ server/intercept.go`），按任务冷却，可直接复用。
 ## ⑥ 白名单
 ```whitelist
 server/review.go
+server/review_loop.go
 server/server.go
 server/adviser_llm.go
 server/intercept.go
+server/progress.go
+server/orchestration.go
+server/verifier.go
 internal/review/snapshot.go
 internal/review/notes.go
+internal/review/gate.go
+internal/review/gate_test.go
+internal/settings/settings.go
+agent/mainagent.go
+agent/promptcatalog.go
+agent/prompt_test.go
+db/db.go
+db/migrations/0006_review_loop.sql
 web/src/app/(main)/function/tasks/detail/_tabs/review-panel.tsx
 web/src/app/(main)/function/tasks/detail/_tabs/sessions-tab.tsx
+web/src/components/side-question-workspace.tsx
+web/src/app/(main)/system/settings/page.tsx
 web/src/lib/api.ts
+docs/06-判定标准-冻结.md
+docs/09-详设-C01-复盘官.md
+docs/12-功能台账.md
+docs/13-复盘官-闭环与防抖.md
 docs/06-任务卡/CARD-C01.md
 ```
 

@@ -30,7 +30,8 @@ import { toast } from "sonner";
 import { ApprovalExecutionFocus, useApprovalFocus, useApprovalHistory } from "@/components/approval-execution-focus";
 import { MentionTextarea } from "@/components/mention-textarea";
 import { SideQuestionButton, SideQuestionWorkspace } from "@/components/side-question-workspace";
-import { ReviewCapsule } from "./review-panel";
+import { ReviewCapsule, ReviewPanel, useReviewEnabled } from "./review-panel";
+import { LootCapsule, LootPanel } from "./loot-panel";
 import { TodoPopover } from "@/components/todo-popover";
 import { Transcript } from "@/components/transcript";
 import {
@@ -1283,6 +1284,10 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
   };
 
   const active = sessions.find((s) => s.id === activeId) ?? MAIN_SESSION;
+  // 审查官：与旁路提问共用右侧方框；开关（enabled）与“是否打开面板”互相独立。
+  const [reviewOpen, setReviewOpen] = React.useState(false);
+  const [lootOpen, setLootOpen] = React.useState(false);
+  const review = useReviewEnabled(taskId);
   const side = useSideQuestions(
     active.role === "mainagent"
       ? `/api/tasks/${taskId}/chat`
@@ -1758,6 +1763,19 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
         <SideQuestionWorkspace
           side={side}
           label={active.role === "worker" ? `Worker #${active.intent_id} · ${activeDisplayTitle}` : activeDisplayTitle}
+          altActive={reviewOpen || lootOpen}
+          altNode={
+            lootOpen ? (
+              <LootPanel taskId={taskId} onClose={() => setLootOpen(false)} />
+            ) : (
+              <ReviewPanel
+                taskId={taskId}
+                onClose={() => setReviewOpen(false)}
+                enabled={review.enabled}
+                setEnabled={review.setEnabled}
+              />
+            )
+          }
         >
           <div className="flex min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-2 sm:px-4 sm:py-2.5">
@@ -1780,7 +1798,23 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
                 );
               })()}
               <SideQuestionButton side={side} />
-              <ReviewCapsule taskId={taskId} />
+              <ReviewCapsule
+                taskId={taskId}
+                open={reviewOpen}
+                onToggle={() => {
+                  setLootOpen(false);
+                  setReviewOpen((v) => !v);
+                }}
+                enabled={review.enabled}
+              />
+              <LootCapsule
+                taskId={taskId}
+                open={lootOpen}
+                onToggle={() => {
+                  setReviewOpen(false);
+                  setLootOpen((v) => !v);
+                }}
+              />
               {activeResolution && (
                 <Tooltip>
                   <TooltipTrigger asChild>

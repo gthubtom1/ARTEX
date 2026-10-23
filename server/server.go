@@ -70,6 +70,7 @@ type Server struct {
 	p2               *agent.P2    // P2~P5 装配包（顾问/能力卡/凭据/立足点池/台账）
 	adviserCooldown  adviserGate  // LLM 顾问调用冷却（每任务 10 分钟一次）
 	verifierCooldown verifierGate // verifier 专判冷却（每任务 5 分钟一次）
+	reviewCondGate   adviserGate  // 审查官条件触发冷却（每任务 10 分钟一次）
 	credKeyFP        string       // P8-7：凭据主密钥指纹（空=用临时密钥）
 
 	skillDir  string // root directory for skill subdirectories
@@ -295,6 +296,10 @@ func New(ctx context.Context, m *Manager, skillDir string, dataDir string, keyDi
 	}
 	s.restoreTaskRuntimes()
 	go s.reconcileConcurrency()
+	// 审查官「定时触发」：每分钟扫在跑的任务，够间隔就自己看一次（docs/13）。
+	if m.pg != nil {
+		go s.reviewTicker(s.ctx)
+	}
 	s.startTaskArchiveWorker()
 	if m.pg != nil {
 		s.seedCredentialProcessor()
@@ -3598,6 +3603,10 @@ func (s *Server) settingsPayload() map[string]any {
 		"findings_verify_gate":        findingGateSetting(s),
 		"adviser_enabled":             s.settings.Bool("adviser.enabled", false),
 		"verifier_enabled":            s.settings.Bool("verifier.enabled", false),
+		"review_cond":                 s.reviewSettings().CondOn,
+		"review_tier":                 s.reviewSettings().Tier,
+		"review_interval_min":         int(s.reviewSettings().Interval / time.Minute),
+		"review_cooldown_min":         int(s.reviewSettings().Cooldown / time.Minute),
 		"cred_key_fingerprint":        s.credKeyFP,
 		"inject_default_persona":      inject.DefaultPersona(),
 		"inject_default_persona_name": inject.DefaultPersonaName,
@@ -3690,6 +3699,9 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		FindingsVerifyGate  *string `json:"findings_verify_gate"`
 		AdviserEnabled      *bool   `json:"adviser_enabled"`
 		VerifierEnabled     *bool   `json:"verifier_enabled"`
+		ReviewCond          *bool   `json:"review_cond"`
+		ReviewTier          *string `json:"review_tier"`
+		ReviewIntervalMin   *int    `json:"review_interval_min"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, 400, err.Error())
@@ -3789,6 +3801,45 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.settings != nil {
 			_ = s.settings.Set(r.Context(), "verifier.enabled", fmt.Sprintf("%t", *req.VerifierEnabled))
+		}
+	}
+	if req.ReviewCond != nil {
+		if err := s.m.pg.SetBool("review.cond", *req.ReviewCond); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "review.cond", fmt.Sprintf("%t", *req.ReviewCond))
+		}
+	}
+	if req.ReviewTier != nil {
+		v := strings.ToLower(strings.TrimSpace(*req.ReviewTier))
+		switch v {
+		case "observe", "lowrisk", "auto":
+		default:
+			writeErr(w, 400, "review_tier 只接受 observe|lowrisk|auto")
+			return
+		}
+		if err := s.m.pg.SetSetting("review.tier", v); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "review.tier", v)
+		}
+	}
+	if req.ReviewIntervalMin != nil {
+		m := *req.ReviewIntervalMin
+		if m < 1 || m > 720 {
+			writeErr(w, 400, "review_interval_min 需在 1..720 分钟")
+			return
+		}
+		if err := s.m.pg.SetSetting("review.interval_min", strconv.Itoa(m)); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if s.settings != nil {
+			_ = s.settings.Set(r.Context(), "review.interval_min", strconv.Itoa(m))
 		}
 	}
 	if req.FindingsVerifyGate != nil {

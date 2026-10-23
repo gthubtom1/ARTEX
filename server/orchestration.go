@@ -506,6 +506,7 @@ func (s *Server) seedOrchestrationTools() {
 	s.unbindGoalMetDefault()
 	s.reseedGoalsPrompt()             // goals 提示词加入「抽操作约束」步 → 旧库追加一版新默认(一次性)
 	s.reseedMainAgentPrompt()         // mainagent 提示词加入「目标达成后 add_intent 反问是否建目标」(一次性)
+	s.reseedMainAgentReviewProtocol() // mainagent 提示词加入「收到审查官建议先核对再决定 + 回执三行」(一次性)
 	s.reseedPlannerPrompt()           // planner 提示词:重写「0 意图」正当理由 + 加量化验收核对(一次性)
 	s.reseedWorkerPrompt()            // worker 提示词:加否定结论证据门槛(一次性)
 	s.seedReporterAgent()             // 预置「报告撰写」agent + 工具绑定 + finding 触发器(一次性)
@@ -631,6 +632,33 @@ func (s *Server) reseedMainAgentPrompt() {
 		return
 	}
 	log.Printf("[prompts] mainagent 提示词已追加新默认版本(加入目标达成后反问建目标,一次性)")
+}
+
+// reseedMainAgentReviewProtocol 给 mainagent 提示词补上「收到审查官建议必须先核对」的硬协议
+// （docs/13 §2）。与 reseedMainAgentPrompt 同构：SeedPromptIfEmpty 首插入 only，旧库已有版本
+// 收不到新段，所以用版本管理追加一版新默认并切过去；flag 守卫 → 只做一次。
+func (s *Server) reseedMainAgentReviewProtocol() {
+	const flag = "mainagent_prompt_review_protocol_v1"
+	if v, _, _ := s.m.pg.GetSetting(flag); v == "true" {
+		return
+	}
+	defer func() { _ = s.m.pg.SetSetting(flag, "true") }()
+	a, err := s.m.pg.GetAgentByKey("mainagent")
+	if err != nil || a == nil {
+		return
+	}
+	tmpl := agent.BuiltinPromptSeeds()["mainagent"]
+	if tmpl == "" {
+		return
+	}
+	if cur, err := s.m.pg.CurrentPrompt(a.ID); err == nil && cur == tmpl {
+		return
+	}
+	if _, err := s.m.pg.ResetPromptToDefault(a.ID, tmpl); err != nil {
+		log.Printf("[prompts] mainagent 提示词补审查官核对协议失败: %v", err)
+		return
+	}
+	log.Printf("[prompts] mainagent 提示词已追加新默认版本（加入审查官建议核对协议，一次性）")
 }
 
 // reseedPlannerPrompt 把 planner 提示词刷成【当前代码默认】——默认正文做了精简重构,并把「克制」降级为
