@@ -34,10 +34,14 @@
 ## ⑥ 白名单
 ```whitelist
 server/cando.go
+server/loot.go
 server/server.go
+web/src/app/(main)/function/tasks/detail/_tabs/loot-panel.tsx
 web/src/app/(main)/function/tasks/detail/_tabs/cando-tab.tsx
 web/src/app/(main)/function/tasks/detail/page.tsx
 web/src/lib/api.ts
+docs/08-详设-B01-能做到什么.md
+docs/12-功能台账.md
 docs/06-任务卡/CARD-B01.md
 ```
 

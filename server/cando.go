@@ -31,6 +31,7 @@ func notImplemented(w http.ResponseWriter) {
 }
 
 func (s *Server) registerCandoRoutes(mux *http.ServeMux) {
+	s.registerLootRoutes(mux)
 	mux.HandleFunc("GET /api/tasks/{id}/cando", s.candoGet)
 	mux.HandleFunc("POST /api/tasks/{id}/cando/annotate", s.candoAnnotate)
 	mux.HandleFunc("GET /api/tasks/{id}/cando/annotate", s.candoAnnotateStatus)
