@@ -178,7 +178,6 @@ package_binary() {
   package_root="${ARTEX_PACKAGE_DIR}/${package_name}"
   archive="${ARTEX_PACKAGE_DIR}/${package_name}.zip"
 
-  command -v zip >/dev/null 2>&1 || die "打包需要 zip"
   rm -rf "$package_root" "$archive"
   mkdir -p "$package_root"
   cp "$binary" "$package_root/"
@@ -186,14 +185,46 @@ package_binary() {
   # 直接跑 artex 本体的话更新完就再也起不来了。按目标系统只带对应的那一份。
   if [ "$goos" = "windows" ]; then
     cp start.bat "$package_root/"
+    # 双击入口 + 一键部署（它会自己下 exe / 起 PostgreSQL / 建 config）
+    [ -f 启动.bat ] && cp 启动.bat "$package_root/"
+    [ -f 部署.bat ] && cp 部署.bat "$package_root/"
   else
     cp start.sh "$package_root/"
     chmod +x "$package_root/start.sh"
   fi
   cp -R skills "$package_root/"
+  # kb 是运行时知识库（技能要查它），少了只能空转 —— 必须随包发
+  [ -d kb ] && cp -R kb "$package_root/"
   cp config.example.json "$package_root/"
-  if [ -f README.md ]; then cp README.md "$package_root/"; fi
-  (cd "$ARTEX_PACKAGE_DIR" && zip -q -r -9 "$(basename "$archive")" "$(basename "$package_root")")
+  for f in README.md 使用教程.md INSTALL-AI.md AGENTS.md; do
+    [ -f "$f" ] && cp "$f" "$package_root/"
+  done
+  # zip：优先系统 zip；没有就用 python 的 zipfile（Windows Git Bash 常缺 zip，
+  # 用 7z 会写出反斜杠路径，不合 zip 规范）。两者都没有才报错。
+  if command -v zip >/dev/null 2>&1; then
+    (cd "$ARTEX_PACKAGE_DIR" && zip -q -r -9 "$(basename "$archive")" "$(basename "$package_root")")
+  else
+    # 注意：Windows 上 `python3` 可能只是 Microsoft Store 的占位程序（存在、退出 0、但什么都不做），
+    # 所以必须真跑一行代码验证能出输出，不能只 `command -v`。
+    PY=""
+    for cand in python3 python; do
+      if command -v "$cand" >/dev/null 2>&1 && [ "$("$cand" -c 'print("ok")' 2>/dev/null)" = "ok" ]; then
+        PY="$cand"; break
+      fi
+    done
+    [ -n "$PY" ] || die "打包需要 zip 或可用的 python（用于生成 zip）"
+    ( cd "$ARTEX_PACKAGE_DIR" && "$PY" - "$(basename "$package_root")" <<'PYEOF'
+import os, sys, zipfile
+name = sys.argv[1]
+with zipfile.ZipFile(name + ".zip", "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+    for root, dirs, files in os.walk(name):
+        dirs.sort()
+        for f in sorted(files):
+            p = os.path.join(root, f)
+            z.write(p, p.replace(os.sep, "/"))
+PYEOF
+    )
+  fi
   rm -rf "$package_root"
   ok "Release 压缩包：$archive"
 }

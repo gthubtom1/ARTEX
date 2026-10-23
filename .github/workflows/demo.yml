@@ -32,7 +32,9 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name != 'release' || github.event.release.prerelease == false
+    # 需要先配置仓库变量 DEMO_ENABLED=true 以及 VERCEL_* 变量/密钥；
+    # 没配就整体跳过（不跑、不报错），否则每次发版都会留一条失败记录。
+    if: vars.DEMO_ENABLED == 'true' && (github.event_name != 'release' || github.event.release.prerelease == false)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:

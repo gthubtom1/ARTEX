@@ -114,7 +114,7 @@ HAS_CONFIG=    yes/no          HAS_SKILLS= / HAS_KB=
 | darwin | no | — | 路线 B（需 `brew install go node`） |
 | windows-gitbash | yes | — | 路线 A（`docker compose up -d`） |
 | **windows-任意** | **yes** | 任意 | **路线 C-0（首选）**：双击 `部署.bat`（自动下载最新 Release 的 exe + 起 PG + 建 config + 启动） |
-| **windows-gitbash** | **no** | 有 `distrtex-windows-amd64rtex.exe` | **路线 C-1**：`bash scripts/package_local.sh v1` 后双击 `启动.bat` |
+| **windows-gitbash** | **no** | 有 `dist\artex-windows-amd64\artex.exe` | **路线 C-1**：`bash scripts/package_local.sh v1` 后双击 `启动.bat` |
 | **windows-gitbash** | **no** | 已有 `artex.exe` | **路线 C-2**：直接双击 `启动.bat` |
 | **windows-任意** | **no** | 二进制缺失 + 有 Node | 路线 C-1（`npm ci` → `package_local.sh` → `启动.bat`） |
 | **windows-任意** | **no** | 二进制缺失 + 无 Node | **路线 C-3**：双击 `部署.bat`（它会从 Releases 拉 exe；无网络就手动下 zip 解压） |
@@ -377,9 +377,9 @@ curl -fsS http://127.0.0.1:8787/api/health
 没有 `config.json` 就用 Docker 起 PostgreSQL（容器 `artex-pg`）并生成配置 → 调 `start.bat`。
 
 - 下载来源：跟随 GitHub「最新 Release」（`releases/latest` 的 302 → `artex-<tag>-windows-amd64.zip` → 解压取 exe）。
-  要固定版本：`set ARTEX_TAG=v0.7.3-p9` 再双击。
-- 二进制查找顺序（`启动.bat` 与 `start.bat`）：`.rtex.exe` → `.\distrtex.exe` →
-  `.\distrtex-windows-amd64rtex.exe` → `.rtex-win-amd64.exe`。**不用改名。**
+  要固定版本：`set ARTEX_TAG=v0.7.4-p9` 再双击。
+- 二进制查找顺序（`启动.bat` 与 `start.bat`）：`.\artex.exe` → `.\dist\artex.exe` →
+  `.\dist\artex-windows-amd64\artex.exe` → `.\artex-win-amd64.exe`。**不用改名。**
 
 **没有 Docker Desktop 时**（脚本会走到 `:manual_db`）：先装
 [PostgreSQL 16](https://www.postgresql.org/download/windows/)，SQL Shell 里

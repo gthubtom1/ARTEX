@@ -4,56 +4,61 @@ cd /d "%~dp0"
 
 set "REPO=gthubtom1/ARTEX"
 set "EXE=artex.exe"
-rem 想固定版本就设一下环境变量：set ARTEX_TAG=v0.7.4-p9
+rem 固定版本：set ARTEX_TAG=v0.7.4-p9 ；不设就用「最新 Release」的稳定名字资产
 if defined ARTEX_TAG set "TAG=%ARTEX_TAG%"
 
 echo ============================================
 echo  ARTEX 一键部署（Windows）
 echo ============================================
 
-if not exist "skills" (
+if not exist "skills\" (
   echo [x] 当前目录缺少 skills\，请先 clone 仓库：https://github.com/%REPO%
   pause & exit /b 1
 )
-if not exist "kb" (
+if not exist "kb\" (
   echo [x] 当前目录缺少 kb\，请先 clone 仓库。
   pause & exit /b 1
 )
 
 if exist "%EXE%" goto :have_bin
-rem 本地已经构建/解压过：直接复用，不联网
+
+rem ① 本地已经构建/解压过：直接复用，不联网
 if exist "dist\artex-windows-amd64\artex.exe" (
   copy /y "dist\artex-windows-amd64\artex.exe" "%EXE%" >nul
   if exist "%EXE%" (echo [+] 已从 dist\artex-windows-amd64\ 复制 %EXE% & goto :have_bin)
 )
 
-if not defined TAG (
-  echo [*] 正在解析最新 Release ...
-  rem 用 releases/latest 的 302 Location 取 tag：不调 API、不解 JSON、不受限流影响
-  set "LOC="
-  for /f "delims=" %%a in ('curl.exe -sI "https://github.com/%REPO%/releases/latest" ^| findstr /i "location:"') do set "LOC=%%a"
-  if defined LOC set "TAG=!LOC:*releases/tag/=!"
+rem ② 有 ARTEX_TAG：按版本名下载
+if defined TAG (
+  set "ZIP=artex-%TAG%-windows-amd64.zip"
+  call :fetch "https://github.com/%REPO%/releases/download/%TAG%/%ZIP%"
+  if exist "%ZIP%" goto :extract
+  goto :no_bin
 )
 
-:download
-if not defined TAG goto :no_bin
+rem ③ 没指定版本：先试稳定名字（每个 Release 都带这个资产名），失败再解析最新 tag
+echo [*] 下载最新 Release 的 Windows 包 ...
+set "ZIP=artex-windows-amd64.zip"
+call :fetch "https://github.com/%REPO%/releases/latest/download/artex-windows-amd64.zip"
+if exist "artex-windows-amd64.zip" goto :extract
 
-echo [*] 下载 %TAG% 的 Windows 包 ...
-set "ZIP=artex-%TAG%-windows-amd64.zip"
-if exist "%ZIP%" del /q "%ZIP%"
-curl.exe -L --fail -o "%ZIP%" "https://github.com/%REPO%/releases/download/%TAG%/%ZIP%"
-if not exist "%ZIP%" (
-  powershell -NoProfile -Command "try{Invoke-WebRequest -UseBasicParsing 'https://github.com/%REPO%/releases/download/%TAG%/%ZIP%' -OutFile '%ZIP%'}catch{exit 1}"
-)
-if not exist "%ZIP%" goto :no_bin
+echo [*] 稳定名字取不到，改按最新 tag 取 ...
+set "LOC="
+for /f "delims=" %%a in ('curl.exe -sI "https://github.com/%REPO%/releases/latest" ^| findstr /i "location:"') do set "LOC=%%a"
+if not defined LOC goto :no_bin
+set "TAG=!LOC:*releases/tag/=!"
+set "ZIP=artex-!TAG!-windows-amd64.zip"
+call :fetch "https://github.com/%REPO%/releases/download/!TAG!/!ZIP!"
+if not exist "!ZIP!" goto :no_bin
 
-echo [*] 解压 ...
+:extract
+echo [*] 解压 %ZIP% ...
 if exist "__rel" rmdir /s /q "__rel"
 powershell -NoProfile -Command "Expand-Archive -Force '%ZIP%' '__rel'; $e=Get-ChildItem -Recurse '__rel' -Filter artex.exe | Select-Object -First 1; if($e){Copy-Item $e.FullName '%EXE%' -Force}"
 if not exist "%EXE%" goto :no_bin
 rmdir /s /q "__rel" 2>nul
 del /q "%ZIP%" 2>nul
-echo [+] 已获得 %EXE%（%TAG%）
+echo [+] 已获得 %EXE%
 
 :have_bin
 if exist "config.json" goto :start
@@ -91,7 +96,7 @@ pause & exit /b 1
 :no_bin
 echo [x] 没拿到 artex.exe。
 echo     1) 检查网络能否访问 github.com（或设代理）
-echo     2) 或手动到 Releases 页下载 artex-*-windows-amd64.zip，解压后把 artex.exe 放到本目录
+echo     2) 手动到 Releases 页下载 artex-windows-amd64.zip（或 artex-*-windows-amd64.zip），解压后把 artex.exe 放到本目录
 echo     3) 或从源码构建：cd web ^&^& npm ci ^&^& set NEXT_EXPORT=1 ^&^& npx next build ^&^& cd .. ^&^& go build -tags embedui -o artex.exe ./cmd/artex
 pause & exit /b 1
 
@@ -101,3 +106,11 @@ echo [*] 浏览器打开：http://127.0.0.1:8787
 echo [*] 首次登录：用户 ARTEX，密码首次启动时生成（看窗口输出）
 echo.
 call start.bat
+goto :eof
+
+:fetch
+rem 先 curl，失败再用 PowerShell（curl.exe 在 Win10 1803+ 才有）
+curl.exe -L --fail -o "%~2" "%~1" 2>nul
+if exist "%~2" goto :eof
+powershell -NoProfile -Command "try{Invoke-WebRequest -UseBasicParsing '%~1' -OutFile '%~2'}catch{exit 1}" 2>nul
+goto :eof

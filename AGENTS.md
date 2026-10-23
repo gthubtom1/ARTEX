@@ -62,7 +62,7 @@ bash deploy/status.sh                  # 必须 STATUS PASS
 否则跟随 GitHub「最新 Release」下载 `artex-<tag>-windows-amd64.zip` 并解压出 `artex.exe` →
 没有 `config.json` 就用 Docker 起 PostgreSQL 容器 `artex-pg` 并生成配置 → 调 `start.bat` 启动。
 
-- 要固定版本：`set ARTEX_TAG=v0.7.3-p9` 再双击（不设就是最新）。
+- 要固定版本：`set ARTEX_TAG=v0.7.4-p9` 再双击（不设就取最新 Release）。
 - 没有 Docker：脚本会复制 `config.example.json` 并打开记事本，让用户填自己的 PostgreSQL。
 - 没有 Node 也要出二进制时：从 Releases 下 zip；**不要**直接 `go build`（漏 `-tags embedui` 会没有界面）。
 

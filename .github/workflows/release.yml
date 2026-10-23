@@ -18,6 +18,10 @@ concurrency:
 
 jobs:
   prepare:
+    # 正式语义化版本（vX.Y.Z）才走这里；本仓库的日常版本是 vX.Y.Z-pN，
+    # 那种标签用本机 `ARTEX_BUILD_VERSION=... ARTEX_PACKAGE=1 ./build.sh` + `gh release create` 发，
+    # 不需要（也不该）触发 5 平台交叉编译 + Docker 发布这条重流水线。
+    if: github.event_name == 'workflow_dispatch' || !contains(github.ref_name, '-')
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.version.outputs.tag }}
