@@ -93,7 +93,7 @@ func Build(ctx context.Context, d *pgdb.DB, taskID int64, notes string) (*Snapsh
 	_ = d.QueryRowContext(ctx, `SELECT COALESCE(goal,''), COALESCE(timeout_seconds,0) FROM tasks WHERE id=$1`, taskID).
 		Scan(&s.Goal, &timeout)
 	_ = firstRun
-	_ = d.QueryRowContext(ctx, `SELECT COALESCE(round_no,0) FROM explorations WHERE task_id=$1 ORDER BY id DESC LIMIT 1`, taskID).
+	_ = d.QueryRowContext(ctx, `SELECT COALESCE(round_no,0) FROM explorations WHERE id = (SELECT exploration_id FROM tasks WHERE id=$1)`, taskID).
 		Scan(&s.RoundNo)
 	if timeout > 0 {
 		var leftSec float64
@@ -126,7 +126,7 @@ func Build(ctx context.Context, d *pgdb.DB, taskID int64, notes string) (*Snapsh
 			COALESCE(n.priority,0),
 			EXTRACT(EPOCH FROM (now() - COALESCE(n.updated_at, now())))::int
 		FROM exploration_nodes n
-		WHERE n.kind='intent' AND n.exploration_id IN (SELECT id FROM explorations WHERE task_id=$1)
+		WHERE n.kind='intent' AND n.exploration_id = (SELECT exploration_id FROM tasks WHERE id=$1)
 		ORDER BY n.id DESC LIMIT 40`, taskID)
 	if err != nil {
 		return nil, err
@@ -168,8 +168,9 @@ func Build(ctx context.Context, d *pgdb.DB, taskID int64, notes string) (*Snapsh
 
 	// 最近事实
 	xrows, err := d.QueryContext(ctx, `SELECT n.id, COALESCE(n.payload->>'summary','')
-		FROM exploration_nodes n JOIN explorations x ON x.id=n.exploration_id
-		WHERE x.task_id=$1 AND n.kind='fact' ORDER BY n.id DESC LIMIT 10`, taskID)
+		FROM exploration_nodes n
+		WHERE n.exploration_id = (SELECT exploration_id FROM tasks WHERE id=$1)
+		  AND n.kind='fact' ORDER BY n.id DESC LIMIT 10`, taskID)
 	if err == nil {
 		defer xrows.Close()
 		for xrows.Next() {
@@ -227,8 +228,9 @@ func Build(ctx context.Context, d *pgdb.DB, taskID int64, notes string) (*Snapsh
 	// 负结论：从 fact 里挑带否定的（与 report.negativesFromTask 同一套标记词）
 	markers := []string{"无差异", "未成立", "不可利用", "没有回显", "失败", "不存在", "未发现", "不支持"}
 	nrows, err := d.QueryContext(ctx, `SELECT COALESCE(n.payload->>'summary','')
-		FROM exploration_nodes n JOIN explorations x ON x.id=n.exploration_id
-		WHERE x.task_id=$1 AND n.kind='fact' ORDER BY n.id DESC LIMIT 200`, taskID)
+		FROM exploration_nodes n
+		WHERE n.exploration_id = (SELECT exploration_id FROM tasks WHERE id=$1)
+		  AND n.kind='fact' ORDER BY n.id DESC LIMIT 200`, taskID)
 	if err == nil {
 		defer nrows.Close()
 		seen := map[string]bool{}

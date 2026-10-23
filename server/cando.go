@@ -352,7 +352,7 @@ func (s *Server) candoErrorCounts(taskID int64) map[string]int {
 func (s *Server) candoRunningIntents(taskID int64) []string {
 	out := []string{}
 	rows, err := s.m.pg.Query(`SELECT COALESCE(payload->>'summary','') FROM exploration_nodes
-		WHERE kind='intent' AND state='running' AND exploration_id IN (SELECT id FROM explorations WHERE task_id=$1)`, taskID)
+		WHERE kind='intent' AND state='running' AND exploration_id = (SELECT exploration_id FROM tasks WHERE id=$1)`, taskID)
 	if err != nil {
 		return out
 	}
