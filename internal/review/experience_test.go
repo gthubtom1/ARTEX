@@ -69,15 +69,53 @@ func TestBuildKBHitsMissingRootIsSilent(t *testing.T) {
 	}
 }
 
-// 查询词：最频繁的非我方故障错误类 + 最近漏洞类型，最多 2 个。
+// 查询词：最频繁的非我方故障错误类（映射成人话）+ 最近漏洞类型，最多 2 个。
 func TestKBQueriesPrefersTargetSideAndVulnclass(t *testing.T) {
 	errs := map[string]int{"self_error": 9, "target_blocked": 3, "env_error": 5}
 	got := kbQueries(errs, []string{"sqli", "idor"})
-	if len(got) != 2 || got[0] != "target_blocked" || got[1] != "sqli" {
+	if len(got) != 2 || got[0] != "WAF" || got[1] != "sqli" {
 		t.Fatalf("查询词不对：%+v", got)
 	}
 	if q := kbQueries(map[string]int{"self_error": 9}, nil); len(q) != 0 {
 		t.Fatalf("我方故障不应拿来检索经验：%+v", q)
+	}
+}
+
+// vulnclass 整串归一化：KB 里只有短标题，不能拿括号补注/多个别名整串去搜。
+func TestKBQueriesNormalizesVulnclass(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"SQL Injection (stacked queries)", "SQL Injection"},
+		{"任意文件读取 / 路径穿越", "任意文件读取"},
+		{"SQL注入（时间盲注）", "SQL注入"},
+	}
+	for _, c := range cases {
+		got := kbQueries(nil, []string{c.in})
+		if len(got) != 1 || got[0] != c.want {
+			t.Fatalf("vulnclass %q 归一化为 %+v，want [%q]", c.in, got, c.want)
+		}
+	}
+}
+
+// 错误类映射表：target_blocked→WAF、policy_blocked→权限策略、tool_missing→工具缺失；
+// self_error / env_error 跳过，但仍保留同快照里的 vulnclass 检索词。
+func TestKBQueriesMapsErrorClasses(t *testing.T) {
+	for cls, want := range map[string]string{
+		"target_blocked": "WAF",
+		"policy_blocked": "权限策略",
+		"tool_missing":   "工具缺失",
+	} {
+		got := kbQueries(map[string]int{cls: 1}, nil)
+		if len(got) != 1 || got[0] != want {
+			t.Fatalf("%s → %+v，want [%s]", cls, got, want)
+		}
+	}
+	if got := kbQueries(map[string]int{"self_error": 9}, []string{"SQL Injection (stacked queries)"}); len(got) != 1 || got[0] != "SQL Injection" {
+		t.Fatalf("self_error 应跳过、vulnclass 仍保留：%+v", got)
+	}
+	if got := kbQueries(map[string]int{"self_error": 1, "env_error": 2}, nil); len(got) != 0 {
+		t.Fatalf("self_error/env_error 不应产出查询词：%+v", got)
 	}
 }
 

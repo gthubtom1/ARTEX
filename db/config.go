@@ -2,10 +2,12 @@ package db
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -756,6 +758,127 @@ func (d *DB) SeedPromptIfEmpty(agentID int64, tmpl string) error {
 // points current at it — the explicit "恢复为内置默认" action.
 func (d *DB) ResetPromptToDefault(agentID int64, tmpl string) (int, error) {
 	return d.SavePrompt(agentID, tmpl, "恢复为内置默认", "system")
+}
+
+// builtinPromptNotePrefix marks versions seeded from the in-code default body.
+// Together with "内置默认"/"恢复为内置默认" it is how we tell an untouched
+// built-in version apart from a user-edited one.
+const builtinPromptNotePrefix = "内置模板更新 "
+
+// PromptFingerprint returns the first 12 hex chars of the sha256 of a prompt
+// body. Used to detect "the built-in template changed in code" across restarts.
+func PromptFingerprint(tmpl string) string {
+	sum := sha256.Sum256([]byte(tmpl))
+	return fmt.Sprintf("%x", sum)[:12]
+}
+
+func isBuiltinPromptNote(note string) bool {
+	return note == "内置默认" || note == "恢复为内置默认" || strings.HasPrefix(note, builtinPromptNotePrefix)
+}
+
+// promptHistoryByFingerprint returns the current version's text, note and whether
+// an existing version with the same body fingerprint already exists (plus its id
+// when it does). Historical builtin rows are identified by their note marker so a
+// user-edited body never matches unless it was restored verbatim from a built-in
+// version.
+func (d *DB) promptHistoryByFingerprint(agentID int64, fp string) (curID int64, curText, curNote string, existingID int64, err error) {
+	err = d.QueryRow(`SELECT p.id, p.template_text, COALESCE(p.note,'') FROM agents a JOIN agent_prompts p ON p.id=a.current_prompt_id WHERE a.id=$1`, agentID).Scan(&curID, &curText, &curNote)
+	if err != nil {
+		return
+	}
+	rows, qerr := d.Query(`SELECT id, template_text FROM agent_prompts WHERE agent_id=$1 AND (note IN ('内置默认','恢复为内置默认') OR note LIKE $2) ORDER BY version DESC`, agentID, builtinPromptNotePrefix+"%")
+	if qerr != nil {
+		err = qerr
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var text string
+		if serr := rows.Scan(&id, &text); serr != nil {
+			err = serr
+			return
+		}
+		if PromptFingerprint(text) == fp {
+			existingID = id
+		}
+	}
+	err = rows.Err()
+	return
+}
+
+// SeedPromptVersioned seeds a built-in agent's prompt with content-fingerprint
+// dedupe. On every startup it compares sha256(built-in body)[:12] with the value
+// stored at settings key agent_prompt_seed.<key>:
+//
+//   - equal → nothing to do (idempotent; still refreshes the setting)
+//   - different and the current version is the *last built-in* we seeded (or a
+//     pre-fingerprint legacy DB whose current note is a built-in marker) → append
+//     a new version (note "内置模板更新 <fp>") and switch current_prompt_id to it
+//   - different and the user edited the current version → append the new built-in
+//     version for the record but DO NOT switch; log only.
+//
+// A body fingerprint that already exists in history is never appended twice.
+// Returns switched=true when current_prompt_id was moved to the new built-in
+// version, appendedOnly=true when the new version was appended to history but the
+// current (user-edited) version was kept.
+func (d *DB) SeedPromptVersioned(agentKey string, agentID int64, tmpl string) (switched, appendedOnly bool, err error) {
+	fp := PromptFingerprint(tmpl)
+	settingKey := "agent_prompt_seed." + agentKey
+	lastFP, _, err := d.GetSetting(settingKey)
+	if err != nil {
+		return false, false, err
+	}
+	curID, curText, curNote, existingID, err := d.promptHistoryByFingerprint(agentID, fp)
+	if err == sql.ErrNoRows {
+		// No prompt yet → first insert (the old first-insert-only path).
+		if _, err = d.SavePrompt(agentID, tmpl, "内置默认", "system"); err != nil {
+			return false, false, err
+		}
+		return false, false, d.SetSetting(settingKey, fp)
+	}
+	if err != nil {
+		return false, false, err
+	}
+	curFP := PromptFingerprint(curText)
+	// Legacy DB (no settings key yet): if the current version carries a built-in
+	// note marker, treat its body as the last built-in fingerprint. This is what
+	// lets an old v1 template upgrade on the first run after this change.
+	if lastFP == "" && isBuiltinPromptNote(curNote) {
+		lastFP = curFP
+	}
+	if curFP == fp {
+		return false, false, d.SetSetting(settingKey, fp)
+	}
+	if existingID != 0 {
+		// This exact built-in body is already in history (we appended it on an
+		// earlier boot); never append a duplicate. Switch only if the current
+		// version is still the last built-in (not a user edit).
+		if curFP == lastFP {
+			if _, err = d.Exec(`UPDATE agents SET current_prompt_id=$1 WHERE id=$2`, existingID, agentID); err != nil {
+				return false, false, err
+			}
+			return true, false, d.SetSetting(settingKey, fp)
+		}
+		return false, false, nil
+	}
+	note := builtinPromptNotePrefix + fp
+	if _, err = d.SavePrompt(agentID, tmpl, note, "system"); err != nil {
+		return false, false, err
+	}
+	if curFP == lastFP {
+		// Safe upgrade: the current version is exactly the last built-in body we
+		// seeded (user never edited it) → keep current_prompt_id on the new one.
+		return true, false, d.SetSetting(settingKey, fp)
+	}
+	// User-edited current version: SavePrompt already moved current_prompt_id to
+	// the new built-in version. Point it back — the new version stays in history
+	// for reference, the user's text remains authoritative. Record the fingerprint
+	// so the next boot does not try to append it again.
+	if _, err = d.Exec(`UPDATE agents SET current_prompt_id=$1 WHERE id=$2`, curID, agentID); err != nil {
+		return false, false, err
+	}
+	return false, true, d.SetSetting(settingKey, fp)
 }
 
 // SavePrompt appends a new version and points current_prompt_id at it.

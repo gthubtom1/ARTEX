@@ -751,6 +751,7 @@ func (s *Server) candoHitrate(w http.ResponseWriter, r *http.Request) {
 	for _, tb := range hitrateTables {
 		var n int
 		var q string
+		args := []any{taskID}
 		switch tb {
 		case "review_notes":
 			q = `SELECT count(*) FROM review_notes WHERE task_id=$1`
@@ -758,10 +759,26 @@ func (s *Server) candoHitrate(w http.ResponseWriter, r *http.Request) {
 			q = `SELECT count(*) FROM assets_owned WHERE first_task_id=$1`
 		case "tool_usage":
 			q = `SELECT count(*) FROM tool_usage WHERE task_id=$1`
+		case "asset_checks":
+			// asset_checks 没有 task_id：按资产回指持有台账的首次任务。
+			q = `SELECT count(*) FROM asset_checks ac
+				WHERE EXISTS (SELECT 1 FROM assets_owned ao
+					WHERE ao.asset_id = ac.asset_id AND ao.first_task_id = $1)`
+		case "finding_traffic_bindings":
+			// 绑定表只有 finding_id：按 finding 回指任务。
+			q = `SELECT count(*) FROM finding_traffic_bindings b
+				WHERE EXISTS (SELECT 1 FROM findings f
+					WHERE f.id = b.finding_id AND f.task_id = $1)`
+		case "recheck_state":
+			// 单例表（id=1），全库一行就是全局复查状态；保留 key，值取全表计数。
+			q = `SELECT count(*) FROM recheck_state`
+			args = nil
 		default:
 			q = `SELECT count(*) FROM ` + tb + ` WHERE task_id=$1`
 		}
-		if err := s.m.pg.QueryRow(q, taskID).Scan(&n); err == nil {
+		// key 必须都在：查询失败也保留 0，避免前端少一格。
+		out[tb] = 0
+		if err := s.m.pg.QueryRow(q, args...).Scan(&n); err == nil {
 			out[tb] = n
 		}
 	}

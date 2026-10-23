@@ -189,9 +189,11 @@ func idSet(ids []int64) map[int64]bool {
 }
 
 // seedPrompts writes each built-in agent's code-default prompt body into
-// agent_prompts on startup — first-insert only (SeedPromptIfEmpty is a no-op once
-// any version exists), so the DB becomes the authoritative editable source while
-// user edits survive restarts. Runs after seedBuiltins has created the agent rows.
+// agent_prompts on startup, deduped by a sha256 content fingerprint stored at
+// settings key "agent_prompt_seed.<key>". Untouched built-in versions are
+// upgraded to a new version (note "内置模板更新 <fp>"); user-edited prompts are
+// never switched, the new built-in body is only appended to history. Runs after
+// seedBuiltins has created the agent rows.
 func seedPrompts(pg *db.DB) {
 	for key, tmpl := range agent.BuiltinPromptSeeds() {
 		a, err := pg.GetAgentByKey(key)
@@ -199,8 +201,16 @@ func seedPrompts(pg *db.DB) {
 			log.Printf("[prompts] seed %s 跳过: agent 不存在 (%v)", key, err)
 			continue
 		}
-		if err := pg.SeedPromptIfEmpty(a.ID, tmpl); err != nil {
+		switched, appendedOnly, err := pg.SeedPromptVersioned(key, a.ID, tmpl)
+		if err != nil {
 			log.Printf("[prompts] seed %s 失败: %v", key, err)
+			continue
+		}
+		switch {
+		case switched:
+			log.Printf("[prompts] %s 内置模板已更新 → 新版本（内置模板更新 %s）", key, db.PromptFingerprint(tmpl))
+		case appendedOnly:
+			log.Printf("[prompts] %s 当前版本为用户手改，内置模板更新 %s 仅追加到历史，不切换 current_prompt_id", key, db.PromptFingerprint(tmpl))
 		}
 	}
 }

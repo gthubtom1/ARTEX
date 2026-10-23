@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	pgdb "github.com/Autumn-27/artex/db"
 	artexkb "github.com/Autumn-27/artex/internal/kb"
@@ -380,44 +381,137 @@ func attributeErrors(intents []IntentBrief, errs []errorEvent) {
 	}
 }
 
+// errClassQuery 是错误类到 KB 检索词的映射。空串表示这类错误不值得检索经验：
+// 我方故障（self_error/env_error）说明的是平台坏了，不是这条路不通。
+// 其余未知类保持原样，避免历史数据里的自定义类被静默丢弃。
+var errClassQuery = map[string]string{
+	"target_blocked": "WAF",
+	"policy_blocked": "权限策略",
+	"self_error":     "",
+	"env_error":      "",
+	"tool_missing":   "工具缺失",
+}
+
 // kbQueries 从快照生成检索词（最多 2 个）：最频繁的错误类 + 最近漏洞的类型词。
-// 我方故障（self_error/env_error）说明的是平台坏了，不是这条路不通，不进检索词。
+// 错误类先映射成人类可读词；vulnclass 往往是「SQL Injection (stacked queries)」
+// 这种整串，KB 里只有短标题，必须归一化后才能命中。
 func kbQueries(errs map[string]int, vulnClasses []string) []string {
 	var out []string
-	best, bestN := "", 0
-	for c, n := range errs {
-		switch c {
-		case "", "self_error", "env_error":
-			continue
+	add := func(q string) {
+		q = strings.TrimSpace(q)
+		if q == "" {
+			return
 		}
-		if n > bestN || (n == bestN && c < best) {
-			best, bestN = c, n
-		}
-	}
-	if best != "" {
-		out = append(out, best)
-	}
-	for _, v := range vulnClasses {
-		v = strings.TrimSpace(v)
-		if v == "" {
-			continue
-		}
-		dup := false
-		for _, q := range out {
-			if strings.EqualFold(q, v) {
-				dup = true
-				break
+		for _, old := range out {
+			if strings.EqualFold(old, q) {
+				return
 			}
 		}
-		if !dup {
-			out = append(out, v)
+		if len(out) < kbMaxQueries {
+			out = append(out, q)
 		}
-		break
+	}
+
+	bestC, bestQ, bestN := "", "", 0
+	for c, n := range errs {
+		q, mapped := errClassQuery[c]
+		if !mapped {
+			if c == "" {
+				continue
+			}
+			q = c
+		}
+		q = strings.TrimSpace(q)
+		if q == "" {
+			continue
+		}
+		if n > bestN || (n == bestN && c < bestC) {
+			bestC, bestQ, bestN = c, q, n
+		}
+	}
+	add(bestQ)
+
+	for _, v := range vulnClasses {
+		if q := vulnQueryTerm(v); q != "" {
+			add(q)
+			break
+		}
 	}
 	if len(out) > kbMaxQueries {
 		out = out[:kbMaxQueries]
 	}
 	return out
+}
+
+// vulnQueryTerm 把 vulnclass 整串压成一个 KB 检索词。
+//
+// 先去掉括号里的补充说明（如「SQL Injection (stacked queries)」→「SQL Injection」），
+// 再按分隔符切分取最长片段；只有括号里才有内容时，退回原始串再切一次。
+func vulnQueryTerm(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	// 括号内容通常是上下文（stacked queries / 时间盲注），不是 KB 标题。
+	if q := longestVulnFragment(stripBracketContent(raw)); q != "" {
+		return q
+	}
+	return longestVulnFragment(raw)
+}
+
+// stripBracketContent 去掉 () 与全角（）内的内容，保留括号外的原文。
+func stripBracketContent(s string) string {
+	var b strings.Builder
+	depth := 0
+	for _, r := range s {
+		switch r {
+		case '(', '（':
+			depth++
+		case ')', '）':
+			if depth > 0 {
+				depth--
+			}
+		default:
+			if depth == 0 {
+				b.WriteRune(r)
+			}
+		}
+	}
+	return b.String()
+}
+
+// longestVulnFragment 按分隔符切分后取最长且够长的片段。
+// 中文片段（如「任意文件读取」）长度 ≥2 即可；纯英文片段仍需 ≥3。
+func longestVulnFragment(s string) string {
+	frags := strings.FieldsFunc(s, func(r rune) bool {
+		switch r {
+		case '(', ')', '/', ',', '、', '（', '）', '-', '：', ':':
+			return true
+		}
+		return false
+	})
+	best := ""
+	bestLen := 0
+	for _, f := range frags {
+		f = strings.TrimSpace(f)
+		n := len([]rune(f))
+		if n == 0 || !vulnFragmentLongEnough(f, n) {
+			continue
+		}
+		if n > bestLen {
+			best, bestLen = f, n
+		}
+	}
+	return best
+}
+
+func vulnFragmentLongEnough(s string, n int) bool {
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) {
+			return n >= 2
+		}
+	}
+	return n >= 3
 }
 
 // resolveKBRoot 决定检索哪个目录：显式配置优先，其次 kb/，再次 skills/；都没有就返回 ""。
