@@ -23,6 +23,14 @@ echo "bench/cases 已跟踪：$(git ls-files bench/cases | wc -l) 个用例"
 echo "== 1/3 go build ./... =="
 go build ./...
 
+echo "== 0/3 与 GitHub 的同步状态（只警告，不阻断）=="
+AHEAD=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)
+if [ "${AHEAD:-0}" != "0" ]; then
+  echo "⚠️  本地领先 origin/main ${AHEAD} 个提交 —— 清机器前必须 push（详见 scripts/push_check.sh）"
+else
+  echo "OK  与 origin/main 同步"
+fi
+
 echo "== 2/3 go test（排除 PG/sed 依赖包）=="
 PKGS=$(go list ./... | grep -v '/server$' | grep -v '/intercept$')
 go test $PKGS -p 1
