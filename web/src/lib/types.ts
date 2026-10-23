@@ -985,6 +985,9 @@ export interface Settings {
   // 三门校验（零 token）与停顿检测不依赖它们，默认关不影响质量。
   adviser_enabled?: boolean; // 默认 false
   verifier_enabled?: boolean; // 默认 false
+  review_cond?: boolean; // 审查官条件触发（默认 true）
+  review_tier?: "observe" | "lowrisk" | "auto"; // 三档权限（默认 lowrisk）
+  review_interval_min?: number; // 定时触发间隔（默认 10 分钟）
   // 拦截自动裁决：off=全部人工/模型审批；reviewer=规则自动放行/拒绝（拿不准才挂起）；allow_all=全部放行。
   intercept_auto_decide?: "off" | "reviewer" | "allow_all";
   // ── 以下由 settingsPayload() 回显，前端页面直接读（缺了就得每页写交叉类型绕过）──
