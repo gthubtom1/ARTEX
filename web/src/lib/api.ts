@@ -1693,3 +1693,111 @@ export const p8api = {
   putTier: (body: { planner?: number; worker?: number; verifier?: number; adviser?: number }) =>
     put<{ current: Record<string, number> }>("/llm/tier", body),
 };
+
+// ───────────────────────── 能做到什么（CARD-B01）─────────────────────────
+// 后端规格：docs/08-详设-B01-能做到什么.md
+export type CandoTag = "see" | "change" | "enter";
+
+export interface CandoItem {
+  name: string;
+  count: string;
+  note: string;
+  hot?: boolean;
+  danger?: boolean;
+  todo?: boolean;
+}
+
+export interface CandoOption {
+  text: string;
+  cost: string;
+  risk: "lo" | "mid" | "hi";
+  gain: string;
+  rec?: boolean;
+}
+
+export interface CandoNode {
+  id: string;
+  kind: "entry" | "can" | "data" | "next" | "blocked" | "excluded";
+  title: string;
+  body: string;
+  chip: string;
+  state: "attacking" | "taken" | "spinning" | "dead" | "self_fault" | "untried";
+  items?: CandoItem[];
+  options?: CandoOption[];
+  cites?: number[];
+}
+
+export interface CandoLane {
+  key: string;
+  nodes: CandoNode[];
+}
+
+export interface CandoAnnotation {
+  node_key: string;
+  status: "pending" | "done" | "failed";
+  body: string;
+  cites: Array<{ kind: string; id: number }>;
+  finished_at?: string;
+  stale?: boolean;
+}
+
+export interface CandoResponse {
+  banner: { goal: string; met: boolean; summary: string; budget_left?: string };
+  loot: Array<{ label: string; count: string; node_key: string }>;
+  lanes: CandoLane[];
+  annotations: Record<string, CandoAnnotation>;
+}
+
+export const candoapi = {
+  get: (taskId: string) => get<CandoResponse>(`/tasks/${encodeURIComponent(taskId)}/cando`),
+  annotate: (taskId: string, nodeKey: string) =>
+    post<{ status: string; cached?: boolean; annotation?: CandoAnnotation }>(
+      `/tasks/${encodeURIComponent(taskId)}/cando/annotate`,
+      { node_key: nodeKey },
+    ),
+  annotateStatus: (taskId: string, nodeKey: string) =>
+    get<CandoAnnotation>(
+      `/tasks/${encodeURIComponent(taskId)}/cando/annotate?node_key=${encodeURIComponent(nodeKey)}`,
+    ),
+};
+
+// ───────────────────────── 复盘官（CARD-C01）─────────────────────────
+// 后端规格：docs/09-详设-C01-复盘官.md
+export type ReviewVerdict = "continue" | "pivot" | "wrapup";
+
+export interface ReviewAction {
+  kind: "kill_intent" | "retry_intent" | "set_next_stage";
+  intent?: number;
+  why: string;
+}
+
+export interface ReviewRun {
+  id: number;
+  task_id: number;
+  trigger: string;
+  status: string;
+  verdict: ReviewVerdict | "";
+  body: string;
+  cites: Array<{ kind: string; id: number }>;
+  actions: ReviewAction[];
+  confidence?: string;
+  created_at: string;
+  finished_at?: string;
+}
+
+export const reviewapi = {
+  run: (taskId: string) => post<{ run_id: number; cached?: boolean; run?: ReviewRun }>(
+    `/tasks/${encodeURIComponent(taskId)}/review`,
+    { trigger: "manual" },
+  ),
+  latest: (taskId: string) =>
+    get<{ run: ReviewRun | null; notes_version: number }>(`/tasks/${encodeURIComponent(taskId)}/review/latest`),
+  runs: (taskId: string, limit = 20) =>
+    get<{ runs: ReviewRun[] }>(`/tasks/${encodeURIComponent(taskId)}/review/runs?limit=${limit}`),
+  apply: (taskId: string, runId: number, actions: ReviewAction[]) =>
+    post<{ applied: number }>(`/tasks/${encodeURIComponent(taskId)}/review/${runId}/apply`, { actions }),
+  rebut: (taskId: string, runId: number, text: string) =>
+    post<{ run_id: number }>(`/tasks/${encodeURIComponent(taskId)}/review/${runId}/rebut`, { text }),
+  notes: (taskId: string) =>
+    get<{ version: number; body: string }>(`/tasks/${encodeURIComponent(taskId)}/review/notes`),
+};

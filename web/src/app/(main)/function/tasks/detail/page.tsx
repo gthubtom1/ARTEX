@@ -59,6 +59,7 @@ const TABS = [
   { value: "graph", label: "探索链路" },
   { value: "broadcast", label: "播报板" },
   { value: "findings", label: "发现" },
+  { value: "cando", label: "能做到什么" },
   { value: "intelligence", label: "任务情报" },
   { value: "retests", label: "复测" },
   { value: "assets", label: "测试资产" },

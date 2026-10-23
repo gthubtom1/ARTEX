@@ -741,6 +741,8 @@ func (s *Server) Handler() http.Handler {
 	s.registerReplayRoutes(mux)     // 回放看板：两个任务的成本/产出对比
 	s.registerCaseRoutes(mux)       // 正负案例卡：任务图谱自动沉淀 + 列表
 	s.registerDataRoutes(mux)       // 数据定位：解析 DB 输出（不执行 SQL）
+	s.registerCandoRoutes(mux)      // “能做到什么”：战果地图 + 按需 AI 细化（CARD-B01）
+	s.registerReviewRoutes(mux)     // 复盘官：结构化快照 + 评审结论 + 采纳回执（CARD-C01）
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)
 	mux.HandleFunc("GET /api/logs/stream", s.streamLogs)
