@@ -1853,6 +1853,10 @@ export interface LootRow {
   why: string;
   hint?: string;
   evidence?: CandoEvidence[];
+  // L0 规则抽取：一句人话 / 具体能拿到什么 / 证据强度
+  plain?: string;
+  objects?: { name: string; fields: string }[];
+  proof_state?: "real" | "reachable" | "tried";
 }
 
 export interface LootResponse {
@@ -1865,4 +1869,13 @@ export interface LootResponse {
 
 export const lootapi = {
   get: (taskId: string) => get<LootResponse>(`/tasks/${encodeURIComponent(taskId)}/loot`),
+  // L1：单行「用 AI 说清楚」（按证据 hash 缓存）
+  explain: (taskId: string, rowKey: string) =>
+    post<{ text: string; cached: boolean; model: string }>(
+      `/tasks/${encodeURIComponent(taskId)}/loot/explain`,
+      { row_key: rowKey },
+    ),
+  // L2：AI 补这个站特有的项（inferred，不计入已拿到）
+  suggest: (taskId: string) =>
+    post<{ rows: LootRow[] }>(`/tasks/${encodeURIComponent(taskId)}/loot/suggest`, {}),
 };

@@ -35,7 +35,9 @@
 ```whitelist
 server/cando.go
 server/loot.go
+server/loot_ai.go
 server/server.go
+db/migrations/0007_loot_explain.sql
 web/src/app/(main)/function/tasks/detail/_tabs/loot-panel.tsx
 web/src/app/(main)/function/tasks/detail/_tabs/cando-tab.tsx
 web/src/app/(main)/function/tasks/detail/page.tsx
