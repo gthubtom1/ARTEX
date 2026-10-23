@@ -1295,6 +1295,14 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
         ? `/api/tasks/${taskId}/intents/${active.intent_id}`
         : null,
   );
+  // 三个面板共用右侧方框：旁路提问一打开，就把另外两个关掉（谁最后点谁占）
+  React.useEffect(() => {
+    if (side.open) {
+      setReviewOpen(false);
+      setLootOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [side.open]);
   const isMain = active.role === "mainagent";
   const isPlanner = active.role === "planner";
   const isSystem = active.role === "system";
@@ -1802,6 +1810,8 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
                 taskId={taskId}
                 open={reviewOpen}
                 onToggle={() => {
+                  // 三个面板互斥：开审查官时先关掉旁路提问/战果，否则右框被旁路提问占着不会切
+                  side.setOpen(false);
                   setLootOpen(false);
                   setReviewOpen((v) => !v);
                 }}
@@ -1811,6 +1821,7 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
                 taskId={taskId}
                 open={lootOpen}
                 onToggle={() => {
+                  side.setOpen(false);
                   setReviewOpen(false);
                   setLootOpen((v) => !v);
                 }}
