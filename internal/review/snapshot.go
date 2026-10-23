@@ -106,32 +106,51 @@ func Build(ctx context.Context, d *pgdb.DB, taskID int64, notes string) (*Snapsh
 		}
 	}
 
+	// 先取最近的错误事件（用于给意图标注错误类；避免在 SQL 里做大数字拼接）
+	type errEv struct{ class, detail string }
+	var errs []errEv
+	if erows, eerr := d.QueryContext(ctx, `SELECT COALESCE(class,''), COALESCE(detail,'')
+		FROM task_error_events WHERE task_id=$1 AND ts > now() - interval '6 hours'
+		ORDER BY ts DESC LIMIT 200`, taskID); eerr == nil {
+		defer erows.Close()
+		for erows.Next() {
+			var e errEv
+			if erows.Scan(&e.class, &e.detail) == nil {
+				errs = append(errs, e)
+			}
+		}
+	}
+
 	// 意图：只取摘要/状态/优先级/错误类，不含执行细节
 	rows, err := d.QueryContext(ctx, `SELECT n.id, COALESCE(n.payload->>'summary',''), COALESCE(n.state,''),
 			COALESCE(n.priority,0),
-			COALESCE((SELECT e.class FROM task_error_events e
-				WHERE e.task_id=$1 AND e.detail LIKE '%'||n.id||'%' ORDER BY e.ts DESC LIMIT 1),''),
 			EXTRACT(EPOCH FROM (now() - COALESCE(n.updated_at, now())))::int
 		FROM exploration_nodes n
-		JOIN explorations x ON x.id = n.exploration_id
-		WHERE x.task_id=$1 AND n.kind='intent'
+		WHERE n.kind='intent' AND n.exploration_id IN (SELECT id FROM explorations WHERE task_id=$1)
 		ORDER BY n.id DESC LIMIT 40`, taskID)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var it IntentBrief
-			var ago int
-			if err := rows.Scan(&it.ID, &it.Summary, &it.State, &it.Priority, &it.LastError, &ago); err != nil {
-				continue
-			}
-			it.UpdatedAgo = fmt.Sprintf("%d 分钟前", ago/60)
-			if len([]rune(it.Summary)) > 80 {
-				it.Summary = string([]rune(it.Summary)[:80]) + "…"
-			}
-			s.Intents = append(s.Intents, it)
-		}
-	} else {
+	if err != nil {
 		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var it IntentBrief
+		var ago int
+		if err := rows.Scan(&it.ID, &it.Summary, &it.State, &it.Priority, &ago); err != nil {
+			continue
+		}
+		it.UpdatedAgo = fmt.Sprintf("%d 分钟前", ago/60)
+		if len([]rune(it.Summary)) > 80 {
+			it.Summary = string([]rune(it.Summary)[:80]) + "…"
+		}
+		// 错误类：detail 里出现该意图 id 即认为相关
+		idStr := fmt.Sprintf("%d", it.ID)
+		for _, e := range errs {
+			if strings.Contains(e.detail, idStr) {
+				it.LastError = e.class
+				break
+			}
+		}
+		s.Intents = append(s.Intents, it)
 	}
 
 	// 漏洞

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -112,6 +113,7 @@ func (s *Server) runReview(w http.ResponseWriter, r *http.Request, trigger, rebu
 	notes, ver, _ := review.LoadNotes(ctx, s.m.PG(), taskID)
 	snap, err := review.Build(ctx, s.m.PG(), taskID, notes)
 	if err != nil {
+		log.Printf("[review] snapshot build failed (task=%d): %v", taskID, err)
 		writeErr(w, http.StatusInternalServerError, "快照生成失败")
 		return
 	}
