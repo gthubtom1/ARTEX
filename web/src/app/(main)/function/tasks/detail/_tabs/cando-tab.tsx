@@ -4,99 +4,137 @@ import * as React from "react";
 
 import {
   Background,
+  BackgroundVariant,
   Controls,
+  Handle,
+  MarkerType,
   MiniMap,
+  Panel,
+  Position,
   ReactFlow,
   type Edge,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import {
+  Bug,
+  Compass,
+  Database,
+  Flag,
+  Layers,
+  Lightbulb,
+  type LucideIcon,
+} from "lucide-react";
 
 import { candoapi, candoSend, type CandoNode, type CandoResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 // 「能做到什么」（CARD-B01）
 // 规格：docs/08-详设-B01-能做到什么.md
-// 只读现有表；唯一写操作是按需 AI 细化缓存与 hint 节点。
+// 视觉参照：探索链路（同一套节点/连线/小地图/图例语言）
 
 type Kind = CandoNode["kind"];
 
-const KIND_META: Record<Kind, { label: string; hex: string }> = {
-  entry: { label: "入口", hex: "#3b82f6" },
-  can: { label: "能做到", hex: "#14b8a6" },
-  data: { label: "拿到了什么", hex: "#f59e0b" },
-  next: { label: "下一步", hex: "#10b981" },
-  blocked: { label: "卡住了", hex: "#f43f5e" },
-  excluded: { label: "已排除", hex: "#64748b" },
+type KindMeta = {
+  label: string;
+  icon: LucideIcon;
+  iconBg: string;
+  hex: string;
 };
 
-const STATE_META: Record<string, { label: string; cls: string }> = {
-  attacking: { label: "正在攻", cls: "bg-blue-500/15 text-blue-600" },
-  taken: { label: "已拿下", cls: "bg-emerald-500/15 text-emerald-600" },
-  spinning: { label: "有空转", cls: "bg-amber-500/15 text-amber-700" },
-  dead: { label: "封死", cls: "bg-rose-500/15 text-rose-600" },
-  self_fault: { label: "我方故障", cls: "bg-slate-500/15 text-slate-600" },
-  untried: { label: "未试", cls: "bg-slate-500/10 text-slate-500" },
+// 与探索链路同一套色：目标绿 / 意图蓝 / 事实琥珀 / 漏洞玫红 / 提示紫 / 压缩青 / 起点灰
+const KIND_META: Record<Kind, KindMeta> = {
+  entry: { label: "入口", icon: Compass, iconBg: "bg-blue-500", hex: "#3b82f6" },
+  can: { label: "能做到", icon: Lightbulb, iconBg: "bg-violet-500", hex: "#8b5cf6" },
+  data: { label: "拿到了什么", icon: Database, iconBg: "bg-amber-500", hex: "#f59e0b" },
+  next: { label: "下一步", icon: Flag, iconBg: "bg-emerald-500", hex: "#10b981" },
+  blocked: { label: "卡住了", icon: Bug, iconBg: "bg-rose-500", hex: "#f43f5e" },
+  excluded: { label: "已排除", icon: Layers, iconBg: "bg-slate-500", hex: "#64748b" },
 };
 
-type CandoFlowNode = Node<{ node: CandoNode }, "cando">;
+const STATE_META: Record<string, { label: string; chip: string; dot: string }> = {
+  attacking: { label: "正在攻", chip: "bg-blue-500/15 text-blue-600 dark:text-blue-400", dot: "bg-blue-500" },
+  taken: { label: "已拿下", chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" },
+  spinning: { label: "有空转", chip: "bg-amber-500/15 text-amber-600 dark:text-amber-400", dot: "bg-amber-500" },
+  dead: { label: "封死", chip: "bg-rose-500/15 text-rose-600 dark:text-rose-400", dot: "bg-rose-500" },
+  self_fault: { label: "我方故障", chip: "bg-slate-500/15 text-slate-600 dark:text-slate-300", dot: "bg-slate-400" },
+  untried: { label: "未试", chip: "bg-slate-500/10 text-slate-500", dot: "bg-slate-300" },
+};
 
-function CandoCard({ data, selected }: NodeProps<CandoFlowNode>) {
+// 连线语义（与探索链路同一套写法：文字 + 颜色 + 箭头）
+const REL: Record<string, { label: string; color: string }> = {
+  entry: { label: "打通", color: "#3b82f6" },
+  can: { label: "能做到", color: "#8b5cf6" },
+  data: { label: "产出", color: "#f59e0b" },
+  next: { label: "接着做", color: "#10b981" },
+  blocked: { label: "卡点", color: "#f43f5e" },
+};
+
+type CandoRFNode = Node<{ node: CandoNode }, "cando">;
+
+function CandoCard({ data, selected }: NodeProps<CandoRFNode>) {
   const n = data.node;
   const meta = KIND_META[n.kind] ?? KIND_META.can;
   const st = STATE_META[n.state] ?? STATE_META.untried;
+  const Icon = meta.icon;
+  const live = n.state === "attacking";
+
   return (
     <div
       className={cn(
-        "w-[236px] cursor-pointer rounded-2xl bg-white shadow-sm transition-shadow hover:shadow-lg dark:bg-neutral-900",
-        selected ? "ring-2 ring-blue-500" : "",
+        "w-[240px] cursor-pointer rounded-2xl border-2 transition-colors",
+        selected ? "border-blue-500" : live ? "border-blue-400/70" : "border-transparent",
       )}
-      style={{ borderLeft: `4px solid ${meta.hex}` }}
     >
-      <div
-        className="flex items-center gap-2 rounded-t-2xl px-3 pb-1.5 pt-2.5"
-        style={{ background: `linear-gradient(90deg, ${meta.hex}1a, transparent 75%)` }}
-      >
-        <span
-          className="flex size-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold text-white shadow-sm"
-          style={{ background: meta.hex }}
-        >
-          {meta.label.slice(0, 1)}
-        </span>
-        <span className="text-[11px] font-semibold" style={{ color: meta.hex }}>
-          {meta.label}
-        </span>
-        <span className={cn("ml-auto rounded-md px-1.5 py-0.5 text-[10px] font-semibold", st.cls)}>{st.label}</span>
-      </div>
-      <div className="px-3 pb-2">
-        <div className="line-clamp-2 text-[12.5px] font-semibold leading-snug">{n.title}</div>
-        <div className="mt-1 line-clamp-3 text-[11.5px] leading-snug text-muted-foreground">{n.body}</div>
-        {n.items && n.items.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {n.items.slice(0, 4).map((it) => (
-              <span
-                key={it.name}
-                className={cn(
-                  "rounded border border-black/5 bg-muted px-1.5 py-0.5 text-[10px]",
-                  it.hot ? "border-rose-500/15 bg-rose-500/10 text-rose-700" : "",
-                )}
-              >
-                {it.name}
-              </span>
-            ))}
-            {n.items.length > 4 && <span className="text-[10px] text-muted-foreground">+{n.items.length - 4}</span>}
-          </div>
-        )}
-        <div className="mt-2 flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
-          {n.state === "attacking" && (
+      <div className="group relative rounded-[14px] border border-black/[0.06] bg-white shadow-sm transition-shadow hover:shadow-lg dark:border-white/10 dark:bg-neutral-900">
+        <Handle type="target" position={Position.Left} className="!size-2 !border-2 !border-neutral-300 !bg-white opacity-0" />
+        <div className="flex items-center gap-2 px-3 pb-1.5 pt-3">
+          <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-lg shadow-sm", meta.iconBg)}>
+            <Icon className="size-3.5 text-white" />
+          </span>
+          <span className="grow truncate text-[13px] font-semibold text-neutral-700 dark:text-neutral-100">{meta.label}</span>
+          {live && (
             <span className="relative flex size-2 shrink-0">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-blue-400 opacity-70" />
               <span className="relative inline-flex size-2 rounded-full bg-blue-500" />
             </span>
           )}
-          <span>{n.chip}</span>
+          <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold", st.chip)}>{st.label}</span>
         </div>
+
+        <div className="px-3 pb-1 text-[12.5px] font-medium leading-snug text-neutral-700 dark:text-neutral-200">
+          <span className="line-clamp-2">{n.title}</span>
+        </div>
+        <div className="line-clamp-2 px-3 pb-2 text-[11.5px] leading-snug text-neutral-500 dark:text-neutral-400">{n.body}</div>
+
+        {n.items && n.items.length > 0 && (
+          <div className="flex flex-wrap gap-1 px-3 pb-2">
+            {n.items.slice(0, 3).map((it) => (
+              <span
+                key={it.name}
+                className={cn(
+                  "rounded border border-black/5 bg-muted px-1.5 py-0.5 text-[10px] text-neutral-600 dark:text-neutral-300",
+                  it.hot ? "border-rose-500/15 bg-rose-500/10 text-rose-600 dark:text-rose-300" : "",
+                )}
+              >
+                {it.name}
+              </span>
+            ))}
+            {n.items.length > 3 && <span className="text-[10px] text-neutral-400">+{n.items.length - 3}</span>}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 px-3 pb-2.5">
+          <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500">
+            <span className={cn("size-1.5 rounded-full", st.dot)} />
+            <span className="truncate">{n.chip}</span>
+          </span>
+          {(n.cites?.length ?? 0) > 0 && (
+            <span className="shrink-0 font-mono text-[10px] text-neutral-400">证据 {n.cites!.length}</span>
+          )}
+        </div>
+        <Handle type="source" position={Position.Right} className="!size-2 !border-2 !border-neutral-300 !bg-white opacity-0" />
       </div>
     </div>
   );
@@ -104,33 +142,35 @@ function CandoCard({ data, selected }: NodeProps<CandoFlowNode>) {
 
 const nodeTypes = { cando: CandoCard };
 
-// 每个 kind 固定列，保证左→右读；同 kind 多个时纵向堆叠。
 const COL: Record<Kind, number> = { entry: 0, can: 300, data: 600, next: 900, blocked: 900, excluded: 900 };
+const ROW = 210;
 
-function buildFlow(data: CandoResponse): { nodes: CandoFlowNode[]; edges: Edge[] } {
-  const nodes: CandoFlowNode[] = [];
+function buildFlow(data: CandoResponse): { nodes: CandoRFNode[]; edges: Edge[] } {
+  const nodes: CandoRFNode[] = [];
   const edges: Edge[] = [];
   data.lanes.forEach((lane, li) => {
-    const used: Record<string, number> = {};
+    const used: Record<number, number> = {};
     let prev = "";
     lane.nodes.forEach((n, ni) => {
       const col = COL[n.kind] ?? 300;
-      const slot = used[`${col}`] ?? 0;
-      used[`${col}`] = slot + 1;
+      const slot = used[col] ?? 0;
+      used[col] = slot + 1;
       const id = `${lane.key}::${n.id}::${ni}`;
-      nodes.push({
-        id,
-        type: "cando",
-        position: { x: col, y: li * 230 + slot * 130 },
-        data: { node: n },
-      });
+      nodes.push({ id, type: "cando", position: { x: col, y: li * ROW + slot * 120 }, data: { node: n } });
       if (prev) {
+        const rel = REL[n.kind] ?? REL.can;
+        const animated = n.state === "attacking";
         edges.push({
           id: `${prev}->${id}`,
           source: prev,
           target: id,
-          style: { stroke: KIND_META[n.kind]?.hex ?? "#94a3b8", strokeWidth: 1.6 },
-          animated: n.state === "attacking",
+          label: rel.label,
+          type: "default",
+          animated,
+          labelShowBg: false,
+          labelStyle: { fontSize: 10, fontWeight: 600, fill: rel.color },
+          style: { stroke: rel.color, strokeWidth: 2, strokeOpacity: animated ? 0.9 : 0.55 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: rel.color, width: 14, height: 14 },
         });
       }
       prev = id;
@@ -146,7 +186,8 @@ export function CandoTab({ taskId }: { taskId: string }) {
   const [sel, setSel] = React.useState<CandoNode | null>(null);
   const [ann, setAnn] = React.useState<{ status: string; body: string; finished_at?: string; cached?: boolean } | null>(null);
   const [busy, setBusy] = React.useState(false);
-  const [sendMsg, setSendMsg] = React.useState("");
+  const [msg, setMsg] = React.useState("");
+  const [bannerOpen, setBannerOpen] = React.useState(true);
 
   const load = React.useCallback(() => {
     candoapi
@@ -174,9 +215,9 @@ export function CandoTab({ taskId }: { taskId: string }) {
     if (!prompt) return;
     try {
       await navigator.clipboard.writeText(prompt);
-      setSendMsg("已复制，粘到「会话」里发给它就行");
+      setMsg("已复制，粘到「会话」里发给它就行");
     } catch {
-      setSendMsg("复制失败，请手动选中复制");
+      setMsg("复制失败，请手动选中复制");
     }
   }
 
@@ -184,9 +225,9 @@ export function CandoTab({ taskId }: { taskId: string }) {
     if (!prompt || risky) return;
     try {
       await candoSend(taskId, prompt, sel?.id ?? "");
-      setSendMsg("已作为提示发给它，规划者下一轮会读到");
+      setMsg("已作为提示发给它，规划者下一轮会读到");
     } catch {
-      setSendMsg("发送失败（可能是任务已终止）");
+      setMsg("发送失败（可能任务已终止）");
     }
   }
 
@@ -196,15 +237,14 @@ export function CandoTab({ taskId }: { taskId: string }) {
     try {
       const r = await candoapi.annotate(taskId, sel.id);
       setAnn(r.annotation ? { ...r.annotation, cached: r.cached } : { status: "pending", body: "" });
-      setSendMsg(r.cached ? "用了上次的分析（没花钱）" : "分析中…可以离开这一页，回来会更新");
+      setMsg(r.cached ? "用了上次的分析（没花钱）" : "分析中…可以离开这一页，回来会更新");
     } catch {
-      setSendMsg("提交失败（可能已到次数上限或前面还有一个在跑）");
+      setMsg("提交失败（可能已到次数上限或前面还有一个在跑）");
     } finally {
       setBusy(false);
     }
   }
 
-  // 轮询 pending 的细化结果
   React.useEffect(() => {
     if (!sel || ann?.status !== "pending") return;
     const t = setInterval(() => {
@@ -217,13 +257,18 @@ export function CandoTab({ taskId }: { taskId: string }) {
   }, [ann?.status, sel, taskId]);
 
   if (loading && !data) {
-    return <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">加载中…</div>;
+    return (
+      <div className="space-y-3">
+        <div className="h-9 animate-pulse rounded-lg bg-muted" />
+        <div className="h-[68vh] animate-pulse rounded-xl bg-muted" />
+      </div>
+    );
   }
   if (error && !data) {
     return (
-      <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-16 text-sm text-muted-foreground">
         {error}
-        <button className="ml-2 underline" onClick={load}>
+        <button className="underline" onClick={load}>
           重试
         </button>
       </div>
@@ -232,46 +277,55 @@ export function CandoTab({ taskId }: { taskId: string }) {
   if (!data) return null;
 
   const empty = data.lanes.length === 0;
+  const loot = data.loot ?? [];
 
   return (
-    <div className="flex min-h-[70vh] flex-col gap-3">
-      {/* 顶栏 */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[13px] font-semibold">
-            <span className="text-muted-foreground">目标</span>
-            <span className="truncate">{data.banner.goal}</span>
-            <span
-              className={cn(
-                "rounded px-1.5 py-0.5 text-[10px] font-semibold",
-                data.banner.met ? "bg-emerald-500/15 text-emerald-600" : "bg-rose-500/15 text-rose-600",
-              )}
-            >
-              {data.banner.met ? "已达成" : "未达成"}
-            </span>
-          </div>
-          <div className="mt-1 text-[11.5px] text-muted-foreground">{data.banner.summary}</div>
-        </div>
-        <div className="ml-auto flex items-center gap-2 text-[11.5px] text-muted-foreground">
-          {data.banner.budget_left && <span>还剩 {data.banner.budget_left}</span>}
-        </div>
+    <div className="flex min-h-0 flex-col gap-2">
+      {/* 顶部：一条可折叠的小条（不占大块空间） */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-card px-3 py-1.5 text-[12px]">
+        <button
+          className="flex items-center gap-1 font-medium text-muted-foreground hover:text-foreground"
+          onClick={() => setBannerOpen((o) => !o)}
+          title={bannerOpen ? "收起" : "展开"}
+        >
+          <Flag className="size-3.5 text-emerald-500" />
+          {bannerOpen ? "收起" : "目标"}
+        </button>
+        <span
+          className={cn(
+            "rounded px-1.5 py-0.5 text-[10px] font-semibold",
+            data.banner.met ? "bg-emerald-500/15 text-emerald-600" : "bg-rose-500/15 text-rose-600",
+          )}
+        >
+          {data.banner.met ? "已达成" : "未达成"}
+        </span>
+        {bannerOpen && <span className="min-w-0 flex-1 truncate text-muted-foreground">{data.banner.goal}</span>}
+        <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{data.banner.summary}</span>
+        {data.banner.budget_left && <span className="shrink-0 text-[11px] text-muted-foreground">· 还剩 {data.banner.budget_left}</span>}
       </div>
 
-      {/* 现在就能拿 */}
-      {data.loot.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-2 text-[11.5px]">
-          <span className="font-semibold text-emerald-700">你现在就能拿：</span>
-          {data.loot.map((l) => (
-            <span key={l.node_key + l.label} className="rounded-md border border-emerald-500/30 bg-white px-2 py-0.5 font-medium text-emerald-800">
+      {/* 现在就能拿（紧凑） */}
+      {loot.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-1.5 text-[11.5px]">
+          <span className="font-semibold text-emerald-700 dark:text-emerald-400">现在就能拿</span>
+          {loot.map((l) => (
+            <button
+              key={l.node_key + l.label}
+              className="rounded-md border border-emerald-500/30 bg-white px-2 py-0.5 font-medium text-emerald-800 hover:bg-emerald-50 dark:bg-neutral-900 dark:text-emerald-300"
+              onClick={() => {
+                const hit = data.lanes.flatMap((ln) => ln.nodes).find((n) => n.id === l.node_key);
+                if (hit) setSel(hit);
+              }}
+            >
               {l.label} <span className="text-emerald-600">{l.count}</span>
-            </span>
+            </button>
           ))}
         </div>
       )}
 
-      {/* 画布 + 侧栏 */}
-      <div className="flex min-h-0 flex-1 gap-3">
-        <div className="relative min-h-[560px] flex-1 overflow-hidden rounded-xl border bg-[#f0f2f7] dark:bg-neutral-950">
+      <div className="flex min-h-0 flex-1 gap-2">
+        {/* 画布：必须给确定高度，否则 React Flow 渲染成 0 高（之前"空外表"的根因） */}
+        <div className="relative h-[68vh] min-h-[520px] flex-1 overflow-hidden rounded-xl border">
           {empty ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               这个任务还没有可展示的战果（没有能力卡也没有漏洞）
@@ -282,38 +336,90 @@ export function CandoTab({ taskId }: { taskId: string }) {
               edges={flow.edges}
               nodeTypes={nodeTypes}
               fitView
-              minZoom={0.3}
+              fitViewOptions={{ padding: 0.2 }}
+              proOptions={{ hideAttribution: true }}
+              onlyRenderVisibleElements
+              minZoom={0.15}
               maxZoom={1.6}
               onNodeClick={(_, n) => {
-                setSel((n as CandoFlowNode).data.node);
+                setSel((n as CandoRFNode).data.node);
                 setAnn(null);
-                setSendMsg("");
+                setMsg("");
               }}
+              className="!bg-[#f0f2f7] dark:!bg-neutral-950"
             >
-              <Background gap={16} size={1} color="#d4d4d8" />
-              <Controls showInteractive={false} />
-              <MiniMap pannable zoomable />
+              <Background variant={BackgroundVariant.Dots} gap={16} size={1} className="text-neutral-400/50 dark:text-neutral-700/60" />
+              <Controls
+                showInteractive={false}
+                className="!rounded-lg !border !shadow-sm [&>button]:!border-border [&>button]:!bg-card [&>button:hover]:!bg-accent [&_svg]:!fill-foreground"
+              />
+              <MiniMap
+                pannable
+                zoomable
+                className="!rounded-lg !border !shadow-sm !bg-card"
+                maskColor="rgb(148 163 184 / 0.18)"
+                nodeColor={(node) => {
+                  const nd = (node.data as { node?: CandoNode } | undefined)?.node;
+                  return nd ? (KIND_META[nd.kind]?.hex ?? "#94a3b8") : "#94a3b8";
+                }}
+                nodeStrokeWidth={0}
+                nodeBorderRadius={4}
+              />
+              <Panel position="top-left">
+                <div className="flex flex-col gap-2 rounded-lg border bg-card/95 p-2.5 text-[11px] shadow-sm backdrop-blur">
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {(Object.keys(KIND_META) as Kind[]).map((k) => {
+                      const m = KIND_META[k];
+                      const I = m.icon;
+                      return (
+                        <span key={k} className="inline-flex items-center gap-1.5 text-foreground">
+                          <span className={cn("flex size-4 items-center justify-center rounded", m.iconBg)}>
+                            <I className="size-2.5 text-white" />
+                          </span>
+                          {m.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 border-t pt-1.5 text-muted-foreground">
+                    {Object.values(REL).map((r) => (
+                      <span key={r.label} className="inline-flex items-center gap-1.5">
+                        <span className="h-0.5 w-4 rounded-full" style={{ backgroundColor: r.color }} />
+                        {r.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </Panel>
             </ReactFlow>
           )}
         </div>
 
-        {/* 侧栏 */}
-        <aside className="flex w-[380px] shrink-0 flex-col overflow-hidden rounded-xl border bg-card">
+        {/* 右侧详情 */}
+        <aside className="flex w-[360px] shrink-0 flex-col overflow-hidden rounded-xl border bg-card">
           {!sel ? (
-            <div className="p-6 text-center text-[12.5px] text-muted-foreground">
-              点左边任意一张卡片，看它能做什么、拿到什么、下一步怎么走
+            <div className="p-6 text-center text-[12px] leading-relaxed text-muted-foreground">
+              点左边任意一张卡片
+              <br />
+              看它能做什么、拿到什么、下一步怎么走
             </div>
           ) : (
             <>
-              <div className="border-b px-4 py-3">
-                <div className="text-[11px] font-semibold" style={{ color: KIND_META[sel.kind]?.hex }}>
-                  {KIND_META[sel.kind]?.label}
+              <div className="border-b px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className={cn("flex size-5 items-center justify-center rounded", KIND_META[sel.kind]?.iconBg)}>
+                    {React.createElement(KIND_META[sel.kind]?.icon ?? Compass, { className: "size-3 text-white" })}
+                  </span>
+                  <span className="text-[11px] font-semibold text-muted-foreground">{KIND_META[sel.kind]?.label}</span>
+                  <span className={cn("ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold", (STATE_META[sel.state] ?? STATE_META.untried).chip)}>
+                    {(STATE_META[sel.state] ?? STATE_META.untried).label}
+                  </span>
                 </div>
-                <div className="mt-0.5 text-[13.5px] font-semibold">{sel.title}</div>
-                <div className="mt-1 text-[11.5px] text-muted-foreground">{sel.body}</div>
+                <div className="mt-1 text-[13px] font-semibold leading-snug">{sel.title}</div>
+                <div className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{sel.body}</div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+              <div className="min-h-0 flex-1 overflow-auto px-3 py-2.5">
                 {sel.items && sel.items.length > 0 && (
                   <>
                     <div className="mb-1 text-[10.5px] font-semibold text-muted-foreground">现在就能拿的东西</div>
@@ -329,7 +435,7 @@ export function CandoTab({ taskId }: { taskId: string }) {
                         {sel.items.map((it) => (
                           <tr key={it.name} className="border-t">
                             <td className="py-1.5 pr-1">{it.name}</td>
-                            <td className="py-1.5 pr-1 whitespace-nowrap text-muted-foreground">{it.count}</td>
+                            <td className="whitespace-nowrap py-1.5 pr-1 text-muted-foreground">{it.count}</td>
                             <td className="py-1.5 text-muted-foreground">{it.note}</td>
                           </tr>
                         ))}
@@ -340,9 +446,7 @@ export function CandoTab({ taskId }: { taskId: string }) {
 
                 {sel.options && sel.options.length > 0 && (
                   <>
-                    <div className="mb-1 mt-3 text-[10.5px] font-semibold text-muted-foreground">
-                      接下来你可以怎么走（自己选）
-                    </div>
+                    <div className="mb-1 mt-3 text-[10.5px] font-semibold text-muted-foreground">接下来你可以怎么走（自己选）</div>
                     <div className="space-y-1">
                       {sel.options.map((o) => (
                         <div
@@ -352,9 +456,7 @@ export function CandoTab({ taskId }: { taskId: string }) {
                             o.rec ? "border-emerald-500/30 bg-emerald-500/5" : "",
                           )}
                         >
-                          <span className="mt-0.5">
-                            {o.rec ? "★" : "·"}
-                          </span>
+                          <span className="mt-0.5">{o.rec ? "★" : "·"}</span>
                           <span className="flex-1">
                             {o.text}
                             <span className="ml-1 text-muted-foreground">
@@ -369,7 +471,7 @@ export function CandoTab({ taskId }: { taskId: string }) {
 
                 {ann && (
                   <div className="mt-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-[11.5px]">
-                    <div className="mb-1 font-semibold text-violet-700">
+                    <div className="mb-1 font-semibold text-violet-700 dark:text-violet-300">
                       AI 分析 {ann.status === "pending" ? "（进行中…）" : ann.finished_at ? `· ${ann.finished_at}` : ""}
                       {ann.cached ? " · 复用上次结果" : ""}
                     </div>
@@ -378,24 +480,20 @@ export function CandoTab({ taskId }: { taskId: string }) {
                 )}
               </div>
 
-              <div className="border-t px-4 py-3">
+              <div className="border-t px-3 py-2.5">
                 <button
-                  className="mb-2 w-full rounded-md border border-violet-500/30 bg-violet-500/5 px-2 py-1.5 text-[12px] font-medium text-violet-700 disabled:opacity-50"
+                  className="mb-2 w-full rounded-md border border-violet-500/30 bg-violet-500/5 px-2 py-1.5 text-[12px] font-medium text-violet-700 disabled:opacity-50 dark:text-violet-300"
                   onClick={annotate}
                   disabled={busy}
                 >
                   {ann?.status === "done" ? "重新分析（会花一点额度）" : "让它详细分析"}
                 </button>
                 <div className="mb-1 text-[10.5px] font-semibold text-muted-foreground">可以直接发给它的指令</div>
-                <pre className="max-h-24 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-2 text-[11px]">
+                <pre className="max-h-20 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-2 text-[11px]">
                   {prompt || "（这条没有可下发的指令）"}
                 </pre>
                 <div className="mt-2 flex gap-2">
-                  <button
-                    className="flex-1 rounded-md border px-2 py-1.5 text-[12px] disabled:opacity-50"
-                    onClick={copyPrompt}
-                    disabled={!prompt}
-                  >
+                  <button className="flex-1 rounded-md border px-2 py-1.5 text-[12px] disabled:opacity-50" onClick={copyPrompt} disabled={!prompt}>
                     复制指令
                   </button>
                   <button
@@ -408,7 +506,7 @@ export function CandoTab({ taskId }: { taskId: string }) {
                   </button>
                 </div>
                 {risky && <div className="mt-1 text-[10.5px] text-rose-600">这条含不可逆动作，只能复制手动确认</div>}
-                {sendMsg && <div className="mt-1 text-[10.5px] text-muted-foreground">{sendMsg}</div>}
+                {msg && <div className="mt-1 text-[10.5px] text-muted-foreground">{msg}</div>}
               </div>
             </>
           )}
