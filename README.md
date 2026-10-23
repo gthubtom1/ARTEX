@@ -2,8 +2,9 @@
 
 | 项 | 现在 |
 |---|---|
-| 版本 / 迁移 | v0.7.x 二开线；数据库迁移到 **0010** |
+| 版本 / 迁移 | v0.7.x 二开线；数据库迁移到 **0011** |
 | 状态 | 可用。本体 + 审查官 + 战果清单 + 任务模板 + 常用语 均已装机验收 |
+| **AI 从这里进** | [`AGENTS.md`](./AGENTS.md)（路由 + 硬规则）→ 装机器看 [`INSTALL-AI.md`](./INSTALL-AI.md) 的「⚡ 零操作模式」 |
 | 先读三篇 | `docs/00-总纲v2-唯一事实源.md`（机制状态）→ `docs/00b-卡片线-进度与任务卡.md`（做了什么）→ `BACKLOG.md`（还没做什么） |
 | 历史在哪 | `docs/05`（已归档，标历史）、`docs/review/`、`docs/进度台账.md` 早期条目 |
 | 自检一条命令 | `bash deploy/status.sh`（Docker 路线）或 `python scripts/audit_links.py && python scripts/settings_contract.py`（文档/配置一致性） |
@@ -18,7 +19,7 @@
 > ```
 > 把这个仓库装好：https://github.com/gthubtom1/ARTEX
 > 渗透本体和资产测绘（ScopeSentry）都要装，环境你自己搞定，我零操作。
-> 按 INSTALL-AI.md 开头的「⚡ 零操作模式」执行，根目录有 deploy/bootstrap.sh。
+> 先读根目录 AGENTS.md，再按 INSTALL-AI.md 开头的「⚡ 零操作模式」执行，根目录有 deploy/bootstrap.sh。
 > 装完再跑 bash deploy/status.sh，把 STATUS 结果和「我还需要填哪些 Key」告诉我。
 > ```
 >

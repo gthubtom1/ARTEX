@@ -113,10 +113,11 @@ HAS_CONFIG=    yes/no          HAS_SKILLS= / HAS_KB=
 | darwin | yes | — | 路线 A |
 | darwin | no | — | 路线 B（需 `brew install go node`） |
 | windows-gitbash | yes | — | 路线 A（`docker compose up -d`） |
-| **windows-gitbash** | **no** | 有 `dist/artex.exe` | **路线 C-1**：`bash scripts/package_local.sh v1` 然后双击 `start.bat` |
-| **windows-gitbash** | **no** | 有 `artex.exe` / `artex-win-amd64.exe` | **路线 C-2**：直接双击 `start.bat` |
-| **windows-gitbash** | **no** | 二进制缺失 + 有 Node | 路线 C-1（先 `npm ci` 再打包） |
-| **windows-gitbash** | **no** | 二进制缺失 + 无 Node | **路线 C-3**：让用户从 Releases 下 `windows-amd64` 的 zip（你无法在无 Node 机器上产出内嵌前端） |
+| **windows-任意** | **yes** | 任意 | **路线 C-0（首选）**：双击 `部署.bat`（自动下载最新 Release 的 exe + 起 PG + 建 config + 启动） |
+| **windows-gitbash** | **no** | 有 `distrtex-windows-amd64rtex.exe` | **路线 C-1**：`bash scripts/package_local.sh v1` 后双击 `启动.bat` |
+| **windows-gitbash** | **no** | 已有 `artex.exe` | **路线 C-2**：直接双击 `启动.bat` |
+| **windows-任意** | **no** | 二进制缺失 + 有 Node | 路线 C-1（`npm ci` → `package_local.sh` → `启动.bat`） |
+| **windows-任意** | **no** | 二进制缺失 + 无 Node | **路线 C-3**：双击 `部署.bat`（它会从 Releases 拉 exe；无网络就手动下 zip 解压） |
 
 **硬前提：必须有 PostgreSQL。** 路线 A 由 compose 起；路线 B/C 需要 §5 的三选一。
 
@@ -124,8 +125,21 @@ HAS_CONFIG=    yes/no          HAS_SKILLS= / HAS_KB=
 
 ## 3. 路线 A：Docker（Linux / macOS / Windows 有 Docker 时）
 
+**首选（零操作，一条命令）**：
+
 ```bash
 cd <repo>
+sudo bash deploy/bootstrap.sh     # 装依赖 → 起 docker → 生成 .env → 构建启动 → 设密码 → 装测绘 → 接线 → 体检
+bash deploy/status.sh             # 必须 STATUS PASS
+```
+
+只要本体：`sudo bash deploy/bootstrap.sh --no-asm`。装完端口与密码见 §8。
+
+### 3.1 想自己控制每一步时：`deploy_vps.sh`
+
+不想让它装 docker、或要指定镜像/端口时，用这个（更老、更"手动"）的脚本：
+
+```bash
 bash scripts/deploy_vps.sh --dry-run   # 先看计划，不发包不改系统
 bash scripts/deploy_vps.sh             # 真执行
 ```
@@ -263,7 +277,7 @@ psql "<dsn>" -c 'select 1'           # 没有 psql 就跳过，靠 ③ 判断
 curl -fsS http://127.0.0.1:8787/api/health   # 期望 2xx
 
 # ③ 迁移真的跑了（Docker 路线看容器日志）
-docker compose logs artex | grep "migration applied"   # 期望 0001..0010 共 10 行
+docker compose logs artex | grep "migration applied"   # 期望 0001..0011 共 11 行
 
 # ④ 前端已内嵌（不是 404）
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8787/     # 期望 200
@@ -273,6 +287,18 @@ curl -fsS -H "Authorization: Bearer <登录后的 token>" http://127.0.0.1:8787/
 ```
 
 首次打开网页会让你设管理员密码（用户名固定 `ARTEX`）。**不要把密码/key 写进你的输出或提交里。**
+
+---
+
+### 6.1 没有 docker / 只想先验脚本（不装任何东西）
+
+```bash
+bash scripts/stub-bootstrap.sh        # 期望 STUB_RESULT PASS
+```
+
+它把 docker / curl / jq / uname / id / stat 全部 stub 掉，在临时目录跑 `--with-asm` 与 `--no-asm` 两遍，
+只证明"脚本分支、.env 幂等、start→wire→status 调用链"没写错，**不代替真机验收**。
+真机仍然必须 §6 那五条。
 
 ---
 
@@ -321,14 +347,16 @@ git clone <repo> ARTEX && cd ARTEX
 # ② 自检
 bash scripts/detect-env.sh
 
-# ③ 一条命令装（Debian 系，脚本自己装 docker + 起 PG + 起服务）
-bash scripts/deploy_vps.sh
+# ③ 一条命令装（Debian 系：脚本自己装 docker + 起 PG + 起服务 + 可选资产测绘）
+sudo bash deploy/bootstrap.sh          # 只要本体：加 --no-asm
+bash deploy/status.sh                  # 必须看到 STATUS PASS
 
 # ④ 验证
 curl -fsS http://127.0.0.1:8787/api/health && echo OK
-# 浏览器：http://127.0.0.1:8787   用户名 ARTEX  首次设密码
+# 浏览器：http://127.0.0.1:8787   用户名 ARTEX  密码在 .env 的 ARTEX_PASSWORD
 ```
 
+`scripts/deploy_vps.sh` 是早期的 VPS 专用版，仍可用；**新机器一律优先 `deploy/bootstrap.sh`**（更幂等、带体检）。
 Kali 上不想装 Docker 就走路线 B（`sudo apt install -y golang-go nodejs npm postgresql` 后按 §4）。
 
 ### 9.2 VPS（Ubuntu/Debian，无桌面）
@@ -337,33 +365,38 @@ Kali 上不想装 Docker 就走路线 B（`sudo apt install -y golang-go nodejs 
 ssh -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 root@<VPS_IP>
 apt update && apt install -y git
 git clone <repo> ARTEX && cd ARTEX
-bash scripts/deploy_vps.sh
+sudo bash deploy/bootstrap.sh
+bash deploy/status.sh                  # 必须 STATUS PASS
 curl -fsS http://127.0.0.1:8787/api/health
-# 浏览器：http://<VPS_IP>:8787   （记得在云控制台安全组放行 8787）
+# 浏览器：http://<VPS_IP>:8787   （记得在云控制台安全组放行 8787；改监听见 §4.5 的 -addr）
 ```
 
-### 9.3 Windows（无 Docker）
+### 9.3 Windows —— 让用户双击 `部署.bat`（你负责兜底）
+
+**首选：双击。** `部署.bat` 会自己做完：检查 `skills\`/`kb\` → 复用或下载 `artex.exe` →
+没有 `config.json` 就用 Docker 起 PostgreSQL（容器 `artex-pg`）并生成配置 → 调 `start.bat`。
+
+- 下载来源：跟随 GitHub「最新 Release」（`releases/latest` 的 302 → `artex-<tag>-windows-amd64.zip` → 解压取 exe）。
+  要固定版本：`set ARTEX_TAG=v0.7.3-p9` 再双击。
+- 二进制查找顺序（`启动.bat` 与 `start.bat`）：`.rtex.exe` → `.\distrtex.exe` →
+  `.\distrtex-windows-amd64rtex.exe` → `.rtex-win-amd64.exe`。**不用改名。**
+
+**没有 Docker Desktop 时**（脚本会走到 `:manual_db`）：先装
+[PostgreSQL 16](https://www.postgresql.org/download/windows/)，SQL Shell 里
+`createuser -P artex` / `createdb -O artex artex`，然后照 §5.3 写 `config.json`，再双击 `部署.bat`。
+
+**要在 Windows 上自己编译**（有 Node + Go）：
 
 ```bash
-# ① 自检（Git Bash 里）
 bash scripts/detect-env.sh
-
-# ② 有 Node：产出内嵌前端的二进制
-cd web && NODE_ENV=development npm ci --include=dev --ignore-scripts && cd ..
-bash scripts/package_local.sh v1        # 产出 dist/artex.exe
-
-# ③ 没有 Node：跳过 ②，让用户从 Releases 下 windows-amd64 的 zip 解压
-
-# ④ 装 PostgreSQL 16（https://www.postgresql.org/download/windows/）
-#    然后 SQL Shell 里： createuser -P artex / createdb -O artex artex
-
-# ⑤ 在仓库根写 config.json（见 §5.3）
-
-# ⑥ 双击 start.bat   或者命令行： cmd /c start.bat
+bash scripts/package_local.sh v0.7.4-p9    # 导出前端 → 拷进 server/webui/dist → go build -tags embedui
 ```
 
-`start.bat` 会自动找二进制（`.\artex.exe` → `.\dist\artex.exe` → `.\artex-win-amd64.exe`），**不需要改名或搬文件**。
-重复双击不会起第二个实例：会提示 `already running on 127.0.0.1:8787` 并自动打开浏览器。
+⚠️ **不要**只跑 `go build -o artex.exe ./cmd/artex`：那是无前端的二进制，网页会显示
+「前端未内嵌到此二进制」。必须带 `-tags embedui` 且先有 `web/out`。
+
+启动：双击 `启动.bat`（或 `cmd /c start.bat`）；重复双击不会起第二个实例，会提示
+`already running on 127.0.0.1:8787` 并自动打开浏览器。
 
 ---
 
