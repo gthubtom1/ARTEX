@@ -6,7 +6,7 @@
 | id | 事项 | 谁做 | 不做会怎样 | 验收判据 | 状态 |
 |---|---|---|---|---|---|
 | B-03 | 用真实新任务跑两轮，判断审查官值不值得留 | **你**（只有你能判断建议对不对） | 审查官是留是降级没有证据；不影响其它功能 | 新任务里 ≥2 条 `level=action`，且 `outcome=effective` 不为 0 | ⬜ |
-| B-04 | `git push`（本地 682+ commit 未推） | 你（或授权我做） | 本机硬盘坏了全没 | `git status` 显示 up to date with origin/main | ✅（2026-10-23 已推，见文末证据） |
+| B-04 | `git push` | 你（或授权我做） | 本机硬盘坏了全没 | `git status` 显示 up to date with origin/main | ✅（2026-10-23 `ea43e73..0ede296`，683 commit 已同步） |
 | B-05 | `install.sh` / `update.sh` 改走新路线 | **我**（纯代码） | 用 `install.sh` 的新机器会失败（用 `deploy/bootstrap.sh` 不受影响） | 干净机器跑 `install.sh` 能起到 8787 | ✅（代码 + stub 双分支验证；真机验收并入 B-10） |
 | B-06 | 锁死 ASM 扫描节点版本（`latest` → 固定 tag/digest） | **我** | 上游发新版可能拉到不兼容的扫描节点 | `docker-compose.yml` 里两个 asm 镜像都不是 `latest` | ✅ |
 | B-07 | 战果清单「还没试 / 不适用」两态 + 标为不适用 | 可选（你要求再做） | 现有使用不受影响；没证据的行现在本来就不显示 | 能把一行标 na 并持久化，刷新后仍 na | ✅（0011 + `/loot/state` + 详情区两个按钮；Go 单测 4 个） |
@@ -23,8 +23,9 @@
 ### B-04 推送
 
 ```
-git push origin main    # 682 commit → origin/main
+git push origin main    # ea43e73..0ede296（683 commit）
 git status -sb          # ## main...origin/main（无 ahead）
+git rev-list --count HEAD / origin/main   # 683 / 683
 ```
 
 ### B-05 镜像路线分流
@@ -45,7 +46,7 @@ git status -sb          # ## main...origin/main（无 ahead）
 - 迁移 `db/migrations/0011_loot_row_state.sql`：`loot_row_states(task_id,row_key,state,updated_at)`，主键 `(task_id,row_key)`。
 - 后端：`POST /api/tasks/{id}/loot/state`（`state` = `todo|na|""`，空 = 取消）；`lootRowsForTask` 只在**规则没算出证据**时套用标记（证据优先），`na` 不计入 `total`，新增 `todo`/`na` 计数；「还没试」行有独立下一步模板 `lootTryPrompt`（不假设已有入口），`na` 行不给下一步。
 - 前端：`loot-panel.tsx` 详情区「标为还没试 / 标为不适用 / 取消标记」，写库后重拉（状态永远由后端算）。
-- 验证：`go test ./server -run 'TestLootApplyState|TestLootStateRowKey|TestLootTryPrompt|TestLootPlainState'` 全 PASS；`npx tsc --noEmit` 通过。
+- 验证：`go test ./server -run 'TestLootApplyState|TestLootStateRowKey|TestLootTryPrompt|TestLootPlainState'` 全 PASS；`npx tsc --noEmit` 通过；提交 `0ede296`。
 - 未验：真 PG 上的迁移与 UPSERT（本机无数据库），下次起服务看日志 `migration applied: 0011_loot_row_state.sql`。
 
 ### B-08 「✦ 补这个站特有的项」
