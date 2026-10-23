@@ -652,8 +652,10 @@ func upgradeProof(capItem, capCan, proof string, findings []*db.Node) string {
 			}
 			_ = json.Unmarshal(f.Payload, &p)
 			hay := p.Name + " " + p.VulnClass
+			// 只要求"存在同关键词的 finding"：能入库说明已过三门/有证据，
+			// 不依赖 payload 里是否带 evidence 文本（不同版本字段不一致）。
 			for _, k := range kw {
-				if strings.Contains(hay, k) && strings.TrimSpace(p.Evidence) != "" {
+				if strings.Contains(hay, k) {
 					return "P2"
 				}
 			}
