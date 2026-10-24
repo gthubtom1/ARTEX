@@ -1332,6 +1332,47 @@ function mockWarCard(
     verdict: own.length > 0 ? "worth" : "unclear",
     verdict_label: own.length > 0 ? "值得打" : "还没探够",
     new_since: newSince,
+    goal_guess: "data_dump",
+    // 目标对齐（与 server/goal_fit.go 同口径：看能力，不看漏洞条数）
+    goal_fits: [
+      {
+        key: "data_dump",
+        label: "把数据库拖下来（用户/订单/卡密）",
+        status: doneSet.has("db") && doneSet.has("data") ? "yes" : "no",
+        have: doneSet.has("db") && doneSet.has("data") ? ["数据库查询", "数据拉取"] : [],
+        missing: doneSet.has("db") && doneSet.has("data") ? [] : ["数据库查询", "数据拉取（用户/订单/卡密）"],
+        level: "E4 数据访问",
+        why: "要能查库、并且真的读回过业务数据，才算拖得下来",
+        risk: "整表导出量大、易被审计记录",
+        steps: ["先拿到数据库读取通道，并 SELECT 版本号确认能查", "取 1 条业务数据确认是真数据"],
+        say_it: "能力已经够了：按订单表先取 20 条、字段名一起给我，别整表拖",
+      },
+      {
+        key: "admin_access",
+        label: "进后台（管理员界面）",
+        status: doneSet.has("admin") ? "yes" : "no",
+        have: doneSet.has("admin") ? ["管理员 / 后台登录"] : [],
+        missing: doneSet.has("admin") ? [] : ["管理员 / 后台登录"],
+        level: "E2 应用控制",
+        why: "要有后台会话或管理员口令",
+        risk: "登录行为会留日志",
+        steps: ["先拿到后台会话（默认口令/登录注入/越权），进后台首页即算"],
+        say_it: "进后台把用户列表和订单各截一屏，够证明能读到就行",
+      },
+      {
+        key: "money",
+        label: "改钱（加余额/审批放行）",
+        status: doneSet.has("admin") && doneSet.has("db") ? "yes" : doneSet.has("admin") ? "one_step" : "no",
+        have: doneSet.has("admin") ? ["管理员 / 后台登录"] : [],
+        missing: doneSet.has("db") ? [] : ["数据库查询"],
+        level: "E2 应用控制",
+        why: "改钱要同时能进后台、并且能写库",
+        risk: "写操作改真实业务数据，风险最高",
+        steps: ["先拿到数据库读取/写入通道"],
+        say_it: "给这个账号加 100，把改前改后都记下来",
+      },
+    ],
+    blockers: [{ class: "target_blocked", count: 3, advice: "目标在拦（WAF/403/验证码）：换手法或降低频率，别硬撞" }],
   };
 
   const verdict = {

@@ -111,6 +111,8 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
   const [impact, setImpact] = React.useState<ImpactResponse | null>(null);
   const [chains, setChains] = React.useState<ChainView[]>([]);
   const [aiBusy, setAiBusy] = React.useState(false);
+  // 我的目标（零基础用户真正的入口）：默认按任务目标文本猜，用户可以换
+  const [goalKey, setGoalKey] = React.useState<string>("");
   const [busy, setBusy] = React.useState(false);
 
   const load = React.useCallback(async () => {
@@ -177,6 +179,8 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
   const noGainCan = can.filter((c) => c.standing === "no_gain");
   const doable = actions.filter((a) => a.doable);
   const shownDoable = doable.slice(0, 3);
+  const goalFits = brief?.goal_fits ?? [];
+  const activeGoal = goalFits.find((g) => g.key === (goalKey || brief?.goal_guess)) ?? goalFits[0];
   const level = brief?.level ?? 0;
   const verdictTone =
     verdict?.verdict === "worth"
@@ -306,6 +310,67 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
               }
               label="复制一句"
             />
+          </section>
+        )}
+
+        {/* 我的目标：把"我想拖库/进后台"翻译成"现在能不能做到、差什么" */}
+        {activeGoal && (
+          <section className="rounded border border-violet-500/30 bg-violet-500/[0.05] px-2 py-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] text-muted-foreground">我的目标是</span>
+              <select
+                className="rounded border bg-card px-1 py-0.5 text-[11px]"
+                value={goalKey || brief?.goal_guess || activeGoal.key}
+                onChange={(e) => setGoalKey(e.target.value)}
+                aria-label="选择我的目标"
+              >
+                {goalFits.map((g) => (
+                  <option key={g.key} value={g.key}>
+                    {g.label}
+                  </option>
+                ))}
+              </select>
+              <span
+                className={cn(
+                  "rounded px-1.5 py-0.5 text-[10px] font-bold",
+                  activeGoal.status === "yes"
+                    ? "bg-emerald-600 text-white"
+                    : activeGoal.status === "one_step"
+                      ? "bg-amber-500/25 text-amber-700 dark:text-amber-300"
+                      : "bg-rose-500/20 text-rose-700 dark:text-rose-300",
+                )}
+              >
+                {activeGoal.status === "yes" ? "现在就能做到" : activeGoal.status === "one_step" ? "差一步" : "现在还做不到"}
+              </span>
+              {activeGoal.status === "yes" && <CopyBtn text={activeGoal.say_it} label="就做这个" />}
+            </div>
+            {activeGoal.status !== "yes" && activeGoal.missing.length > 0 && (
+              <div className="mt-1 text-[11px]">
+                还缺：<b className="text-amber-700 dark:text-amber-300">{activeGoal.missing.join(" / ")}</b>
+                <span className="ml-2 text-muted-foreground">{activeGoal.steps[0]}</span>
+                <span className="ml-1">
+                  <CopyBtn text={activeGoal.say_it} label="照这句说" />
+                </span>
+              </div>
+            )}
+            <div className="mt-0.5 text-[10px] text-muted-foreground">
+              {activeGoal.why}
+              {activeGoal.status === "yes" ? ` · 风险：${activeGoal.risk}` : ""}
+            </div>
+          </section>
+        )}
+
+        {/* 卡在哪（失败归因，确定性）：跑完没成果时，别只说"还没探够" */}
+        {(brief?.blockers ?? []).length > 0 && (
+          <section className="rounded border border-amber-500/40 bg-amber-500/[0.06] px-2 py-1 text-[11px]">
+            <span className="rounded bg-amber-500/25 px-1 text-[9.5px] font-bold text-amber-800 dark:text-amber-200">
+              卡在哪
+            </span>
+            {(brief?.blockers ?? []).map((b) => (
+              <span key={b.class} className="ml-1.5">
+                <b>{b.class}</b> ×{b.count} —— {b.advice}
+              </span>
+            ))}
           </section>
         )}
 

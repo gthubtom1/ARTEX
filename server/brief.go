@@ -72,6 +72,11 @@ type brief struct {
 	VerdictTag string         `json:"verdict_label"`
 	// Stall：进度健康度（docs/23 §五 闸门2）。全确定性：只看"多久没有新证据"。
 	Stall stallState `json:"stall"`
+	// GoalFit：我的目标（拖库/进后台/改钱…）现在能不能做到、缺什么。判定全确定性。
+	GoalFits  []goalFit `json:"goal_fits,omitempty"`
+	GoalGuess string    `json:"goal_guess,omitempty"`
+	// Blockers：卡在哪（失败归因，确定性）。空 = 没观察到明确阻塞。
+	Blockers []blocker `json:"blockers,omitempty"`
 	// Inherited：这个任务继承了哪些任务的成果（只读参考）。
 	// 真机跑 #18（继承 #14）时发现：用户会问"我明明已经拿到后台了，为什么新任务是 E0"——
 	// 因为战果只算**本任务**的证据。所以这里必须显式说明"继承 ≠ 本任务已自证"。
@@ -168,6 +173,8 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	s.closeActionsByEvidence(r.Context(), t, taskID)
 	out.Actions = s.briefActions(r.Context(), taskID, st)
 
+	out.GoalFits, out.GoalGuess = s.briefGoalFit(st, rows, t.Goal)
+	out.Blockers = s.briefBlockers(r.Context(), taskID)
 	out.Inherited = s.briefInherited(r.Context(), taskID)
 
 	// 闸门2：多久没有新证据（只读判定，暂停动作由后台巡检做）。

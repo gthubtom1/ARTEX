@@ -2174,6 +2174,24 @@ export interface TaskBrief {
   stall?: { level: "ok" | "warn" | "stop"; minutes: number; advice: string };
   // 继承自哪些任务（只读参考）：本任务的等级只算自己的证据，所以要说明"已有 ≠ 本任务已自证"
   inherited?: { task_id: number; name?: string; level_label: string; findings: number; has?: string[] }[];
+  // 目标对齐（拖库/后台/改钱…）：能不能做到、缺什么、该说什么
+  goal_fits?: GoalFit[];
+  goal_guess?: string;
+  // 卡在哪（失败归因，确定性）
+  blockers?: { class: string; count: number; advice: string }[];
+}
+
+export interface GoalFit {
+  key: string;
+  label: string;
+  status: "yes" | "one_step" | "no";
+  have: string[];
+  missing: string[];
+  level: string;
+  why: string;
+  risk: string;
+  steps: string[];
+  say_it: string;
 }
 
 // ── 动态快捷短语（P1）：GET /api/tasks/{id}/phrases ──────────
