@@ -302,6 +302,12 @@ func blockerAdvice(class string) string {
 		return "超时：把动作拆小（限定条数/超时时间），别一次拉太多"
 	case "not_found":
 		return "入口不存在或路径错了：先用只读探测确认真实路径"
+	case "policy_blocked":
+		return "被策略/规则拦下（不是目标拒绝）：换一条等价手法或换个入口再试，别重复同一条"
+	case "rate_limited":
+		return "被限速：降低频率、加延时，或改打别的接口"
+	case "waf_blocked":
+		return "被 WAF 拦：换编码/换参数位置，或先找没防护的接口"
 	}
 	return "这条路的失败原因未归类，建议换手法再试一次并留证"
 }

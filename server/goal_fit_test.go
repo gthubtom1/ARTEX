@@ -110,3 +110,13 @@ func TestGoalSayVariants(t *testing.T) {
 		t.Fatalf("有阻塞时收工说法应引用阻塞：%q", f.SayStop)
 	}
 }
+
+// 真机 #19 跑出来的问题：policy_blocked 没有归类映射，只能给通用建议。
+func TestBlockerAdviceCoversPolicy(t *testing.T) {
+	for _, class := range []string{"policy_blocked", "rate_limited", "waf_blocked"} {
+		a := blockerAdvice(class)
+		if a == "" || strings.Contains(a, "未归类") {
+			t.Fatalf("%s 应有专门建议，得到 %q", class, a)
+		}
+	}
+}

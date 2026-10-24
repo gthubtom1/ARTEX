@@ -1038,19 +1038,20 @@ export default function TasksPage() {
                         onSort={sortTasksBy}
                       />
                     )}
-                    <TableHead>名称</TableHead>
+                    <TableHead className="min-w-[220px]">名称</TableHead>
                     {!compact && <TableHead className="w-px">备注</TableHead>}
                     {!compact && <TableHead>描述</TableHead>}
                     {!compact && <TableHead>目标</TableHead>}
                     <SortableTaskHead
                       field="status"
                       label="状态"
+                      className="w-[96px]"
                       activeField={sortField}
                       direction={sortDirection}
                       onSort={sortTasksBy}
                     />
-                    <TableHead className="text-center">目标进度</TableHead>
-                    <TableHead className="text-center" title="独立漏洞：严重 / 高 / 中 / 低">
+                    <TableHead className="w-[80px] text-center">目标进度</TableHead>
+                    <TableHead className="w-[120px] text-center" title="独立漏洞：严重 / 高 / 中 / 低">
                       漏洞 <span className="text-muted-foreground font-normal">严/高/中/低</span>
                     </TableHead>
                     {!compact && <TableHead className="text-center">运行中 Worker</TableHead>}
@@ -1067,13 +1068,14 @@ export default function TasksPage() {
                     <SortableTaskHead
                       field="duration"
                       label="时长"
+                      className="w-[72px]"
                       activeField={sortField}
                       direction={sortDirection}
                       align="right"
                       onSort={sortTasksBy}
                     />
                     {!compact && <TableHead className="text-right">Token</TableHead>}
-                    <TableHead className="sticky right-0 z-10 bg-card text-right shadow-[-1px_0_0_0_hsl(var(--border))]">
+                    <TableHead className="sticky right-0 z-10 w-[128px] bg-card text-right shadow-[-1px_0_0_0_hsl(var(--border))]">
                       操作
                     </TableHead>
                   </TableRow>

@@ -192,11 +192,12 @@ func renderOnePagerText(p onePager) string {
 		b.WriteString("  - 还没有取到业务数据样本\n")
 	} else {
 		for _, o := range p.DataObjects {
-			if strings.TrimSpace(o.Fields) != "" {
-				b.WriteString("  - " + o.Name + "（字段：" + o.Fields + "）\n")
-			} else {
-				b.WriteString("  - " + o.Name + "\n")
+			// 只有表名、没抽到字段时写「字段未知」，不要留空（真机 #19 的一页纸出现过空字段）。
+			fields := strings.TrimSpace(o.Fields)
+			if fields == "" {
+				fields = "字段未知"
 			}
+			b.WriteString("  - " + o.Name + "（字段：" + fields + "）\n")
 		}
 	}
 

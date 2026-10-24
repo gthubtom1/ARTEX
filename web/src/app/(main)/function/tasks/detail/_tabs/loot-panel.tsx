@@ -345,16 +345,18 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
           <div className="px-4 py-10 text-center text-[11.5px] leading-relaxed text-muted-foreground">
             这个站还没确认任何能力
             <br />
-            （等第一个漏洞上报后，这里会自动冒出对应的行）
+            等第一个漏洞上报后这里会自动出现对应的行；想加速就先在「战况」里点
+            <b> ✦ 分析</b> 或在会话里说「帮我打一个能读数据的洞」。
           </div>
         )}
         {rows.length > 0 && (
           <table className="w-full text-[11.5px]">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b text-left text-[10px] text-muted-foreground">
+                {/* docs/28 §5.7：状态标固定在最左一列（眼睛先扫状态，再读白话） */}
+                <th className="w-[76px] px-2 py-1.5">状态</th>
                 <th className="px-3 py-1.5">能做什么</th>
-                <th className="w-[86px] px-1 py-1.5">状态</th>
-                <th className="w-[74px] px-2 py-1.5">依据</th>
+                <th className="w-[64px] px-2 py-1.5 text-right">依据</th>
               </tr>
             </thead>
             <tbody>
@@ -371,18 +373,24 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                     )}
                     onClick={() => pick(r)}
                   >
+                    <td className="px-2 py-1.5">
+                      <span
+                        className={cn(
+                          "inline-flex h-[18px] items-center gap-0.5 rounded-[3px] px-1.5 text-[10px] font-bold",
+                          st.cls,
+                        )}
+                        title={r.why || st.label}
+                      >
+                        {r.status === "done" && !isAi && <CheckIcon className="size-3" />}
+                        {isAi ? "待确认" : st.label}
+                      </span>
+                    </td>
                     <td className="px-3 py-1.5">
-                      {/* 主行说白话（plain），原始归类名降为次要行：零基础看得懂“拿到了什么”而不是“哪一类能力”。 */}
+                      {/* 主行说白话（plain），原始归类名降为次要行：零基础看得懂"拿到了什么"而不是"哪一类能力"。 */}
                       <div className="font-medium leading-snug">{r.plain || r.label}</div>
                       {r.plain && <div className="mt-0.5 text-[10px] text-muted-foreground">{r.label}</div>}
                     </td>
-                    <td className="px-1 py-1.5">
-                      <span className={cn("inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-semibold", st.cls)}>
-                        {r.status === "done" && !isAi && <CheckIcon className="size-3" />}
-                        {isAi ? "AI 推断·待确认" : st.label}
-                      </span>
-                    </td>
-                    <td className="px-2 py-1.5 text-muted-foreground">
+                    <td className="px-2 py-1.5 text-right text-muted-foreground">
                       {(r.evidence ?? []).length > 0 ? (r.evidence ?? []).map((e) => `#${e.id}`).join(" ") : "—"}
                     </td>
                   </tr>
