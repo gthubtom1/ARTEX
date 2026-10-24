@@ -21,6 +21,12 @@ func TestFirstCommandNoFalsePositive(t *testing.T) {
 		`import os, sys`,
 		`from urllib.parse import urljoin`,
 		`def main(): pass`,
+		// 2026-10-24 VM 实测：这两个首词都是 shell 内建/探测器，
+		// 原来会被当成"缺工具 command"写进 task_error_events。
+		`command -v proxychains4 proxychains 2>/dev/null; echo "---"`,
+		`command -v nmap`,
+		`which sqlmap`,
+		`type -a nc`,
 	}
 	for _, cmd := range skip {
 		if got := firstCommand(cmd); got != "" {

@@ -1967,10 +1967,21 @@ export interface EnvTool {
   caps?: string[];
   source?: string;
 }
+export interface MissingTool {
+  name: string;
+  package?: string;
+  /** 可直接复制的安装命令（认不出包名时为空） */
+  install?: string;
+}
+
 export interface EnvironmentResponse {
   tools: EnvTool[];
   count: number;
   missing: string[] | null;
+  /** 缺什么 + 怎么装（与 missing 同序） */
+  missing_detail?: MissingTool[] | null;
+  /** 一批缺工具合成的一条命令（含“未收录包名”注释） */
+  install_hint?: string;
   settings: Record<string, string>;
 }
 // 网络面板（D1 之后只剩「出口 IP 自检」：当前出口 / 基准 / 最近变更记录）。

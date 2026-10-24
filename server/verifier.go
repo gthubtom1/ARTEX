@@ -86,8 +86,10 @@ func findingsForVerifier(nodes []*db.Node) []findingForReview {
 
 // verifierLLMEnabled 读 D2 的 verifier.enabled 开关。默认 false；
 // settings 为 nil 时按关处理。
+// verifierLLMEnabled 读 ``verifier.enabled`` 开关。
+// 2026-10-24 改：默认 false → true（理由同 adviserLLMEnabled：默认关+藏在深处 = 人以为在用，实际没用）。
 func (s *Server) verifierLLMEnabled() bool {
-	return s.settings != nil && s.settings.Bool("verifier.enabled", false)
+	return s.settings != nil && s.settings.Bool("verifier.enabled", true)
 }
 
 // verifierPass 是「自动复核」入口：受 verifier.enabled 开关控制（D2：默认关）。

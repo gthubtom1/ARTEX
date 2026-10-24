@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/Autumn-27/artex/internal/env"
 	"net/http"
 	"strconv"
 	"strings"
@@ -62,6 +63,9 @@ type errGroup struct {
 	Action string   `json:"action"`
 	Fix    string   `json:"fix"`
 	Tools  []string `json:"tools"`
+	// Install 只对 tool_missing 有值：一条可直接复制的安装命令。
+	// 原来卡片只说“到环境页安装”，而环境页当时既不给命令也不列任务里缺的工具。
+	Install string `json:"install,omitempty"`
 }
 
 // registerErrorRoutes 挂 P8-8 的错误聚合接口。
@@ -153,6 +157,12 @@ func (s *Server) taskErrors(w http.ResponseWriter, r *http.Request) {
 			Action: it.Advice.Action,
 			Fix:    it.Advice.Fix,
 			Tools:  a.tools,
+			Install: func() string {
+				if it.Class != errev.ClassToolMissing {
+					return ""
+				}
+				return env.InstallHintBatch(a.tools)
+			}(),
 		})
 	}
 	writeJSON(w, 200, resp)

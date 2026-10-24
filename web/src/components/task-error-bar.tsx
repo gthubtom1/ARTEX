@@ -100,7 +100,16 @@ export function TaskErrorBar({ taskId, windowMin = 60 }: { taskId: string; windo
           <div className="mt-2 rounded-md border bg-background px-2.5 py-2 text-[11px]">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{g.label}</span>
-              {g.tools && g.tools.length > 0 ? (
+              {g.install ? (
+                <button
+                  type="button"
+                  className="rounded border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+                  title="点击复制，装完到「系统 → 环境」点重新扫描"
+                  onClick={() => void navigator.clipboard.writeText(g.install ?? "")}
+                >
+                  复制安装命令：{g.install.length > 46 ? g.install.slice(0, 46) + "…" : g.install}
+                </button>
+              ) : g.tools && g.tools.length > 0 ? (
                 <span className="font-mono text-[10px] text-muted-foreground">工具：{g.tools.join(" / ")}</span>
               ) : null}
               {g.fix ? (

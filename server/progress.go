@@ -23,10 +23,16 @@ func (s *Server) shouldConsultLLMAdviser(rep stall.Report) bool {
 	return rep.Hit() && s.adviserLLMEnabled()
 }
 
-// adviserLLMEnabled 读 D2 的 adviser.enabled 开关。默认 false，
-// settings 为 nil 时也按关处理（宁可不调，也不能凭空花 token）。
+// adviserLLMEnabled 读 ``adviser.enabled`` 开关。
+//
+// 2026-10-24 改：默认值 false → **true**。
+// 原因（用户实测反馈）：「审查官我都不知道这边还有开关」——功能默认关着且藏在设置页深处，
+// 界面上却处处显示审查官，人以为它在工作；实际每轮日志 adviser_llm=false。
+// 「开箱即用」的判据是：装好、绑了模型，就该真的用上。想省 token 的可以到
+// 系统 → 系统配置 里手动关掉，但默认必须是开的。
+// settings 为 nil（早期路径/测试）时仍按关处理，避免凭空花 token。
 func (s *Server) adviserLLMEnabled() bool {
-	return s.settings != nil && s.settings.Bool("adviser.enabled", false)
+	return s.settings != nil && s.settings.Bool("adviser.enabled", true)
 }
 
 // reviewCondEnabled 读审查官「条件触发」开关（docs/13：条件默认开）。

@@ -4515,10 +4515,17 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		}
 		// 用 provision.Registry 的降级表给具体替代（19 个工具各有等价物），
 		// 而不是一句通用文案 —— 这张表之前一直没接上（生产代码零引用）。
-		if fb := provision.Fallback(name); len(fb) > 0 {
-			return false, "本机未找到 " + name + "。可以改用等价工具继续（" + strings.Join(fb, " / ") + "），或到环境页安装后再试。"
+		// 2026-10-24：提示里直接带上**可执行的安装命令**。原来只说“到环境页安装”，
+		// agent 不会去装（也装不了），人进去又没按钮 → 这条提示等于空转。
+		// 带上命令后：agent 有 shell 就能自己 sudo 装，没权限也会把命令写进结论让人一眼复制。
+		install := ""
+		if _, cmd := env.InstallHint(name); cmd != "" {
+			install = " 安装命令：" + cmd + "（有权限就装完重试；没权限就把这条命令写进结论让人装）。"
 		}
-		return false, "本机未找到 " + name + "。可以改用等价工具继续（例如 nmap↔masscan+nc、sqlmap↔内置注入脚本），或到环境页安装后再试。"
+		if fb := provision.Fallback(name); len(fb) > 0 {
+			return false, "本机未找到 " + name + "。可以改用等价工具继续（" + strings.Join(fb, " / ") + "）。" + install
+		}
+		return false, "本机未找到 " + name + "。可以改用等价工具继续（例如 nmap↔masscan+nc、sqlmap↔内置注入脚本）。" + install
 	}
 	// P8-8：guard 写错误事件时需要知道当前任务 id（只读，不参与判定）。
 	guard.TaskIDOf = func(c context.Context) int64 { return agent.RunInfoFrom(c).TaskID }

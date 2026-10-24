@@ -77,7 +77,22 @@ func (d *Discoverer) Save(ctx context.Context, tools []Tool) error {
 	return ctx.Err()
 }
 
-// Load 读缓存；缓存不存在 / 损坏 / 超过 7 天 → 重新 Scan（并回写缓存）。
+// Invalidate 删掉磁盘缓存，下一次 Load 必定重扫。
+// 用途：环境页“重新扫描”按钮——用户刚 apt 装完工具时不用重启进程。
+func (d *Discoverer) Invalidate() error {
+	if d.cacheDir == "" {
+		return nil
+	}
+	if err := os.Remove(d.cachePath()); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// Load 读缓存；缓存不存在 / 损坏 / 超过 24 小时 → 重新 Scan（并回写缓存）。
+//
+// 2026-10-24 改：TTL 从 7 天降到 1 天。实测教训：用户 apt 装完工具后环境页
+// 仍然说“缺 X”，因为缓存是 7 天前的，而环境页只看缓存 → 人会以为装失败了。
 func (d *Discoverer) Load(ctx context.Context) ([]Tool, error) {
 	if ctx == nil {
 		ctx = context.Background()

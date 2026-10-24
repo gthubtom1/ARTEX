@@ -456,7 +456,8 @@ export default function SystemSettingsPage() {
               实验功能
             </CardTitle>
             <CardDescription>
-              尚在验证中的机制，默认关闭。可能改变 Agent 行为或影响稳定性，请在了解影响后启用。
+              长期开着的机制（LLM 顾问 / LLM 复核默认已开启）；这里的 noa 压缩属可选项。
+              开关都写着实际成本上限，改了立刻生效。
               <br />
               <b>noa 上下文压缩</b>：由模型主动压缩长对话历史（norma v0.4.0）。开启后平台接入的四类 Agent（
               <b>规划者 / 执行者 / 主 Agent / 对话</b>）改用 noa 接管上下文，取代内置压缩，
@@ -482,7 +483,7 @@ export default function SystemSettingsPage() {
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-4">
                 <Label htmlFor="adviser-enabled" className="text-sm font-normal text-muted-foreground">
-                  LLM 顾问（实验·默认关）{adviserEnabled ? " · 已开启" : " · 已关闭"}
+                  LLM 顾问{adviserEnabled ? " · 已开启" : " · 已关闭"}
                 </Label>
                 <Switch
                   id="adviser-enabled"
@@ -493,14 +494,15 @@ export default function SystemSettingsPage() {
                 />
               </div>
               <p id="adviser-enabled-description" className="text-muted-foreground text-xs">
-                打开后每 10 分钟最多一次（仅在停顿检测命中时）会对任务做一次额外 LLM 判断，增加 token
-                消耗；确定性的停顿检测与纠正提示写入不依赖它，默认关不影响质量。
+                默认<b>开启</b>：每 10 分钟最多一次（仅在停顿检测命中时）对任务做一次额外 LLM 判断，
+                给出「换方向」的具体建议。不要就关掉——关掉后只剩确定性规则版建议，质量和它不同。
+                成本上限已内置（每任务 10 分钟一次），不会无限烧 token。
               </p>
             </div>
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-4">
                 <Label htmlFor="verifier-enabled" className="text-sm font-normal text-muted-foreground">
-                  LLM 复核（实验·默认关）{verifierEnabled ? " · 已开启" : " · 已关闭"}
+                  LLM 复核{verifierEnabled ? " · 已开启" : " · 已关闭"}
                 </Label>
                 <Switch
                   id="verifier-enabled"
@@ -511,8 +513,8 @@ export default function SystemSettingsPage() {
                 />
               </div>
               <p id="verifier-enabled-description" className="text-muted-foreground text-xs">
-                打开后每 5 分钟最多一次（每轮规划后）会对已上报的 finding 做一次额外 LLM 复核，并可能据此降档能力卡，
-                增加 token 消耗；report_finding 的三门校验不依赖它，默认关不影响质量。
+                默认<b>开启</b>：每 5 分钟最多一次（每轮规划后）对已上报的 finding 做一次额外 LLM 复核，
+                证据不足时会把能力卡降档。成本上限已内置（每任务 5 分钟一次）；三门校验不依赖它。
               </p>
             </div>
             <div className="flex flex-col gap-2">

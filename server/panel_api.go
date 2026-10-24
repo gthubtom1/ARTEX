@@ -1,7 +1,9 @@
 package server
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -20,8 +22,39 @@ import (
 
 func (s *Server) registerPanelRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/environment", s.getEnvironment)
+	mux.HandleFunc("POST /api/environment/rescan", s.rescanEnvironment)
 	mux.HandleFunc("GET /api/network", s.getNetwork)
 	mux.HandleFunc("GET /api/knowledge", s.getKnowledge)
+}
+
+// rescanEnvironment 丢掉工具缓存并重新扫描一次（后台），让刚 apt 装完的工具立刻可见。
+//
+// 为什么要有它：原来缓存 TTL 7 天且只在启动时扫一次，装完工具环境页还是“缺 X”，
+// 用户只能重启服务——对“开箱即用”来说是反向体验。
+func (s *Server) rescanEnvironment(w http.ResponseWriter, r *http.Request) {
+	if s.envDisc == nil {
+		writeErr(w, http.StatusServiceUnavailable, "工具发现未初始化")
+		return
+	}
+	if err := s.envDisc.Invalidate(); err != nil {
+		writeErr(w, http.StatusInternalServerError, "清理缓存失败："+err.Error())
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		tools, err := s.envDisc.Load(ctx)
+		if err != nil {
+			log.Printf("[env] rescan failed: %v", err)
+			return
+		}
+		s.tools.Store(tools)
+		missing := s.envDisc.Missing(tools)
+		log.Printf("[env] rescan: %d tools, missing=%v", len(tools), missing)
+	}()
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"ok": true, "detail": "已在后台重新扫描，稍后刷新本页（约 5-30 秒）",
+	})
 }
 
 func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -36,6 +69,8 @@ func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []toolView{}
 	var missing []string
+	var missingTools []env.MissingTool
+	var installHint string
 	if v := s.tools.Load(); v != nil {
 		if tools, ok := v.([]env.Tool); ok {
 			for _, t := range tools {
@@ -44,6 +79,10 @@ func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request) {
 			}
 			if s.envDisc != nil {
 				missing = s.envDisc.Missing(tools)
+				// “缺什么 + 怎么装”一并给前端：错误卡只说“去环境页装”，
+				// 但页面没给命令，人还得自己查包名（2026-10-24 实测反馈）。
+				missingTools = env.DescribeMissing(missing)
+				installHint = env.InstallHintBatch(missing)
 			}
 		}
 	}
@@ -63,10 +102,12 @@ func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"tools":    out,
-		"count":    len(out),
-		"missing":  missing,
-		"settings": settings,
+		"tools":          out,
+		"count":          len(out),
+		"missing":        missing,
+		"missing_detail": missingTools,
+		"install_hint":   installHint,
+		"settings":       settings,
 	})
 }
 

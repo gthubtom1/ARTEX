@@ -27,7 +27,10 @@ const (
 	cacheFileName = "tools_cache.json"
 
 	// cacheTTL 缓存有效期，超过则视为过期并重新扫描。
-	cacheTTL = 7 * 24 * time.Hour
+	//
+	// 2026-10-24：7 天 → 1 天。实测：用户在 VM 里 apt 装了 conntrack/chisel/sshpass，
+	// 环境页仍然把 chisel/sshpass 列为缺失（缓存是 7 天前扫的），人以为装失败了。
+	cacheTTL = 24 * time.Hour
 
 	// hardKillGrace 是外部强制兜底超时的宽限期：
 	// 若注入的 Runner 不守 ctx 约定，runCommand 在 timeout+grace 后直接放弃等待。

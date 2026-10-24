@@ -75,6 +75,23 @@ var shellBuiltins = map[string]bool{
 	"wait": true, "kill": true, "trap": true, "shift": true, "eval": true, "exec": true,
 	":": true, "pushd": true, "popd": true, "dirs": true, "history": true,
 	"jobs": true, "bg": true, "fg": true, "local": true, "declare": true,
+	// 2026-10-24 实测补：`command -v proxychains4 proxychains` 的首词是 shell 内建
+	// `command`，原来不在白名单 → 被判成“缺工具 command”，任务里白多一条 tool_missing，
+	// 而环境页永远不会提示装 command（它本就不该被检查）。
+	// 这几个都是“探测/内建”类，缺失永远不是环境问题。
+	"command": true, "builtin": true, "hash": true, "getopts": true,
+	"ulimit": true, "times": true, "shopt": true, "let": true,
+	"mapfile": true, "readarray": true, "enable": true, "bind": true,
+	"complete": true, "compgen": true, "disown": true, "fc": true,
+	"caller": true, "help": true, "logout": true, "suspend": true,
+	"whereis": true, "whoami": true, "id": true, "uname": true, "date": true,
+}
+
+// probeVerbs 是“只探测不执行”的命令：它们的首词必然存在，而且后面的参数
+// 本来就可能不存在（`command -v foo` 找不到 foo 是正常结果，不是环境问题）。
+// 命中就不做存在性检查，避免把“检查工具在不在”本身当成“缺工具”。
+var probeVerbs = map[string]bool{
+	"command": true, "which": true, "type": true, "whereis": true, "hash": true,
 }
 
 // pyKeywords 是 Python 语句关键字：heredoc/临时脚本里的行首单词不该被当成命令。
@@ -133,7 +150,14 @@ func firstCommand(cmd string) string {
 			cut = i
 		}
 	}
-	head := cmd[:cut]
+		head := cmd[:cut]
+	if fields := strings.Fields(head); len(fields) > 0 {
+		// `command -v X` / `which X` / `type X` 是探测，不是执行：
+		// 找不到 X 是正常结果，不能记成“缺工具”。
+		if probeVerbs[strings.ToLower(strings.Trim(fields[0], "\"'`"))] {
+			return ""
+		}
+	}
 
 	fields := strings.Fields(head)
 	for i := 0; i < len(fields); i++ {

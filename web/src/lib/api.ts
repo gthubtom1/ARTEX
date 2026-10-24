@@ -1532,6 +1532,8 @@ export const p2api = {
     return get<{ entries: import("@/lib/types").P2AuditEntry[] }>(`/p2/audit?${qs.toString()}`);
   },
   environment: () => get<import("@/lib/types").EnvironmentResponse>("/environment"),
+  // 丢掉工具缓存 + 后台重扫：刚 apt 装完工具后不用重启服务
+  rescanEnvironment: () => post<{ ok: boolean; detail: string }>("/environment/rescan", {}),
   network: () => get<import("@/lib/types").NetworkResponse>("/network"),
   verifierReviews: (taskId?: string, limit = 100) => {
     const qs = new URLSearchParams();
@@ -1661,6 +1663,8 @@ export interface TaskErrorGroup {
   action: string;
   fix: string;
   tools: string[] | null;
+  /** 只有 tool_missing 有值：一条可直接复制的安装命令 */
+  install?: string;
 }
 
 export interface TaskErrorsResponse {

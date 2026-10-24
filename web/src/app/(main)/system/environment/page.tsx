@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,6 +38,33 @@ export default function EnvironmentPage() {
     } finally {
       setLoading(false);
       setLoaded(true);
+    }
+  }, []);
+
+  const [rescanning, setRescanning] = React.useState(false);
+
+  // 重扫是后台任务（5-30 秒），先提示再轮询两次把结果拉回来。
+  const rescan = React.useCallback(async () => {
+    setRescanning(true);
+    try {
+      const r = await p2api.rescanEnvironment();
+      toast.success(r.detail || "已在后台重新扫描");
+      await new Promise((res) => setTimeout(res, 6000));
+      await load();
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setRescanning(false);
+    }
+  }, [load]);
+
+  const copyText = React.useCallback(async (text: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("已复制");
+    } catch {
+      toast.error("复制失败，请手动选中");
     }
   }, []);
 
@@ -80,14 +107,74 @@ export default function EnvironmentPage() {
 
       {err && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm">{err}</div>}
 
-      <div className="flex flex-wrap gap-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
         <Badge variant="outline">发现 {data?.count ?? 0} 个工具</Badge>
         {(data?.missing ?? []).slice(0, 20).map((m) => (
           <Badge key={m} className="bg-amber-500/10 text-amber-600 dark:text-amber-400">
             缺 {m}
           </Badge>
         ))}
+        <Button
+          className="ml-auto h-7 px-2 text-[11px]"
+          size="sm"
+          variant="outline"
+          onClick={rescan}
+          disabled={rescanning}
+          title="丢掉工具缓存并重新扫描（刚装完工具时点这个，不用重启服务）"
+        >
+          <RefreshCwIcon className={cn("size-3", rescanning && "animate-spin")} />
+          重新扫描
+        </Button>
       </div>
+
+      {/* 缺工具 → 直接给能复制的安装命令。原来这里只有一枚“缺 X”徽标，
+          错误卡让人“到环境页安装”，进来却没有安装入口（2026-10-24 实测反馈）。 */}
+      {(data?.missing_detail ?? []).length > 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">缺 {data?.missing_detail?.length} 个工具 · 复制命令安装</CardTitle>
+            <CardDescription className="text-xs">
+              装完点右上角「重新扫描」即可，不用重启服务；装不装都不影响已有任务继续跑。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {data?.install_hint && (
+              <div className="flex items-start gap-2">
+                <pre className="min-w-0 flex-1 overflow-x-auto rounded border bg-card px-2 py-1.5 text-[11.5px] whitespace-pre-wrap">
+                  {data.install_hint}
+                </pre>
+                <Button
+                  size="sm"
+                  className="h-7 shrink-0 px-2 text-[11px]"
+                  onClick={() => copyText(data.install_hint ?? "")}
+                >
+                  复制
+                </Button>
+              </div>
+            )}
+            <div className="flex flex-col gap-1">
+              {(data?.missing_detail ?? []).map((m) => (
+                <div key={m.name} className="flex items-center gap-2 text-[11.5px]">
+                  <span className="w-[110px] shrink-0 font-mono">{m.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                    {m.install || "未收录包名：apt search " + m.name}
+                  </span>
+                  {m.install && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 shrink-0 px-1.5 text-[10.5px]"
+                      onClick={() => copyText(m.install ?? "")}
+                    >
+                      复制
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-2">
