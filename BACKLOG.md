@@ -370,6 +370,21 @@ data_export←读到数据；account_read←进过后台或库里有凭据；per
 task 14（E4）→ 6 件 doable、standing got。测试 `TestActionDoableFollowsCapability` /
 `TestFindingStandingNeedsCapability` PASS。
 
+**④⑤ 模板重写 + 投入产出闸门（2026-10-24，0.11.24）**：
+- **模板 8 → 3 开局 + 更多**：`0017_template_primary.sql` 加 `is_primary`；①③⑤ 升级成**三段落文本**
+  （【这一轮干什么】/【看到什么算"有"】/【什么时候必须停】），并把"没有就记为不适用，别硬凑"写进正文；
+  其余 5 个降级为「补充」（创建页排序：开局在前，非开局带「补充」标签）。
+  文本升级只在老文本未被用户改过时覆盖（前缀匹配 + 独立 flag `task_templates_primary_v2`）。
+  真机（Kali 0.11.23）：①③⑤ `is_primary=t` 且 goal 以「【这一轮干什么】」开头；②④⑥⑦⑧ `f`。
+- **投入产出闸门**（`server/stall_gate.go`）：判据只用确定性信号「上次有新证据是多久前」——
+  30 分钟 → warn（要求它给一句"继续/换路线/收工"+理由）；60 分钟 → stop（建议出报告并停）；
+  **120 分钟且用户 60 分钟没说话 → 自动暂停**（`applyTaskControl("pause")` + 一条 activity 说明"我没进展、先替我省钱"），
+  用 settings 标记去重，resume 后不再自动停。`/brief` 新增 `stall{level,minutes,advice}`，
+  战况卡在 warn/stop 时显示横幅 + 一键复制"该说什么"。
+  只在**真在跑**的任务上提示（已结束/已暂停显示 ok，避免"建议收工"噪音）。
+  真机（0.11.24）：4 个任务 status=done/timeout → `stall.level=ok`；测试 `TestStallDecision`
+  （10 分钟 ok / 31 warn / 61 stop；2 小时+人 1 小时没说话才自动暂停，人刚说过话不许停）PASS。
+
 **②③ 战况页一屏一问已上线（2026-10-24，0.11.17）**：
 - `BattleCard` 重写为五行主视线：① 我在哪（等级+进度点+洞数）② 我有什么（最多 3 个 + 还有 N）
   ③ **现在能做到**（最多 3 条 + `[就做这个]`，带"已登记/已完成"工单态）④ 差一步（一行：几个洞、缺什么）

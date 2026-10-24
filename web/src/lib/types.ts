@@ -62,6 +62,8 @@ export interface TaskTemplate {
   timeout_min?: number;
   /** 模板阶段（recon|surface|exploit|data|full） */
   stage?: string;
+  /** 开局模板（前 3 个）；其余是「更多」里的补充打法 */
+  is_primary?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -2168,6 +2170,8 @@ export interface TaskBrief {
   verdict_label: string;
   // 上次看战果之后新拿到的行数（胶囊红点）
   new_since: number;
+  // 进度健康度（闸门2）：ok / warn（30 分钟无新证据）/ stop（60 分钟，建议收工）
+  stall?: { level: "ok" | "warn" | "stop"; minutes: number; advice: string };
 }
 
 // ── 动态快捷短语（P1）：GET /api/tasks/{id}/phrases ──────────

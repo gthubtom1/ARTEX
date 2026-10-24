@@ -38,7 +38,9 @@ type TaskTemplate struct {
 	TimeoutMin int `json:"timeout_min"`
 	// Stage 是模板阶段（recon|surface|exploit|data|full）：recon 阶段未出结论前，
 	// guard 会拦利用类命令（阶段 B 阶段门）。
-	Stage     string    `json:"stage"`
+	Stage string `json:"stage"`
+	// IsPrimary：开局模板（前 3 个）；其余是"更多"里的补充打法（docs/25 §六）。
+	IsPrimary bool      `json:"is_primary"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -69,12 +71,12 @@ type TaskTemplatePatch struct {
 	Stage             *string
 }
 
-const taskTemplateCols = `id, name, nkey, description, goal, category_id, intercept_rules, timeout_min, stage, created_at, updated_at`
+const taskTemplateCols = `id, name, nkey, description, goal, category_id, intercept_rules, timeout_min, stage, is_primary, created_at, updated_at`
 
 func scanTaskTemplate(row interface{ Scan(...any) error }) (TaskTemplate, error) {
 	var t TaskTemplate
 	var rulesRaw []byte
-	if err := row.Scan(&t.ID, &t.Name, &t.NKey, &t.Description, &t.Goal, &t.CategoryID, &rulesRaw, &t.TimeoutMin, &t.Stage, &t.CreatedAt, &t.UpdatedAt); err != nil {
+	if err := row.Scan(&t.ID, &t.Name, &t.NKey, &t.Description, &t.Goal, &t.CategoryID, &rulesRaw, &t.TimeoutMin, &t.Stage, &t.IsPrimary, &t.CreatedAt, &t.UpdatedAt); err != nil {
 		return t, err
 	}
 	t.InterceptRules = []TaskInterceptRuleInput{}

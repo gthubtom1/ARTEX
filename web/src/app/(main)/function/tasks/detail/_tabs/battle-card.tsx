@@ -256,6 +256,31 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
         </section>
         <p className="-mt-1 text-[10.5px] text-muted-foreground">{LEVEL_HINT[level] ?? ""}</p>
 
+        {/* 闸门2：没进展时直说（warn 黄 / stop 红），并给"该说什么" */}
+        {brief?.stall && brief.stall.level !== "ok" && (
+          <section
+            className={cn(
+              "flex flex-wrap items-center gap-1.5 rounded border px-2 py-1.5",
+              brief.stall.level === "stop"
+                ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+            )}
+          >
+            <span className="rounded bg-current/15 px-1 text-[9.5px] font-bold">
+              {brief.stall.level === "stop" ? "建议收工" : "没进展"}
+            </span>
+            <span className="min-w-0 flex-1">{brief.stall.advice}</span>
+            <CopyBtn
+              text={
+                brief.stall.level === "stop"
+                  ? "用当前已有的证据出报告并停，别再试了"
+                  : "现在进展在哪？给我一句：继续、换路线、还是收工"
+              }
+              label="复制一句"
+            />
+          </section>
+        )}
+
         {/* ② 我有什么（最多 3 个 + 还有 N） */}
         <section className="flex flex-wrap items-center gap-1">
           <span className="text-[10px] text-muted-foreground">我有什么</span>

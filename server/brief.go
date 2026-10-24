@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Autumn-27/artex/internal/impact"
 )
@@ -61,6 +62,8 @@ type brief struct {
 	SayThis    string         `json:"say_this"`
 	Verdict    string         `json:"verdict"`
 	VerdictTag string         `json:"verdict_label"`
+	// Stall：进度健康度（docs/23 §五 闸门2）。全确定性：只看"多久没有新证据"。
+	Stall stallState `json:"stall"`
 	// NewSince：上次打开战果面板之后新拿到的战果行数（胶囊红点）。
 	// 游标存在 loot_seen（0014），只看 done 行的证据 id 是否越过游标。
 	NewSince int64 `json:"new_since"`
@@ -152,6 +155,14 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	// 真正"人要求过没有 / 有没有证据"看 run_state。先做一次证据收口再读工单。
 	s.closeActionsByEvidence(r.Context(), t, taskID)
 	out.Actions = s.briefActions(r.Context(), taskID, st)
+
+	// 闸门2：多久没有新证据（只读判定，暂停动作由后台巡检做）。
+	// 只在"真在跑"的任务上提示：已结束/已暂停的任务显示"建议收工"是噪音（用户会以为它还烧钱）。
+	if taskIsRunning(t.Status) && !t.Paused {
+		out.Stall = stallDecision(s.taskLastProgress(r.Context(), taskID), s.taskLastHuman(r.Context(), taskID), time.Now())
+	} else {
+		out.Stall = stallState{Level: "ok", Minutes: -1}
+	}
 
 	if len(out.Has) > 0 {
 		out.SayThis = "想做上面哪一步，直接在下面主对话里说，例如「" + out.Actions[0].SayIt + "」；我不会自己动手。"

@@ -24,5 +24,5 @@ for T in $TASKS; do
     can_n:(.can|length), standing:[.can[].standing],
     doable:[.actions[]|select(.doable)|.class],
     not_doable_n:([.actions[]|select(.doable|not)]|length),
-    new_since}'
+    new_since, stall}'
 done

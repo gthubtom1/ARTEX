@@ -433,6 +433,12 @@ export function TaskTemplateControls({
     if (selectedTemplateID === id) onSelectedTemplateIDChange(null);
   };
 
+  // 开局（is_primary）在前，补充打法在后；同组内保持原顺序（按 id）。
+  const sortedTemplates = React.useMemo(
+    () => [...templates].sort((a, b) => Number(b.is_primary === true) - Number(a.is_primary === true) || a.id - b.id),
+    [templates],
+  );
+
   let pickerPlaceholder = loading ? "正在加载模板" : "暂无任务模板";
   if (!loading && templates.length > 0) pickerPlaceholder = "搜索并选择任务模板";
 
@@ -466,7 +472,7 @@ export function TaskTemplateControls({
           </div>
         </div>
         <Combobox
-          items={templates}
+          items={sortedTemplates}
           itemToStringLabel={(template) => template.name}
           itemToStringValue={(template) => String(template.id)}
           inputValue={templateInputValue}
@@ -488,7 +494,14 @@ export function TaskTemplateControls({
                 <ComboboxItem key={template.id} value={template}>
                   <LibraryIcon />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-sm">{template.name}</p>
+                    <p className="flex items-center gap-1 truncate font-medium text-sm">
+                      {template.name}
+                      {template.is_primary === false && (
+                        <span className="shrink-0 rounded bg-muted px-1 text-[10px] font-normal text-muted-foreground">
+                          补充
+                        </span>
+                      )}
+                    </p>
                     {template.description && (
                       <p className="truncate text-muted-foreground text-xs">{template.description}</p>
                     )}
@@ -498,7 +511,10 @@ export function TaskTemplateControls({
             </ComboboxList>
           </ComboboxContent>
         </Combobox>
-        <FieldDescription>选择后会复制模板的描述、目标、分类与任务级规则，不与模板保持关联。</FieldDescription>
+        <FieldDescription>
+          前 3 个是**开局**（判断值不值得打 / 打穿并取证 / 全面出报告），零基础直接选第一个；带
+          「补充」的是打到一半才用的打法。选择后会复制模板的描述、目标、分类与任务级规则，不与模板保持关联。
+        </FieldDescription>
       </Field>
 
       <AlertDialog

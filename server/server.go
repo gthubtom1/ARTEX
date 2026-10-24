@@ -300,6 +300,8 @@ func New(ctx context.Context, m *Manager, skillDir string, dataDir string, keyDi
 	// 审查官「定时触发」：每分钟扫在跑的任务，够间隔就自己看一次（docs/13）。
 	if m.pg != nil {
 		go s.reviewTicker(s.ctx)
+		// 投入产出闸门（docs/23 §五）：无新证据又没人管的任务，替用户省钱停掉
+		s.startStallGate(s.ctx)
 	}
 	s.startTaskArchiveWorker()
 	if m.pg != nil {

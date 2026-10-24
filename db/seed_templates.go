@@ -15,6 +15,8 @@ type builtinTaskTemplate struct {
 	goal        string
 	timeoutMin  int
 	stage       string
+	// isPrimary：只把 3 个"开局"放主视线（docs/25 §六）；其余 5 个降级到"更多"。
+	isPrimary bool
 }
 
 // builtinTaskTemplates 按"一次渗透的真实顺序"排列，从上往下选即可。
@@ -173,6 +175,71 @@ var builtinTaskTemplates = []builtinTaskTemplate{
 	},
 }
 
+// ── ①③⑤ 的三段落文本（docs/25 §六）──────────────────────────────────────
+//
+// 模板文本的三条硬规矩（"写得越全 ≠ 越好"的落点）：
+//  1. 只写"看到什么算有"，**不写"这个站应该有 X"** —— 否则模型会照着"应该有"去找不存在的洞；
+//  2. 每一项都要给"没有就记为不适用，别硬凑"的出口；
+//  3. 必须写"什么时候停"（硬判据），避免没希望的站跑十几个小时烧 token。
+var primaryTemplateOverrides = map[string]struct {
+	goal      string
+	oldPrefix string
+}{
+	"① 值不值得打（20 分钟）": {
+		oldPrefix: "先判断这个站值不值得继续投入",
+		goal: `【这一轮干什么】只读侦察 20 分钟，只有一个产出：这个站值不值得继续投入。
+
+【看到什么算"有"】（没有就把这一项记为"不适用"，别硬凑）
+- 有登录面：登录/注册/后台入口返回 200，或 403/401（403 也说明存在）。
+- 有动态入口：URL 带参数、有表单、有 /api 或 swagger/actuator 文档。
+- 有旧版本特征：响应头/静态文件名/报错页里出现明确版本号。
+- 有防护：WAF / CDN / 全站登录 —— 这也是结论，写清硬在哪。
+
+【什么时候必须停】（满足任一条就停，并写一条 fact 或 finding 作结论）
+- 已经能明确回答"值得 / 不值得"；
+- 20 分钟到；
+- 连续两个动作没有任何新信息（同一批端口/路径重复出现）。
+
+边界：只读。不爆破、不试默认口令、不写任何东西。`,
+	},
+	"③ 找漏洞并取证（40 分钟）": {
+		oldPrefix: "目标不是",
+		goal: `【这一轮干什么】在入口清单上找可复现漏洞，并至少把一条往上推一步（能读数据或能进后台）。
+
+【看到什么算"有"】（只认证据，不认"应该存在"）
+- 注入：同一条请求去掉 payload 再发一遍，响应有可对比差异（报错/时间/内容）。
+- 越权：换 id 或换角色后，返回了不属于当前账号的数据。
+- 未授权：不带 token 访问接口，返回业务数据而不是 401/403。
+- 上传：传一个无害文件后能访问到它（先不要落 webshell）。
+- 泄露：.git / .env / 备份 / 源码可下载，且内容里出现凭据或配置项。
+以上任一条成立，就用 finding 落证据（附完整请求 + 响应）。
+
+【什么时候必须停】
+- 已推进一步（读到数据 / 进后台 / 命令回显）→ 停，把结果登记（等级才会涨）；
+- 40 分钟到；
+- 连续两个动作无新证据 → 停，写清"卡在哪、缺什么"。
+
+边界：上传/写文件、批量取数、留账号、横移，平台会向你请求授权后再做。`,
+	},
+	"⑤ 全面评估出报告（60 分钟）": {
+		oldPrefix: "按阶段推进",
+		goal: `【这一轮干什么】给出完整结论 + 一份能直接交付的报告。
+
+【看到什么算"有"】（报告里每条都要挂证据，没有证据的不写）
+- 结论：值得 / 不值得，以及硬在哪；
+- 漏洞清单：每条带完整请求与响应片段；
+- 权限与数据：到哪一级（E0–E5）、能读到哪些表哪些字段；
+- 缺口：哪些面没探到、需要什么前提。
+
+【什么时候必须停】
+- 报告要素齐了 → 停（不要为了"再多找一个洞"继续烧钱）；
+- 60 分钟到；
+- 连续两次无新证据 → 用当前材料出报告。
+
+边界：只读为主；任何写操作先停下来问人。`,
+	},
+}
+
 // 老版本 ③④ 的 goal 全文（用于"只升级未被用户改过的那两条"）。
 const (
 	oldGoalExploit = `在已摸清的入口上找可复现的漏洞。每个漏洞必须带三样：完整请求（方法/URL/参数/必要 header）、响应里证明成功的片段（关键字或长度差异）、影响（能读到什么/能做什么）。
@@ -199,6 +266,11 @@ var legacyBuiltinTemplateNames = []string{
 // Gated by a settings flag so a user's later rename/edit/delete is never
 // resurrected on restart.
 func (d *DB) seedBuiltinTaskTemplates() error {
+	// 主模板升级独立于"首次播种"：老库里 8 条早就存在，seed 会因 flag 直接返回，
+	// 所以这里必须单独跑一次（自己的 flag），否则 ①③⑤ 永远升不到三段落文本。
+	if err := d.upgradePrimaryTaskTemplates(); err != nil {
+		return err
+	}
 	const flag = "task_templates_seed_v5"
 	if v, _, _ := d.GetSetting(flag); v == "done" {
 		return nil
@@ -206,9 +278,9 @@ func (d *DB) seedBuiltinTaskTemplates() error {
 	for _, t := range builtinTaskTemplates {
 		name := taskTemplateName(t.name)
 		if _, err := d.Exec(`
-INSERT INTO task_templates(name, nkey, description, goal, timeout_min, stage)
-VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT (nkey) DO NOTHING`, name, taskTemplateNKey(name), t.description, t.goal, t.timeoutMin, t.stage); err != nil {
+INSERT INTO task_templates(name, nkey, description, goal, timeout_min, stage, is_primary)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (nkey) DO NOTHING`, name, taskTemplateNKey(name), t.description, t.goal, t.timeoutMin, t.stage, isPrimaryFor(t.name)); err != nil {
 			return err
 		}
 	}
@@ -235,4 +307,33 @@ ON CONFLICT (nkey) DO NOTHING`, name, taskTemplateNKey(name), t.description, t.g
 		return err
 	}
 	return nil
+}
+
+// isPrimaryFor 标记哪几个是"开局"模板（其余进"更多"）。
+func isPrimaryFor(name string) bool {
+	_, ok := primaryTemplateOverrides[name]
+	return ok
+}
+
+// upgradePrimaryTaskTemplates：把 ①③⑤ 升成"三段落文本 + 主模板"，其余 5 个降级为"更多"。
+// 只在老文本还没被用户改过时覆盖（前缀匹配）；单独 flag 保证只跑一次。
+func (d *DB) upgradePrimaryTaskTemplates() error {
+	const primaryFlag = "task_templates_primary_v2"
+	if v, _, _ := d.GetSetting(primaryFlag); v == "done" {
+		return nil
+	}
+	for _, t := range builtinTaskTemplates {
+		nkey := taskTemplateNKey(t.name)
+		if _, err := d.Exec(`UPDATE task_templates SET is_primary=$1 WHERE nkey=$2`,
+			isPrimaryFor(t.name), nkey); err != nil {
+			return err
+		}
+		if o, ok := primaryTemplateOverrides[t.name]; ok {
+			if _, err := d.Exec(`UPDATE task_templates SET goal=$1, description=$2, updated_at=now()
+				WHERE nkey=$3 AND goal LIKE $4`, o.goal, t.description, nkey, o.oldPrefix+"%"); err != nil {
+				return err
+			}
+		}
+	}
+	return d.SetSetting(primaryFlag, "done")
 }
