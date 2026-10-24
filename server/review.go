@@ -181,7 +181,9 @@ func (s *Server) reviewOnce(parent context.Context, taskIDStr string, taskID int
 	// （停顿诊断走 adviser_llm.go，全局复盘走这里）。DB 里没有/含未渲染占位符时
 	// 回落到 review.ProsePrompt，保证老库不改也能跑。
 	sys := s.agentPromptOrConst("adviser", review.ProsePrompt)
-	raw, lerr := collectText(ctx, rt, true, sys, user, 1200)
+	// 3000 而不是 1200：推理模型（deepseek-v4.1-flash 等）会先用 reasoning 吃掉
+	// 大半个预算，1200 时实测正文长度为 0（content=null），审查官只能退回规则版。
+	raw, lerr := collectText(ctx, rt, true, sys, user, 3000)
 	if lerr == nil {
 		if txt := cleanReviewText(raw); len([]rune(txt)) >= 12 {
 			v.Body = txt

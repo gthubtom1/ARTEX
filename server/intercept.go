@@ -215,8 +215,16 @@ func reviewCompletion(ctx context.Context, prov llm.Provider, prompt string, inp
 // 与 streamCollectText 的区别只有"传输方式"，提示词与预算由调用方给。
 func collectText(ctx context.Context, prov llm.Provider, nonStreaming bool, system, user string, maxTokens int) (string, error) {
 	temp := 0.0
-	if maxTokens <= 0 || maxTokens > 2048 {
+	// 预算下限 1024；上限从 2048 提到 8192。
+	//
+	// 2026-10-24 实测：调用方传 1200 却在推理模型上拿回 0 字（reasoning 吃满 1200
+	// token，content 为 null），审查官因此每次都退回规则版。而原来的上界 2048 会
+	// 把调用方想要的大预算直接压回 1024，等于想加也加不上。
+	if maxTokens <= 0 {
 		maxTokens = 1024
+	}
+	if maxTokens > 8192 {
+		maxTokens = 8192
 	}
 	req := llm.CompletionRequest{
 		System:      []string{system},
@@ -234,6 +242,20 @@ func collectText(ctx context.Context, prov llm.Provider, nonStreaming bool, syst
 		// 解析不了再走规则版兜底，不要在这里把内容丢掉。
 		text := strings.TrimSpace(msg.Text())
 		if stop == "max_tokens" || stop == "length" {
+			// 一个字都没留下的情况几乎只有一个原因：推理模型的思考把预算吃光了
+			// （content=null，正文全在 reasoning_content）。这里按 2 倍预算重试一次，
+			// 仍为空才交给调用方兜底——比让审查官直接退成规则版划算。
+			if text == "" && maxTokens < 8192 {
+				req.MaxTokens = maxTokens * 2
+				log.Printf("[llm] 空正文且命中 max_tokens，用 %d 预算重试一次", req.MaxTokens)
+				if msg2, stop2, _, err2 := prov.Complete(ctx, req); err2 == nil {
+					text = strings.TrimSpace(msg2.Text())
+					if text != "" {
+						log.Printf("[llm] 重试成功，keep %d chars（stop=%s）", len(text), stop2)
+						return text, nil
+					}
+				}
+			}
 			log.Printf("[llm] hit max_tokens, keep %d chars", len(text))
 		}
 		return text, nil
