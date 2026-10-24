@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # verify-0.9.6.sh —— 一次跑完 0.9.6 的所有验收判据，输出 PASS/FAIL。
 #
 # 为什么要有它：docs/20-完工方案.md 要求"每条完成都有可复算判据"。
@@ -8,7 +8,7 @@
 #   sudo bash scripts/verify-0.9.6.sh            # 在装 ARTEX 的机器上跑（读 /opt/artex/jwt.key）
 #   ARTEX_DIR=/path ARTEX_PORT=8787 sudo -E bash scripts/verify-0.9.6.sh
 #   或用现成 token：ARTEX_TOKEN=xxx bash scripts/verify-0.9.6.sh
-set -uo pipefail
+set -uo pipefail  # 必须用 bash 跑：bash scripts/verify-0.9.6.sh
 
 ARTEX_DIR="${ARTEX_DIR:-/opt/artex}"
 PORT="${ARTEX_PORT:-8787}"
@@ -38,7 +38,10 @@ H="Authorization: Bearer $TOKEN"
 
 echo "== 服务 =="
 VER=$(curl -s -m 5 "$A/health" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("version",""))' 2>/dev/null)
-case "$VER" in 0.9.*) ok "版本" "$VER" ;; "") bad "版本" "health 不可达" ;; *) bad "版本" "$VER（期望 0.9.x）" ;; esac
+# 版本不写死具体号：这里只要求"是从 release 构建的（不是 dev）、且 health 可达"。
+# 教训（2026-10-24）：原来写死 0.9.*，升到 0.10.3 后脚本自己误报 FAIL —— 判据脚本不该
+# 成为版本升级的阻碍，它要看的是"功能在不在"，不是"号是多少"。
+case "$VER" in "") bad "版本" "health 不可达" ;; dev|"") bad "版本" "dev（未注入版本号，用 scripts/package_local.sh 或 build.sh 重打）" ;; *) ok "版本" "$VER" ;; esac
 
 echo "== 阶段 A：值不值得打 / 审查官 / 报告 =="
 TID=$(curl -s -m 8 "$A/tasks" -H "$H" | python3 -c 'import sys,json;d=json.load(sys.stdin);ts=d.get("tasks",[]);print(ts[0]["id"] if ts else "")' 2>/dev/null)
