@@ -748,6 +748,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerDataRoutes(mux)       // 数据定位：解析 DB 输出（不执行 SQL）
 	s.registerCandoRoutes(mux)      // “能做到什么”：战果地图 + 按需 AI 细化（CARD-B01）
 	s.registerVerdictRoutes(mux)    // 「值不值得打」结论卡（A1：零基础打开任务就要看到结论）
+	s.registerImpactRoutes(mux)     // 权限阶梯 + 下一步提案 + 即时授权（E0–E5 / task_grants）
 	s.registerReviewRoutes(mux)     // 复盘官：结构化快照 + 评审结论 + 采纳回执（CARD-C01）
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)
@@ -4543,6 +4544,15 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		}
 		return "", false
 	}
+	// 即时授权门：动作类别（file_write/data_dump/persist/lateral）必须由用户按任务授权。
+	guard.ActionGate = func(c context.Context, class string) bool {
+		id := agent.RunInfoFrom(c).TaskID
+		if id <= 0 {
+			return true // 无任务上下文（自检/脚手架）时不拦
+		}
+		return s.grantAllowed(id, class)
+	}
+
 	// 阶段门（阶段 B）：读本任务阶段；"已出结论"= 有 >=1 个漏洞 或 >=3 条否定结论。
 	// 带 45s 缓存，避免每次 Bash 调用都查库。
 	guard.StageGate = func(c context.Context) (string, bool) {

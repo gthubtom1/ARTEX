@@ -1897,6 +1897,18 @@ export interface LootResponse {
   rows: LootRow[];
 }
 
+export const impactapi = {
+  // 现在到哪一级 + 下一步能做什么（含风险）+ 已授权类别
+  get: (taskId: string) =>
+    get<import("@/lib/types").ImpactResponse>(`/tasks/${encodeURIComponent(taskId)}/impact`),
+  // 人在卡片上当场决定：允许/拒绝某类动作
+  grant: (taskId: string, cls: string, granted: boolean) =>
+    post<{ ok: boolean; class: string; granted: boolean }>(
+      `/tasks/${encodeURIComponent(taskId)}/grant`,
+      { class: cls, granted },
+    ),
+};
+
 export const verdictapi = {
   // 「值不值得打」：值得 / 不值得 / 还没探够 + 最多 3 条理由 + 攻击面
   get: (taskId: string) =>

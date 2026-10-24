@@ -27,7 +27,9 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { api, verdictapi } from "@/lib/api";
+import { toast } from "sonner";
+
+import { api, impactapi, verdictapi } from "@/lib/api";
 import type {
   AssetInterceptKind,
   AssetInterceptRule,
@@ -107,6 +109,43 @@ export function OverviewTab({ taskId }: { taskId: string }) {
   const [task, setTask] = React.useState<Task | null>(null);
   // 「值不值得打」：纯规则判定，打开任务首页就能看到结论（A1）
   const [verdict, setVerdict] = React.useState<import("@/lib/types").TaskVerdict | null>(null);
+  // 权限阶梯 + 下一步提案（越界动作要用户当场授权，见 internal/impact）
+  const [impactView, setImpactView] = React.useState<import("@/lib/types").ImpactResponse | null>(null);
+
+  // 「值不值得打」与「现在到哪一步」：进页面拉一次，之后 20s 刷（都是纯规则计算，很便宜）。
+  React.useEffect(() => {
+    let alive = true;
+    const load = () => {
+      verdictapi
+        .get(taskId)
+        .then((v) => alive && setVerdict(v))
+        .catch(() => void 0);
+      impactapi
+        .get(taskId)
+        .then((v) => alive && setImpactView(v))
+        .catch(() => void 0);
+    };
+    load();
+    const t = setInterval(load, 20000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [taskId]);
+
+  // 用户当场拍板：允许/拒绝某类越界动作（写库 → 立即回读）
+  const decide = React.useCallback(
+    async (cls: string, granted: boolean) => {
+      try {
+        await impactapi.grant(taskId, cls, granted);
+        setImpactView(await impactapi.get(taskId));
+        toast.success(granted ? "已授权，它会照这个方向继续" : "已拒绝，它不会动这一步");
+      } catch (e) {
+        toast.error(String(e));
+      }
+    },
+    [taskId],
+  );
   const [stats, setStats] = React.useState<Stats | null>(null);
   const [intents, setIntents] = React.useState<TaskNode[]>([]);
   const [findings, setFindings] = React.useState<Finding[]>([]);
@@ -1038,6 +1077,63 @@ export function OverviewTab({ taskId }: { taskId: string }) {
                 仅显示前 20 条，点「全部重跑」处理剩余 {blocked.length - 20} 条。
               </p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 权限阶梯 + 下一步（要不要越界，由你当场决定） */}
+      {impactView && (
+        <Card className="border-sky-500/40 bg-sky-500/5">
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-1.5 text-xs">
+              <ShieldAlertIcon className="size-3.5" />
+              现在到哪一步 · 下一步由你决定
+            </CardDescription>
+            <CardTitle className="text-base">
+              {impactView.level_label}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">{impactView.basis}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-[11.5px]">
+            {impactView.steps.length === 0 && (
+              <p className="text-muted-foreground">暂时没有可推进的下一步：先跑②模板把入口摸全，或等漏洞确认。</p>
+            )}
+            {impactView.steps.map((st) => {
+              const g = impactView.grants.find((x) => x.class === st.class);
+              return (
+                <div key={st.class} className="rounded border bg-card px-2 py-1.5">
+                  <div className="font-medium">{st.title}</div>
+                  <div className="mt-0.5 text-muted-foreground">为什么能做：{st.why}</div>
+                  <div className="text-muted-foreground">我会做什么：{st.plan}</div>
+                  <div className="text-amber-700 dark:text-amber-400">风险：{st.risk}</div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    {g?.granted ? (
+                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-emerald-700 dark:text-emerald-300">
+                        已授权（{g.decided_at}）
+                      </span>
+                    ) : g ? (
+                      <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-slate-600">
+                        已拒绝（{g.decided_at}）
+                      </span>
+                    ) : null}
+                    <button
+                      className="rounded border border-emerald-600/50 bg-emerald-600 px-2 py-0.5 text-[10.5px] font-medium text-white hover:bg-emerald-700"
+                      onClick={() => void decide(st.class, true)}
+                      title="允许它做这一步（只在这个任务内有效）"
+                    >
+                      允许
+                    </button>
+                    <button
+                      className="rounded border px-2 py-0.5 text-[10.5px] hover:bg-accent"
+                      onClick={() => void decide(st.class, false)}
+                      title="不允许：它不会动这一步，其它路线照常"
+                    >
+                      拒绝
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

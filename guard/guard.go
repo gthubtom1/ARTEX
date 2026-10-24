@@ -73,6 +73,69 @@ var reconForbidden = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\b(?:ms17-010|eternalblue)\b`),
 }
 
+// ActionGate 由 server 注入：返回"该任务是否已被用户授权做某类动作"。
+// class ∈ file_write | data_dump | persist | lateral（见 internal/impact）。
+//
+// 为什么要有它（用户原话：「你不要现在设置边界……它那时候会问我，让我明确授权」）：
+// 边界不写死在代码里，而是每次到了"要越界"的那一步，先拦下来告诉人"这一步能做什么、
+// 风险是什么"，人在任务页点允许后才放行。拒绝也不影响其它路线。
+var ActionGate func(ctx context.Context, class string) bool
+
+// actionPatterns 把命令归到需要授权的动作类别。判定刻意保守：
+// 只认"明显越界"的形态，宁可少拦（漏拦由阶段门/审计兜），不可误伤侦察。
+var actionClassPatterns = []struct {
+	class string
+	res   []*regexp.Regexp
+}{
+	{"file_write", []*regexp.Regexp{
+		regexp.MustCompile(`(?i)curl[^\n]*\s(?:-F|--form|--upload-file|-T)\s`),
+		regexp.MustCompile(`(?i)curl[^\n]*-X\s*PUT`),
+		regexp.MustCompile(`(?i)\b(?:webshell|shell\.(?:php|jsp|jspx|asp|aspx)|cmd\.(?:jsp|php))\b`),
+		regexp.MustCompile(`(?i)>[^\n]*\.(?:php|jsp|aspx?)\b`),
+	}},
+	{"data_dump", []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\bsqlmap\b[^\n]*--(?:dump|dump-all|sql-shell|os-shell)`),
+		regexp.MustCompile(`(?i)\b(?:mysqldump|pg_dump|mongoexport|redis-cli[^\n]*--rdb)\b`),
+	}},
+	{"persist", []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\b(?:useradd|adduser|chpasswd|usermod)\b`),
+		regexp.MustCompile(`(?i)\bcrontab\s+-|\bschtasks\b|\breg\s+add\b`),
+		regexp.MustCompile(`(?i)authorized_keys`),
+	}},
+	{"lateral", []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\bssh(pass)?\b[^\n]*@`),
+		regexp.MustCompile(`(?i)\b(?:proxychains4?|impacket-|psexec)\b`),
+		regexp.MustCompile(`(?i)\b(?:nxc|netexec|crackmapexec)\b`),
+	}},
+}
+
+// classifyAction 返回该命令属于哪一类需要授权的动作；空串=不需要授权。
+func classifyAction(cmd string) string {
+	for _, g := range actionClassPatterns {
+		for _, re := range g.res {
+			if re.MatchString(cmd) {
+				return g.class
+			}
+		}
+	}
+	return ""
+}
+
+// actionClassCN 把类别翻成人话（拦截提示直接给人看）。
+func actionClassCN(class string) string {
+	switch class {
+	case "file_write":
+		return "上传/写文件（webshell、落地验证文件）"
+	case "data_dump":
+		return "批量取数据"
+	case "persist":
+		return "留可控账号 / 计划任务"
+	case "lateral":
+		return "向其它主机发起连接（横移）"
+	}
+	return class
+}
+
 // TaskIDOf 由 server 注入：从 ctx 里取当前任务 id（取不到返回 0）。
 // 只用于把错误归类落到 task_error_events，不参与任何判定。
 var TaskIDOf func(context.Context) int64
@@ -342,6 +405,17 @@ func (g *Guard) preToolUse(ctx context.Context, ev hook.Event) hook.Result {
 				msg := "当前任务是「① 只读侦察」阶段：先把这个站摸清并产出「值不值得打」的结论，再做利用动作。" +
 					"现在改用只读手法（指纹/端口/入口/接口），或先把已发现的攻击面写回事实。"
 				errEvent(ctx, errev.ClassPolicyBlocked, "StageGate", cmd)
+				return g.block(ev.ToolName, msg, cmd)
+			}
+		}
+	}
+	// 即时授权门：这一步越界了吗？越界且没被授权 → 拦下来告诉人"能做啥/风险"，等人点允许。
+	if ActionGate != nil && cmd != "" {
+		if cls := classifyAction(cmd); cls != "" {
+			if !ActionGate(ctx, cls) {
+				msg := "这一步需要你先授权：「" + actionClassCN(cls) + "」。" +
+					"到任务首页「下一步」卡片点『允许』，我就照这个方向继续；点『拒绝』也不会影响其它路线。"
+				errEvent(ctx, errev.ClassPolicyBlocked, "GrantGate", cmd)
 				return g.block(ev.ToolName, msg, cmd)
 			}
 		}

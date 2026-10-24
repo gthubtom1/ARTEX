@@ -114,6 +114,49 @@ passive DNS、robots.txt），模型没有尝试 sqlmap —— 主 Agent 按"只
 自检任务 11 已删除；库里恢复 task 6/7 两个真实任务；`settings` 无 `task.stage.%` 残留。
 
 
+
+### 阶段 E：从"找漏洞"到"拿权限"（2026-10-24，用户核心需求）
+
+用户判定：「串联漏洞和线索才是渗透本质」——不要预设边界，到要越界那一步由系统问人。
+
+**E1 权限阶梯（E0–E5，纯规则）** `GET /api/tasks/{id}/impact`
+```
+E0 仅有信息 → E1 有效凭据 → E2 应用控制 → E3 命令执行 → E4 数据访问 → E5 服务器控制
+```
+实测（task 7，只有 1 个 XSS）：`E0 仅有信息 | 只有漏洞，还没有把它变成任何访问权`
+统计 `findings=1 creds=0 shells=0 data=0 owned=0 root=0`。
+> 教训：第一版把 summary 也纳入判定，XSS 因摘要出现"数据/用户枚举"被算成 **E4 数据访问**——
+> 等级虚高比不显示更糟。已改为：E3 只看 vulnclass/name；E4 还要求 evidence 里出现样本/rows/select 之类证据。
+
+**E2 下一步提案（不预设边界，只描述）**
+每条提案写清：能得到什么 / 为什么现在能做 / 授权后我会执行什么 / 风险。实测输出：
+```
+提案[file_write] 把漏洞变成命令执行（上传一个最小 webshell，验证后立即删除）
+  为什么: 已有可复现漏洞，且它可能允许写文件/上传
+  风险: 会在目标上产生一个文件（可能被 WAF/杀软记录）；不删除会留下后门风险
+提案[data_dump] 直接读业务数据（每类最多 3 条样本）
+  风险: 读取行为可能被审计；样本里有真实用户数据，需要你决定能不能取
+```
+
+**E3 即时授权（task_grants）** `POST /api/tasks/{id}/grant {class, granted}`
+- 粒度 = (任务, 动作类别：file_write|data_dump|persist|lateral)；
+- 实测：允许 file_write → 库 `7|file_write|t`；拒绝 data_dump → `7|data_dump|f`；
+  会话流留下两条人话记录 `用户允许本任务执行「上传/写文件…」` / `用户拒绝本任务执行「批量取数据」`；
+- 接口回读立即显示 `granted`，30s 缓存后 guard 即时生效。
+
+**E4 执行闸（guard.ActionGate）**
+未授权的越界动作在执行前被拦，写 `task_error_events(class=policy_blocked, tool=GrantGate)`，
+提示原文：「这一步需要你先授权：「上传/写文件…」。到任务首页「下一步」卡片点『允许』…」。
+单测 `guard/action_gate_test.go`：12 条越界命令分类正确（curl -F/PUT、webshell 落地、sqlmap --dump、
+mysqldump、useradd/chpasswd、crontab、authorized_keys、ssh@、proxychains、nxc 等），
+6 条侦察命令（nmap/curl 只读/ffuf/sqlmap --banner/cat/grep）不要求授权。
+
+部署：`0.10.1-p9`。
+
+**E5 未做（下一步）**：链对象（`chains`/`chain_steps`，把 finding→利用→收益→下一跳串起来）、
+后渗透执行器（拿到 E3 后解锁 webshell/shell 池/数据取样），以及模板③④的 goal 改成
+"拿到命令执行或数据样本才算完成"。
+
 ## 配置建议（**不是待办**，你随时改）
 
 模型选择是你的决定，不是代码缺陷，不阻塞任何功能（不绑也能用，只是全用同一个模型）。

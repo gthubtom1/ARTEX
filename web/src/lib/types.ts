@@ -2065,3 +2065,29 @@ export interface TaskVerdict {
   /** 命中的判定规则（可复算/可解释） */
   rule: string;
 }
+
+// ── 权限阶梯 + 下一步提案 + 即时授权 ──────────────────────────
+export interface ImpactStep {
+  class: "file_write" | "data_dump" | "persist" | "lateral";
+  title: string;
+  why: string;
+  plan: string;
+  risk: string;
+  next: number; // 做成后升到 E几
+}
+
+export interface ImpactGrant {
+  class: string;
+  granted: boolean;
+  decided_at: string;
+  note: string;
+}
+
+export interface ImpactResponse {
+  level: number;
+  level_label: string;
+  basis: string;
+  stats: Record<string, number>;
+  steps: ImpactStep[];
+  grants: ImpactGrant[];
+}
