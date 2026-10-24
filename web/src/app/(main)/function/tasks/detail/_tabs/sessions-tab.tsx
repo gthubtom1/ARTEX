@@ -2108,7 +2108,9 @@ export function SessionsTab({
                   />
                 ) : (
                   <div className="pl-9 text-xs text-muted-foreground">
-                    {isMain ? "还没有对话。在下方给主 Agent 发消息，引导探索方向或介入流程。" : "暂无活动记录。"}
+                    {isMain
+                      ? "还没有对话。下一步：直接在下方发一句（例如「先花 20 分钟只读摸入口」），或回到「战况」点 ✦ 分析 看它建议做什么。"
+                      : "这个会话还没有活动记录；切到主 Agent 会话看整体进度。"}
                   </div>
                 )}
               </div>
