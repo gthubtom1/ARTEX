@@ -53,6 +53,22 @@ echo "== [P1] GET /api/tasks/$TASK/phrases（期望 3–5 条，纯规则）"
 api "$BASE/api/tasks/$TASK/phrases" | jq -c '{n:(.phrases|length), source, has, keys:[.phrases[].key], first:.phrases[0].text}'
 
 echo
+echo "== [P2] 动作工单：对话即授权 → 留证 → 状态回读"
+echo "-- 登记（模拟人在对话里说那句）"
+RUN=$(api -X POST -H 'Content-Type: application/json'   -d '{"class":"data_export","say_it":"帮我把它数据库里的订单表数据拉出来，先各取几条看看"}'   "$BASE/api/tasks/$TASK/actions" | tee /tmp/run.json | jq -r '.run.id')
+cat /tmp/run.json | jq -c '.run|{id,action_class,state,base_ref,say_it}'
+echo "-- /brief 里该动作应变成 requested，且 state 仍为 idle（永不自动执行）"
+api "$BASE/api/tasks/$TASK/brief" | jq -c '.actions[]|select(.class=="data_export")|{state,run_state,run_id,evidence_need}'
+echo "-- 没证据就标 done 必须被拒（留证纪律）"
+api -X POST -H 'Content-Type: application/json' -d '{"state":"done"}'   "$BASE/api/tasks/$TASK/actions/$RUN/result" | jq -c . 2>/dev/null || true
+echo "-- 带证据标 done"
+api -X POST -H 'Content-Type: application/json'   -d '{"state":"done","evidence":"订单表取到 3 条脱敏样本，共 1284 行","evidence_ref":298}'   "$BASE/api/tasks/$TASK/actions/$RUN/result" | jq -c .
+echo "-- 再读 /brief：应 done + 带证据"
+api "$BASE/api/tasks/$TASK/brief" | jq -c '.actions[]|select(.class=="data_export")|{run_state,run_evidence}'
+echo "-- GET /actions"
+api "$BASE/api/tasks/$TASK/actions" | jq -c '{n:(.runs|length), first:(.runs[0]|{id,action_class,state,evidence})}'
+
+echo
 echo "== 数据库侧"
 echo kali | sudo -S -u artex psql -d artex -tAc "select version from schema_migrations order by version desc limit 2" | sed 's/^/迁移: /'
 for t in loot_seen finding_abilities; do
@@ -60,6 +76,7 @@ for t in loot_seen finding_abilities; do
 done
 echo kali | sudo -S -u artex psql -d artex -tAc "select task_id,seen_finding_id,updated_at from loot_seen where task_id=$TASK" | sed 's/^/loot_seen: /'
 echo kali | sudo -S -u artex psql -d artex -tAc "select finding_id,left(evidence_hash,12),left(text,40) from finding_abilities where task_id=$TASK limit 5" | sed 's/^/finding_abilities: /'
+echo kali | sudo -S -u artex psql -d artex -tAc "select id,action_class,state,base_ref,evidence_ref,left(evidence,30) from action_runs where task_id=$TASK order by id desc limit 3" | sed 's/^/action_runs: /'
 
 echo
 echo "== 前端已内嵌：拉首页引用的 chunk，grep P0-b/P0-c 的新界面关键字"

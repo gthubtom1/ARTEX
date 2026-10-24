@@ -29,9 +29,15 @@ type briefAbility struct {
 type briefAction struct {
 	Class string `json:"class"`
 	Title string `json:"title"`
-	State string `json:"state"`  // idle（永不自动执行）
+	State string `json:"state"`  // idle（永不自动执行；P2 的执行状态看 run_state）
 	Need  string `json:"need"`   // 前置条件
 	SayIt string `json:"say_it"` // 想让我做就发这句
+	// P2：工单状态（none=还没人发话 / requested=已登记 / done=有证据 / failed / aborted）
+	RunState     string `json:"run_state"`
+	RunID        int64  `json:"run_id,omitempty"`
+	RunEvidence  string `json:"run_evidence,omitempty"`
+	RunSayIt     string `json:"run_say_it,omitempty"` // 人当时的原话（授权凭据）
+	EvidenceNeed string `json:"evidence_need"`        // 做完该留下什么证据
 }
 
 type brief struct {
@@ -118,20 +124,16 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	// 每个漏洞能换到什么（先 AI 缓存；没有就用规则模板，见 brief_ai.go）
 	out.Can = s.briefCan(r.Context(), t, taskID)
 
-	// 业务动作（P2）：只展示，state 恒为 idle
-	out.Actions = []briefAction{
-		{Class: "data_export", Title: "按条件导出数据（订单/用户/卡密）", State: "idle", Need: "注入点或数据库权限", SayIt: "帮我把它数据库里的订单表数据拉出来，先各取几条看看"},
-		{Class: "account_read", Title: "看后台的用户名/密码或哈希", State: "idle", Need: "后台管理员或数据库", SayIt: "把后台的用户列表和密码（或哈希）给我看看"},
-		{Class: "account_create", Title: "开一个管理员账号", State: "idle", Need: "后台或命令执行", SayIt: "用管理员权限帮我开一个后台账号，我登录看看"},
-		{Class: "money_adjust", Title: "给指定账号加钱/改余额", State: "idle", Need: "后台或写库权限", SayIt: "给这个账号加 100，把改前改后都记下来"},
-		{Class: "money_approve", Title: "把提款/订单审批通过", State: "idle", Need: "后台", SayIt: "在后台把这笔提款审批通过"},
-		{Class: "deface", Title: "改首页 / 挂马 / 换收款地址", State: "idle", Need: "上传或写入权限", SayIt: "把它首页的收款地址换成我的，先备份原文件"},
-		{Class: "persist", Title: "留账号/计划任务（持久化）", State: "idle", Need: "命令执行", SayIt: "留一个可用的后台账号，任务结束前删掉"},
-	}
 	// 未读战果（胶囊红点）：done 行的证据 id 越过 loot_seen 游标 => 算新。
 	// 读不到游标/没库时 lootSeenFindingID 返回 0，此时全部算新（首屏就该提示）。
 	fs := s.lootFindings(t)
-	out.NewSince = countUnreadLoot(s.lootRowsForTask(r.Context(), t, fs), s.lootSeenFindingID(r.Context(), taskID))
+	rows := s.lootRowsForTask(r.Context(), t, fs)
+	out.NewSince = countUnreadLoot(rows, s.lootSeenFindingID(r.Context(), taskID))
+
+	// 业务动作（P2）：列表来自 actionDefs（唯一事实源），state 恒为 idle（永不自动执行），
+	// 真正"人要求过没有 / 有没有证据"看 run_state。先做一次证据收口再读工单。
+	s.closeActionsByEvidence(r.Context(), t, taskID)
+	out.Actions = s.briefActions(r.Context(), taskID)
 
 	if len(out.Has) > 0 {
 		out.SayThis = "想做上面哪一步，直接在下面主对话里说，例如「" + out.Actions[0].SayIt + "」；我不会自己动手。"

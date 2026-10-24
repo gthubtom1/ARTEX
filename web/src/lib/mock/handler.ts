@@ -1003,6 +1003,23 @@ function parseBody(body?: BodyInit | null): Record<string, unknown> {
 // 为什么要现算而不是写死：真后端的战况是「实时规则算出来的」，mock 也必须这样，
 // 否则改一处 findings 就得到一份对不上的假演示。
 const mockLootSeen: Record<string, number> = {};
+// P2 演示：动作工单的内存态（真后端是 action_runs 表）
+let mockActionSeq = 200;
+const mockActionRuns: Record<
+  string,
+  {
+    id: number;
+    action_class: string;
+    say_it: string;
+    state: string;
+    base_ref: number;
+    evidence: string;
+    evidence_ref: number;
+    note: string;
+    created_at: string;
+    updated_at: string;
+  }[]
+> = {};
 
 function mockFindingNum(id: string): number {
   const n = Number(String(id).replace(/\D/g, ""));
@@ -1243,7 +1260,29 @@ function mockWarCard(
         cached: Boolean(ai),
       };
     }),
-    actions: mockActions(),
+    // P2 演示：data_export 已被"对话即授权"登记、account_read 已完成并留了证据
+    actions: mockActions().map((a) => {
+      if (a.class === "data_export") {
+        return {
+          ...a,
+          run_state: "requested",
+          run_id: 101,
+          run_say_it: "帮我把它数据库里的订单表数据拉出来，先各取几条看看",
+          evidence_need: "行数 + 样本 3 条（脱敏）",
+        };
+      }
+      if (a.class === "account_read") {
+        return {
+          ...a,
+          run_state: "done",
+          run_id: 100,
+          run_say_it: "把后台的用户列表和密码（或哈希）给我看看",
+          run_evidence: "战果行「管理员 / 后台登录」已拿到，证据 #6 #7",
+          evidence_need: "脱敏后的账号列表",
+        };
+      }
+      return { ...a, run_state: "none" };
+    }),
     say_this:
       has.length > 0
         ? "想做上面哪一步，直接在下面主对话里说，例如「帮我把它数据库里的订单表数据拉出来，先各取几条看看」；我不会自己动手。"
@@ -1859,6 +1898,47 @@ function route(m: string, path: string, seg: string[], q: URLSearchParams, b: Re
       };
     });
     return { can, asked: filled === 0 ? 0 : filled, filled, model: "demo" };
+  }
+  // P2：业务动作工单（demo 内存态；真后端是 action_runs 表）
+  if (seg[0] === "tasks" && seg[2] === "actions" && m === "GET" && seg.length === 3) {
+    return { runs: (mockActionRuns[seg[1]] ?? []).slice().reverse() };
+  }
+  if (seg[0] === "tasks" && seg[2] === "actions" && m === "POST" && seg.length === 3) {
+    const list = (mockActionRuns[seg[1]] ??= []);
+    const cls = String(b.class ?? "");
+    const existing = list.find((r) => r.action_class === cls && r.state === "requested");
+    if (existing) {
+      existing.say_it = String(b.say_it ?? existing.say_it);
+      return { run: existing };
+    }
+    const run = {
+      id: ++mockActionSeq,
+      action_class: cls,
+      say_it: String(b.say_it ?? ""),
+      state: "requested",
+      base_ref: 0,
+      evidence: "",
+      evidence_ref: 0,
+      note: "",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    list.push(run);
+    return { run };
+  }
+  if (seg[0] === "tasks" && seg[2] === "actions" && seg[4] === "result" && m === "POST") {
+    const list = mockActionRuns[seg[1]] ?? [];
+    const run = list.find((r) => String(r.id) === seg[3]);
+    if (!run) throw new Error("工单不存在");
+    const state = String(b.state ?? "");
+    if (state === "done" && !String(b.evidence ?? "") && !Number(b.evidence_ref ?? 0)) {
+      throw new Error("标记完成要带 evidence 或 evidence_ref");
+    }
+    run.state = state;
+    run.evidence = String(b.evidence ?? "");
+    run.note = String(b.note ?? "");
+    run.updated_at = new Date().toISOString();
+    return { ok: true, state };
   }
   // P1：动态快捷短语（demo 按 findings/战果行现算，口径同 server/phrases.go）
   if (seg[0] === "tasks" && seg[2] === "phrases" && seg.length === 3 && m === "GET") {

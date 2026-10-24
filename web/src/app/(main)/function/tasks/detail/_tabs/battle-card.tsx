@@ -330,7 +330,26 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                     <span className="shrink-0 opacity-70">前置：{a.need}</span>
                     <CardCopy text={a.say_it} label="复制说法" />
                   </div>
+                  {a.run_state === "requested" && (
+                    <div className="mt-0.5 rounded bg-sky-500/10 px-1 text-[10.5px] text-sky-700 dark:text-sky-300">
+                      已登记（等结果）{a.run_say_it ? `· 你说的是：「${a.run_say_it}」` : ""}
+                    </div>
+                  )}
+                  {a.run_state === "done" && (
+                    <div className="mt-0.5 rounded bg-emerald-500/10 px-1 text-[10.5px] text-emerald-700 dark:text-emerald-300">
+                      已完成{a.run_evidence ? ` · ${a.run_evidence}` : ""}
+                    </div>
+                  )}
+                  {(a.run_state === "failed" || a.run_state === "aborted") && (
+                    <div className="mt-0.5 rounded bg-slate-500/10 px-1 text-[10.5px] text-slate-600">
+                      {a.run_state === "failed" ? "失败了" : "已放弃"}
+                      {a.run_evidence ? ` · ${a.run_evidence}` : ""}
+                    </div>
+                  )}
                   <div className="mt-0.5 text-[10.5px] text-foreground/70">想让我做就说：「{a.say_it}」</div>
+                  {a.evidence_need && (
+                    <div className="text-[10px] text-muted-foreground">做完要留证：{a.evidence_need}</div>
+                  )}
                 </div>
               );
             })}

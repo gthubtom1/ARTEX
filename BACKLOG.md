@@ -302,7 +302,21 @@ F4 成本可见 / F5 零基础可走通），并给出**当前实测值**：
   浏览器（mock）点第一条 → 输入框出现该句、焦点落位、发送按钮启用但**没有发出**（无新消息）。
   `TestBuildTaskPhrasesCount`（3–5 条、字段非空、无重复）+ `TestBuildTaskPhrasesPriority`（有 shell 时第一条是捞配置、
   无战果时不出"进后台"、只有漏洞时第一条是催收益）PASS。
-- ⬜ **P2** 业务动作执行通道（7 类动作 + 对话即授权 + 留证）。
+- ✅ **P2 业务动作执行通道**（2026-10-24 完成）：`db/migrations/0016_action_runs.sql` + `server/actions.go`。
+  唯一事实源 `actionDefs`（7 类：data_export/account_read/account_create/money_adjust/money_approve/deface/persist，
+  每类带前置、说法、留证要求、映射的战果行）；brief 的动作列表改由它生成。
+  链路：人在主对话说「帮我…」→ `maybeActionFromChat` 按关键词登记工单（`say_it` 存原话=授权凭据，
+  与既有 `maybeGrantFromChat` 并存）→ 该动作映射的战果行出现**新证据**（id > 登记时 base_ref）→ 自动收口 done；
+  也可 `POST /actions/{run}/result` 显式回报 done/failed/aborted（**done 必须带 evidence 或 evidence_ref**）。
+  纪律：`brief.actions[].state` 仍恒为 `idle`（永不自动执行），执行状态看新增的 `run_state`
+  （none/requested/done/failed/aborted）+ `run_evidence` + `say_it` 原话。
+  **真机实测（Kali VM 0.11.11-p2）**：`[db] migration applied: 0016_action_runs.sql`；
+  `POST /actions` → `{"id":1,"state":"requested","base_ref":298}`；`/brief` → `{"state":"idle","run_state":"requested",
+  "evidence_need":"行数 + 样本 3 条（脱敏）"}`；不带证据标 done → `{"error":"标记完成要带 evidence 或 evidence_ref"}`（被拒）；
+  带证据标 done → `{"ok":true,"state":"done"}`，再读 `/brief` → `run_evidence:"订单表取到 3 条脱敏样本，共 1284 行"`；
+  `action_runs` 行 `1|data_export|done|298|298|…`。
+  `TestActionClassFromChat`（含否定句/提问不误判）、`TestActionClosureNeedsNewEvidence`（旧证据不算做成、
+  run 状态不算战果）、`TestActionDefsComplete`（7 类字段齐全）PASS。
 - ⬜ **P3** 未读通知（红点/任务列表徽章/标题）+ 审查官喂 Brief 并下硬动作。
 - ⬜ **P4** 详情页缺 `?id=` 回列表；「允许/拒绝」收成一行说明。
 

@@ -2137,6 +2137,14 @@ export interface BriefAction {
   need: string;
   // 想让我做就发这句（确定性命中模板，前端只做复制/填入，不自动发）
   say_it: string;
+  // P2 工单状态：none=还没人发话 / requested=已登记 / done=有证据 / failed / aborted
+  run_state?: "none" | "requested" | "done" | "failed" | "aborted";
+  run_id?: number;
+  run_evidence?: string;
+  // 人当时的原话（授权凭据）
+  run_say_it?: string;
+  // 做完该留下什么证据
+  evidence_need?: string;
 }
 
 export interface TaskBrief {
