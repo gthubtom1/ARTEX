@@ -57,12 +57,17 @@ func (s *Server) taskImpact(w http.ResponseWriter, r *http.Request) {
 	taskID, _ := strconv.ParseInt(t.ID, 10, 64)
 	st := s.impactStats(r.Context(), t, taskID)
 	lv, basis := impact.Compute(st)
+	// 提案要按"已确认的是哪类漏洞"分派：E0 不许无缘无故提 webshell（用户 2026-10-24 指出的逻辑错）。
+	kinds := make([]string, 0, 16)
+	for _, f := range s.lootFindings(t) {
+		kinds = append(kinds, f.title+" "+f.summary)
+	}
 	writeJSON(w, http.StatusOK, impactView{
 		Level:      int(lv),
 		LevelLabel: lv.String(),
 		Basis:      basis,
 		Stats:      st,
-		Steps:      impact.Propose(lv, st),
+		Steps:      impact.Propose(lv, st, kinds),
 		Grants:     s.taskGrants(r.Context(), taskID),
 	})
 }

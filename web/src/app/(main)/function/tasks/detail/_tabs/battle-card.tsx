@@ -460,6 +460,11 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                   >
                     <span className="font-medium">{st.title}</span>
                     <span className="text-muted-foreground">→ 做成升到 E{st.next}</span>
+                    {st.ready === false && st.precondition && (
+                      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10.5px] text-amber-700 dark:text-amber-300">
+                        还差前置：{st.precondition}
+                      </span>
+                    )}
                     {g?.granted ? (
                       <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-emerald-700 dark:text-emerald-300">
                         已在对话里授权（{g.decided_at}）

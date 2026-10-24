@@ -2431,6 +2431,8 @@ function GrantInline({ taskId }: { taskId: string }) {
           setSteps(
             (d.steps ?? [])
               .filter((s) => !decided.has(s.class))
+              // 只提示"前置已满足"的步骤：没前置硬提"上传 webshell"是错的（用户 2026-10-24 指出）
+              .filter((s) => s.ready !== false)
               .map((s) => ({ cls: s.class, title: s.title })),
           );
         })

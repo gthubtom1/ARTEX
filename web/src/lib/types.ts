@@ -2074,6 +2074,9 @@ export interface ImpactStep {
   plan: string;
   risk: string;
   next: number; // 做成后升到 E几
+  // 前置能力（人话）+ 是否已满足：未满足时只能显示"还差：前置"，不能当成"下一步想做"
+  precondition?: string;
+  ready?: boolean;
 }
 
 export interface ImpactGrant {
