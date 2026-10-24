@@ -503,9 +503,16 @@ func TestMissingAndFind(t *testing.T) {
 	if len(missing) != wantLen {
 		t.Fatalf("Missing 条数 = %d, want %d: %v", len(missing), wantLen, missing)
 	}
-	for _, name := range []string{"sqlmap", "proxychains4", "python3", "go"} {
+	// 2026-10-24：go 已从 keyTools 移除（它只是构建工具，任务不会调用），
+	// 所以这里不再要求它出现在 Missing 里；反过来要断言它**不再出现**。
+	for _, name := range []string{"sqlmap", "proxychains4", "python3"} {
 		if !contains(missing, name) {
 			t.Fatalf("Missing 缺少 %q: %v", name, missing)
+		}
+	}
+	for _, name := range missing {
+		if strings.EqualFold(name, "go") {
+			t.Fatalf("go 是构建工具，不该出现在环境体检清单里: %v", missing)
 		}
 	}
 	// 顺序跟关键清单一致。

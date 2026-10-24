@@ -100,7 +100,11 @@ export function TaskErrorBar({ taskId, windowMin = 60 }: { taskId: string; windo
           <div className="mt-2 rounded-md border bg-background px-2.5 py-2 text-[11px]">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{g.label}</span>
-              {g.install ? (
+              {g.resolved ? (
+                <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                  已解决（工具已装上，或本就是误报）
+                </span>
+              ) : g.install ? (
                 <button
                   type="button"
                   className="rounded border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"

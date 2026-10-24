@@ -1982,6 +1982,9 @@ export interface EnvironmentResponse {
   missing_detail?: MissingTool[] | null;
   /** 一批缺工具合成的一条命令（含“未收录包名”注释） */
   install_hint?: string;
+  /** 任务里真的调用过、现在仍然没有的工具（高优先级，才需要装） */
+  task_missing?: MissingTool[] | null;
+  task_missing_hint?: string;
   settings: Record<string, string>;
 }
 // 网络面板（D1 之后只剩「出口 IP 自检」：当前出口 / 基准 / 最近变更记录）。

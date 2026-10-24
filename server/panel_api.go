@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Autumn-27/artex/guard"
 	"github.com/Autumn-27/artex/internal/env"
 	artexkb "github.com/Autumn-27/artex/internal/kb"
 	"github.com/Autumn-27/artex/internal/netguard"
@@ -87,6 +89,44 @@ func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	// 「任务真的缺」与「环境体检建议」必须分开。
+	//
+	// 2026-10-24 实测反馈：任务里只缺 conntrack，可环境页把整份 keyTools 里缺的都列出来
+	// （chisel/sshpass/go），人一看以为要全装——而 Go 只是构建工具，任务永远用不到。
+	// 判据应该是：
+	//   ① 任务里真的调用过、且现在仍然没有的 → 高优先级，带安装命令（甚至可自动装）；
+	//   ② 环境清单里缺、但没有任何任务用过的 → 弱提示，装不装随意。
+	var taskMissing []env.MissingTool
+	var taskMissingHint string
+	if s.p2 != nil && s.p2.DB != nil {
+		rows, err := s.p2.DB.QueryContext(r.Context(), `
+			SELECT DISTINCT tool FROM task_error_events
+			WHERE class = 'tool_missing' AND ts > now() - interval '24 hours'`)
+		if err == nil {
+			defer rows.Close()
+			var names []string
+			for rows.Next() {
+				var n string
+				if rows.Scan(&n) == nil {
+					names = append(names, n)
+				}
+			}
+			// 已经装上 / 本来就是误报（shell 探测词）的不再催人装。
+			var still []string
+			for _, n := range names {
+				if guard.IsShellProbe(n) {
+					continue
+				}
+				if _, err := exec.LookPath(strings.TrimSpace(n)); err == nil {
+					continue
+				}
+				still = append(still, n)
+			}
+			taskMissing = env.DescribeMissing(still)
+			taskMissingHint = env.InstallHintBatch(still)
+		}
+	}
+
 	settings := map[string]string{}
 	if s.settings != nil {
 		// 只展示**真的有消费者**的键（2026-10-23 全量审查：tool.*、work.max_turns、
@@ -107,7 +147,10 @@ func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request) {
 		"missing":        missing,
 		"missing_detail": missingTools,
 		"install_hint":   installHint,
-		"settings":       settings,
+		// task_missing = 任务里真的调用过、现在仍然没有的工具（高优先级）
+		"task_missing":      taskMissing,
+		"task_missing_hint": taskMissingHint,
+		"settings":          settings,
 	})
 }
 

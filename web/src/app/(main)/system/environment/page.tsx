@@ -127,14 +127,42 @@ export default function EnvironmentPage() {
         </Button>
       </div>
 
-      {/* 缺工具 → 直接给能复制的安装命令。原来这里只有一枚“缺 X”徽标，
-          错误卡让人“到环境页安装”，进来却没有安装入口（2026-10-24 实测反馈）。 */}
+      {/* ① 任务真的缺（有任务调用过、现在仍然没有）→ 才需要装 */}
+      {(data?.task_missing ?? []).length > 0 && (
+        <Card className="border-rose-500/40 bg-rose-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">
+              任务里真的缺 {data?.task_missing?.length} 个工具（装完点「重新扫描」）
+            </CardTitle>
+            <CardDescription className="text-xs">
+              这些是最近 24 小时任务实际调用过、现在仍然不存在的工具。装完即可继续，不用重启服务。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {data?.task_missing_hint && (
+              <div className="flex items-start gap-2">
+                <pre className="min-w-0 flex-1 overflow-x-auto rounded border bg-card px-2 py-1.5 text-[11.5px] whitespace-pre-wrap">
+                  {data.task_missing_hint}
+                </pre>
+                <Button size="sm" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => copyText(data.task_missing_hint ?? "")}>
+                  复制
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ② 环境体检建议（没有任务用到）→ 弱提示，装不装随意 */}
       {(data?.missing_detail ?? []).length > 0 && (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">缺 {data?.missing_detail?.length} 个工具 · 复制命令安装</CardTitle>
+            <CardTitle className="text-sm">
+              环境体检：{data?.missing_detail?.length} 个常用工具未安装（<span className="text-emerald-600">当前任务不需要它们</span>）
+            </CardTitle>
             <CardDescription className="text-xs">
-              装完点右上角「重新扫描」即可，不用重启服务；装不装都不影响已有任务继续跑。
+              这只是"体检建议"，不是任务必需。跑任务时真缺什么会自己提示并给命令；
+              不必为了凑齐清单装全套（磁盘/内存紧张时更不该装）。
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">

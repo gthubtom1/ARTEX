@@ -291,10 +291,16 @@ func (d *Discoverer) Missing(tools []Tool) []string {
 }
 
 // keyTools 是 AI 常用、缺失时需要显式告警的工具清单。
+// keyTools 是“环境体检”清单：缺了会**提示**，但不是任务必需项。
+//
+// 2026-10-24 改：去掉 go。Go 是**构建工具**（用户自己编二进制才要），
+// 渗透任务永远不会调用它；留在清单里只会让环境页常年显示“缺 go”，
+// 而人点进去发现任务根本用不上 —— 提示一次假需求，比不提示更糟。
+// 判据：清单里只放“任务真的会调用”的可执行文件。
 var keyTools = []string{
 	"nmap", "masscan", "ffuf", "gobuster", "feroxbuster", "nuclei", "sqlmap",
 	"hydra", "john", "chisel", "proxychains4", "sshpass", "smbclient",
-	"ldapsearch", "netexec", "impacket-psexec", "curl", "jq", "python3", "go",
+	"ldapsearch", "netexec", "impacket-psexec", "curl", "jq", "python3",
 }
 
 // keyToolAliases 处理"同一工具不同包名/脚本名"的等价关系。

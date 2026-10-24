@@ -150,7 +150,7 @@ func firstCommand(cmd string) string {
 			cut = i
 		}
 	}
-		head := cmd[:cut]
+	head := cmd[:cut]
 	if fields := strings.Fields(head); len(fields) > 0 {
 		// `command -v X` / `which X` / `type X` 是探测，不是执行：
 		// 找不到 X 是正常结果，不能记成“缺工具”。
@@ -229,6 +229,14 @@ func firstCommand(cmd string) string {
 		return f
 	}
 	return ""
+}
+
+// IsShellProbe 判断一个名字是不是 shell 内建/探测词。
+// 用途：错误面板判断“缺工具 X”这条历史事件是否已失效——
+// 内建/探测词从来不是真的工具，旧版本误报进来的应当视为已解决。
+func IsShellProbe(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	return shellBuiltins[n] || probeVerbs[n]
 }
 
 // isPSVerb 判断前缀是不是 PowerShell 的已批准动词（Get/Invoke/New/Set/Remove/...）。

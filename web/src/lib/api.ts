@@ -1665,6 +1665,8 @@ export interface TaskErrorGroup {
   tools: string[] | null;
   /** 只有 tool_missing 有值：一条可直接复制的安装命令 */
   install?: string;
+  /** 这条错误现在已经不成立了（工具装上了 / 本就是误报） */
+  resolved?: boolean;
 }
 
 export interface TaskErrorsResponse {

@@ -1,11 +1,13 @@
 package server
 
 import (
-	"github.com/Autumn-27/artex/internal/env"
 	"net/http"
+	"os/exec"
 	"strconv"
 	"strings"
 
+	"github.com/Autumn-27/artex/guard"
+	"github.com/Autumn-27/artex/internal/env"
 	"github.com/Autumn-27/artex/internal/errev"
 )
 
@@ -66,6 +68,46 @@ type errGroup struct {
 	// Install 只对 tool_missing 有值：一条可直接复制的安装命令。
 	// 原来卡片只说“到环境页安装”，而环境页当时既不给命令也不列任务里缺的工具。
 	Install string `json:"install,omitempty"`
+	// Resolved 表示“这条错误现在已经不成立了”：缺的工具已经装上、或本来就是误报。
+	// 错误事件是 append-only 的历史快照，不消解的话，人装完工具后还会一直看到
+	// “缺工具、去安装”——而实际已经不缺了（2026-10-24 实测反馈）。
+	Resolved bool `json:"resolved,omitempty"`
+}
+
+// toolMissingResolved 判断一组 tool_missing 里记录的工具**现在是否都已经在了**。
+// 事件是历史快照：工具装好后旧事件仍在窗口内，界面不该继续催人去装。
+// 只要有一个还没装上就不算解决（宁可多提示一次，也不能谎报已解决）。
+func (s *Server) toolMissingResolved(tools []string) bool {
+	if len(tools) == 0 {
+		return false
+	}
+	var known []env.Tool
+	if v := s.tools.Load(); v != nil {
+		if t, ok := v.([]env.Tool); ok {
+			known = t
+		}
+	}
+	for _, name := range tools {
+		n := strings.TrimSpace(name)
+		if n == "" {
+			continue
+		}
+		// command / which 这类 shell 内建与探测词：本来就不该被当成“缺工具”，
+		// 一律视为已解决（旧版本写进来的误报）。
+		if guard.IsShellProbe(n) {
+			continue
+		}
+		if s.envDisc != nil && len(known) > 0 {
+			if _, ok := s.envDisc.Find(known, n); ok {
+				continue
+			}
+		}
+		if _, err := exec.LookPath(n); err == nil {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // registerErrorRoutes 挂 P8-8 的错误聚合接口。
@@ -158,11 +200,12 @@ func (s *Server) taskErrors(w http.ResponseWriter, r *http.Request) {
 			Fix:    it.Advice.Fix,
 			Tools:  a.tools,
 			Install: func() string {
-				if it.Class != errev.ClassToolMissing {
+				if it.Class != errev.ClassToolMissing || s.toolMissingResolved(a.tools) {
 					return ""
 				}
 				return env.InstallHintBatch(a.tools)
 			}(),
+			Resolved: it.Class == errev.ClassToolMissing && s.toolMissingResolved(a.tools),
 		})
 	}
 	writeJSON(w, 200, resp)
