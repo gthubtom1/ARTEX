@@ -311,6 +311,19 @@ export default function TasksPage() {
   const [tasks, setTasks] = React.useState<Task[]>([]);
   // 未读（⑦）：任务列表红点 + 浏览器标题数字；桌面通知只在用户授权过一次后使用。
   const [unread, setUnread] = React.useState<Record<string, number>>({});
+  // 表格列数（docs/26）：默认"简洁"只留 6 列（名称/状态/漏洞/进度/时长/操作），
+  // 需要看 ID/备注/描述/目标/Worker/创建时间/Token 时点"完整"。
+  const [compact, setCompact] = React.useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("artex.tasks.compact") !== "0";
+  });
+  const toggleCompact = React.useCallback(() => {
+    setCompact((v) => {
+      const next = !v;
+      if (typeof window !== "undefined") window.localStorage.setItem("artex.tasks.compact", next ? "1" : "0");
+      return next;
+    });
+  }, []);
   // 桌面通知权限（docs/26：没有入口用户永远收不到）+ 图标
   const [notifyPermission, setNotifyPermission] = React.useState<NotificationPermission | "unsupported">(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
@@ -973,6 +986,14 @@ export default function TasksPage() {
                   <BulkDeleteTasksDialog ids={[...selectedIds]} onDelete={deleteTasks} />
                 </>
               )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={toggleCompact}
+                title={compact ? "现在只显示 6 列；点一下显示全部列" : "点一下回到简洁（6 列）"}
+              >
+                {compact ? "完整列" : "简洁列"}
+              </Button>
               <ConcurrencySettingsDialog />
               <CategoryManagementSheet
                 categories={categories}
@@ -1007,18 +1028,20 @@ export default function TasksPage() {
                         aria-label="选择本页全部任务"
                       />
                     </TableHead>
-                    <SortableTaskHead
-                      field="id"
-                      label="ID"
-                      activeField={sortField}
-                      direction={sortDirection}
-                      className="font-mono"
-                      onSort={sortTasksBy}
-                    />
+                    {!compact && (
+                      <SortableTaskHead
+                        field="id"
+                        label="ID"
+                        activeField={sortField}
+                        direction={sortDirection}
+                        className="font-mono"
+                        onSort={sortTasksBy}
+                      />
+                    )}
                     <TableHead>名称</TableHead>
-                    <TableHead className="w-px">备注</TableHead>
-                    <TableHead>描述</TableHead>
-                    <TableHead>目标</TableHead>
+                    {!compact && <TableHead className="w-px">备注</TableHead>}
+                    {!compact && <TableHead>描述</TableHead>}
+                    {!compact && <TableHead>目标</TableHead>}
                     <SortableTaskHead
                       field="status"
                       label="状态"
@@ -1030,15 +1053,17 @@ export default function TasksPage() {
                     <TableHead className="text-center" title="独立漏洞：严重 / 高 / 中 / 低">
                       漏洞 <span className="text-muted-foreground font-normal">严/高/中/低</span>
                     </TableHead>
-                    <TableHead className="text-center">运行中 Worker</TableHead>
-                    <SortableTaskHead
-                      field="created"
-                      label="创建时间"
-                      activeField={sortField}
-                      direction={sortDirection}
-                      align="right"
-                      onSort={sortTasksBy}
-                    />
+                    {!compact && <TableHead className="text-center">运行中 Worker</TableHead>}
+                    {!compact && (
+                      <SortableTaskHead
+                        field="created"
+                        label="创建时间"
+                        activeField={sortField}
+                        direction={sortDirection}
+                        align="right"
+                        onSort={sortTasksBy}
+                      />
+                    )}
                     <SortableTaskHead
                       field="duration"
                       label="运行时长"
@@ -1047,7 +1072,7 @@ export default function TasksPage() {
                       align="right"
                       onSort={sortTasksBy}
                     />
-                    <TableHead className="text-right">Token</TableHead>
+                    {!compact && <TableHead className="text-right">Token</TableHead>}
                     <TableHead className="sticky right-0 z-10 bg-card text-right shadow-[-1px_0_0_0_hsl(var(--border))]">
                       操作
                     </TableHead>
@@ -1070,6 +1095,7 @@ export default function TasksPage() {
                       selected={selectedIds.has(task.id)}
                       onSelectedChange={toggleSelected}
                       unread={unread[task.id] ?? 0}
+                      compact={compact}
                     />
                   ))}
                 </TableBody>
@@ -1248,10 +1274,13 @@ const TaskRow = React.memo(function TaskRow({
   selected,
   onSelectedChange,
   unread,
+  compact,
 }: {
   task: Task;
   nowSec: number;
   unread: number;
+  /** 简洁模式（默认）：只留 6 列；完整模式在看 ID/备注/描述/目标/Worker/创建时间/Token */
+  compact: boolean;
   onDelete: (id: string, options: DeleteTaskOptions) => Promise<void>;
   onControl: (id: string, action: "pause" | "resume") => Promise<void>;
   onRename: (task: Task, name: string) => Promise<void>;
@@ -1270,9 +1299,11 @@ const TaskRow = React.memo(function TaskRow({
           aria-label={`选择任务 ${task.id}`}
         />
       </TableCell>
-      <TableCell>
-        <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{task.id}</code>
-      </TableCell>
+      {!compact && (
+        <TableCell>
+          <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{task.id}</code>
+        </TableCell>
+      )}
       <TableCell className="font-medium">
         <div className="flex max-w-xs items-center gap-2">
           <TaskNameEditor task={task} onRename={onRename} unread={unread} />
@@ -1280,21 +1311,27 @@ const TaskRow = React.memo(function TaskRow({
           {taskIsPinned(task) && <PinIcon className="text-primary size-4 shrink-0" aria-label="已置顶" />}
         </div>
       </TableCell>
-      <TableCell>
-        <RemarkEditor value={task.remark} label={`任务 #${task.id}`} onSave={(remark) => onRemark(task, remark)} />
-      </TableCell>
-      <TableCell className="text-muted-foreground max-w-40">
-        <Link
-          href={`/function/tasks/detail?id=${encodeURIComponent(task.id)}`}
-          className="block truncate rounded-sm hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          title={task.description}
-        >
-          {task.description}
-        </Link>
-      </TableCell>
-      <TableCell className="text-muted-foreground max-w-40 truncate" title={task.goal}>
-        {task.goal}
-      </TableCell>
+      {!compact && (
+        <TableCell>
+          <RemarkEditor value={task.remark} label={`任务 #${task.id}`} onSave={(remark) => onRemark(task, remark)} />
+        </TableCell>
+      )}
+      {!compact && (
+        <TableCell className="text-muted-foreground max-w-40">
+          <Link
+            href={`/function/tasks/detail?id=${encodeURIComponent(task.id)}`}
+            className="block truncate rounded-sm hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            title={task.description}
+          >
+            {task.description}
+          </Link>
+        </TableCell>
+      )}
+      {!compact && (
+        <TableCell className="text-muted-foreground max-w-40 truncate" title={task.goal}>
+          {task.goal}
+        </TableCell>
+      )}
       <TableCell>
         <StatusBadge domain="task" value={task.status} dot />
       </TableCell>
@@ -1335,6 +1372,7 @@ const TaskRow = React.memo(function TaskRow({
           );
         })()}
       </TableCell>
+      {!compact && (
       <TableCell className="text-center text-xs tabular-nums">
         {task.in_flight && task.in_flight > 0 ? (
           <span className="text-foreground font-medium">{task.in_flight}</span>
@@ -1342,9 +1380,12 @@ const TaskRow = React.memo(function TaskRow({
           <span className="text-muted-foreground">0</span>
         )}
       </TableCell>
+      )}
+      {!compact && (
       <TableCell className="text-muted-foreground text-right text-xs whitespace-nowrap tabular-nums">
         {fmtDateTime(task.created_unix)}
       </TableCell>
+      )}
       <TableCell className="text-right text-xs whitespace-nowrap tabular-nums">
         {(() => {
           const secs = taskDuration(task, nowSec);
@@ -1356,6 +1397,7 @@ const TaskRow = React.memo(function TaskRow({
           );
         })()}
       </TableCell>
+      {!compact && (
       <TableCell
         className="text-right text-xs whitespace-nowrap tabular-nums"
         title={
@@ -1376,6 +1418,7 @@ const TaskRow = React.memo(function TaskRow({
           "—"
         )}
       </TableCell>
+      )}
       <TableCell className="sticky right-0 z-10 bg-card text-right shadow-[-1px_0_0_0_hsl(var(--border))] group-hover:bg-muted/50">
         <div className="flex items-center justify-end gap-0.5">
           <Button size="icon" variant="ghost" asChild aria-label="查看任务详情" title="查看任务详情">

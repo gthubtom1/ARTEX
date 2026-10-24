@@ -236,6 +236,16 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
       </CardHeader>
 
       <CardContent className="flex flex-col gap-2.5 text-[11.5px]">
+        {/* 空态（docs/26 P2）：什么都还没有时，不要显示一堆 0 和空分区，只给一句话 + 下一步 */}
+        {brief && can.length === 0 && has.length === 0 && doable.length === 0 && (
+          <section className="rounded border border-dashed px-3 py-3 text-center">
+            <p className="text-[12px] font-medium">还没确认任何漏洞，所以现在什么都做不到</p>
+            <p className="mt-1 text-muted-foreground">
+              先跑①「判断值不值得打」（20 分钟只读）或③「找漏洞并取证」（40 分钟），把入口摸出来再说；
+              拿到第一个洞后，这里会自动变成"我在哪 / 我有什么 / 现在能做到"。
+            </p>
+          </section>
+        )}
         {/* ① 我在哪 */}
         <section className="flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] text-muted-foreground">我在哪</span>

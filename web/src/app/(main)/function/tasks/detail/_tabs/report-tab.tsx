@@ -8,16 +8,42 @@ import { toast } from "sonner";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/api";
+import { api, briefapi } from "@/lib/api";
 import { copyText } from "@/lib/utils";
 
 export function ReportTab({ taskId }: { taskId: string }) {
   const [report, setReport] = React.useState<string>("");
   const [loading, setLoading] = React.useState(true);
   const [copied, setCopied] = React.useState(false);
+  // 战况快照（docs/26 P2）：报告头一行，保证"报告结论"和"战况卡"用的是同一套判定。
+  const [war, setWar] = React.useState<{
+    level: string;
+    basis: string;
+    has: string[];
+    got: number;
+    oneStep: number;
+    noGain: number;
+    stall: string;
+  } | null>(null);
 
   React.useEffect(() => {
     let active = true;
+    briefapi
+      .get(taskId)
+      .then((b) => {
+        if (!active) return;
+        const can = b.can ?? [];
+        setWar({
+          level: b.level_label,
+          basis: b.basis,
+          has: (b.has ?? []).map((h) => h.text),
+          got: can.filter((c) => c.standing === "got").length,
+          oneStep: can.filter((c) => c.standing === "one_step").length,
+          noGain: can.filter((c) => c.standing === "no_gain").length,
+          stall: b.stall && b.stall.level !== "ok" ? b.stall.advice : "",
+        });
+      })
+      .catch(() => void 0);
     setLoading(true);
     api
       .report(taskId)
@@ -84,7 +110,24 @@ export function ReportTab({ taskId }: { taskId: string }) {
           )}
         </div>
       </CardHeader>
-      <CardContent>{content}</CardContent>
+      <CardContent className="flex flex-col gap-3">
+        {war && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-sky-500/30 bg-sky-500/[0.05] px-3 py-1.5 text-[11.5px]">
+            <span className="text-[10px] text-muted-foreground">战况快照</span>
+            <b>{war.level}</b>
+            <span className="text-muted-foreground">{war.basis}</span>
+            <span>
+              已拿到 {war.has.length > 0 ? war.has.join(" / ") : "（暂无）"}
+            </span>
+            <span className="text-muted-foreground">
+              洞：{war.got} 个已成立 · {war.oneStep} 个差一步
+              {war.noGain > 0 ? ` · ${war.noGain} 个换不到` : ""}
+            </span>
+            {war.stall && <span className="text-amber-700 dark:text-amber-300">{war.stall}</span>}
+          </div>
+        )}
+        {content}
+      </CardContent>
     </Card>
   );
 }
