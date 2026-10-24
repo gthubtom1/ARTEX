@@ -168,6 +168,9 @@ export function FindingsTab({ taskId }: { taskId: string }) {
   const [standingByID, setStandingByID] = React.useState<
     Record<number, { standing: "got" | "one_step" | "no_gain"; gap?: string }>
   >({});
+  const [summary, setSummary] = React.useState<{ got: number; oneStep: number; noGain: number; gap: string } | null>(
+    null,
+  );
   const [sortPreference, setSortPreference] = useStoredSortPreference(
     FINDING_SORT_PREFERENCE_KEY,
     FINDING_SORT_FIELDS,
@@ -187,13 +190,33 @@ export function FindingsTab({ taskId }: { taskId: string }) {
           map[c.finding_id] = { standing: c.standing ?? "one_step", gap: c.gap };
         }
         setStandingByID(map);
+        const oneStepCan = (b.can ?? []).filter((c) => (c.standing ?? "one_step") === "one_step");
+        setSummary({
+          got: (b.can ?? []).filter((c) => c.standing === "got").length,
+          oneStep: oneStepCan.length,
+          noGain: (b.can ?? []).filter((c) => c.standing === "no_gain").length,
+          gap: oneStepCan[0]?.gap ?? "",
+        });
       })
       .catch(() => void 0);
     const load = () => {
       api
         .findings(taskId)
         .then((fs) => {
-          if (active) setFindings(fs);
+          if (!active) return;
+          setFindings(fs);
+          // 案子行的 matched_ids 可能是 findings 表 id（13），而 /brief 给的是节点 id（341）。
+          // 这里把两份 id 都映射到同一个 standing，避免"查不到就不显示"。
+          setStandingByID((prev) => {
+            const next = { ...prev };
+            for (const f of fs) {
+              const st = prev[Number(f.id)] ?? (f.finding_id ? prev[Number(f.finding_id)] : undefined);
+              if (!st) continue;
+              next[Number(f.id)] = st;
+              if (f.finding_id) next[Number(f.finding_id)] = st;
+            }
+            return next;
+          });
         })
         .catch(() => {
           // Keep the last successful snapshot during transient refresh failures.
@@ -230,7 +253,22 @@ export function FindingsTab({ taskId }: { taskId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <FindingCaseList query={{ task: taskId, sort: "time" }} />
+      {/* 三段式汇总（docs/23）：不依赖 id 匹配，直接从 /brief 数出来，
+          保证"洞值不值钱"在发现页也一眼可见（与战况卡同源） */}
+      {summary && (
+        <div className="mx-4 mb-2 flex flex-wrap items-center gap-2 rounded border px-3 py-1.5 text-[11.5px] lg:mx-6">
+          <span className="text-[10px] text-muted-foreground">这些洞值不值钱</span>
+          <span className="rounded bg-emerald-600 px-1 text-[10px] font-bold text-white">已成立 {summary.got}</span>
+          <span className="rounded bg-amber-500/20 px-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+            差一步 {summary.oneStep}
+          </span>
+          <span className="rounded bg-slate-500/25 px-1 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+            换不到 {summary.noGain}
+          </span>
+          {summary.gap && <span className="text-muted-foreground">最接近的一个：缺「{summary.gap}」</span>}
+        </div>
+      )}
+      <FindingCaseList query={{ task: taskId, sort: "time" }} standingByID={standingByID} />
       {[
         ...new Set(
           items
@@ -275,7 +313,11 @@ export function FindingsTab({ taskId }: { taskId: string }) {
                 f={f}
                 contextTaskId={taskId}
                 onStatus={onStatus}
-                standing={f.finding_id ? standingByID[Number(f.finding_id)] : undefined}
+                standing={
+                  // 注意：/brief 的 finding_id 是 exploration 节点 id（= findings[].id），
+                  // 不是 findings 表的 finding_id（真机上是 341 vs 13，用错了就永远匹配不上）
+                  standingByID[Number(f.id)] ?? (f.finding_id ? standingByID[Number(f.finding_id)] : undefined)
+                }
               />
             ))}
             {items.length === 0 && (

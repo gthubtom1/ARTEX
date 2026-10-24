@@ -58,6 +58,7 @@ export function FindingCaseMemberRow({
   contextTask,
   matched = true,
   nested = false,
+  standing,
 }: {
   finding: Finding;
   selected?: boolean;
@@ -65,6 +66,8 @@ export function FindingCaseMemberRow({
   contextTask?: string;
   matched?: boolean;
   nested?: boolean;
+  /** 三段式（docs/23）：已成立 / 差一步 / 换不到；来自 /brief，与战况卡同源 */
+  standing?: { standing: "got" | "one_step" | "no_gain"; gap?: string };
 }) {
   const id = f.finding_id ?? f.id;
   return (
@@ -90,6 +93,27 @@ export function FindingCaseMemberRow({
         </Link>
         <span className="truncate text-muted-foreground text-xs">{f.summary}</span>
       </div>
+      {standing ? (
+        <span
+          className={cn(
+            "shrink-0 rounded px-1 text-[9.5px] font-bold",
+            standing.standing === "got"
+              ? "bg-emerald-600 text-white"
+              : standing.standing === "no_gain"
+                ? "bg-slate-500/25 text-slate-600 dark:text-slate-300"
+                : "bg-amber-500/20 text-amber-700 dark:text-amber-300",
+          )}
+          title={
+            standing.standing === "got"
+              ? "已成立：对应能力行已拿到，有证据"
+              : standing.standing === "no_gain"
+                ? "换不到东西：这条洞没有通向任何能力行"
+                : `差一步：还缺「${standing.gap || "下一个能力"}」`
+          }
+        >
+          {standing.standing === "got" ? "已成立" : standing.standing === "no_gain" ? "换不到" : "差一步"}
+        </span>
+      ) : null}
       {!matched ? <Badge variant="outline">未命中当前筛选</Badge> : null}
       {f.inherited ? <Badge variant="outline">继承 · 只读</Badge> : null}
       <StatusBadge domain="finding" value={f.status} />
@@ -111,6 +135,7 @@ export function FindingCaseMembers({
   contextTask,
   nested = false,
   renderRecords,
+  standingByID,
 }: {
   caseId: string;
   version?: number;
@@ -120,6 +145,7 @@ export function FindingCaseMembers({
   contextTask?: string;
   nested?: boolean;
   renderRecords?: (items: Finding[]) => React.ReactNode;
+  standingByID?: Record<number, { standing: "got" | "one_step" | "no_gain"; gap?: string }>;
 }) {
   const [page, setPage] = React.useState(1);
   const [data, setData] = React.useState<{ items: Finding[]; total: number } | null>(null);
@@ -171,6 +197,7 @@ export function FindingCaseMembers({
               onSelect={onSelect}
               contextTask={contextTask}
               matched={!matchedIds || matchedIds.includes(Number(f.finding_id))}
+              standing={standingByID?.[Number(f.id)]}
             />
           ))}
       {data.total > 20 ? (
@@ -341,6 +368,7 @@ export function FindingCaseList({
   contextTask,
   readOnly = false,
   onTotal,
+  standingByID,
 }: {
   query: Omit<FindingQuery, "page" | "pageSize">;
   selectedIds?: Set<string>;
@@ -348,6 +376,7 @@ export function FindingCaseList({
   contextTask?: string;
   readOnly?: boolean;
   onTotal?: (total: number) => void;
+  standingByID?: Record<number, { standing: "got" | "one_step" | "no_gain"; gap?: string }>;
 }) {
   const [page, setPage] = React.useState(1);
   const [data, setData] = React.useState<FindingCasePage | null>(null);
@@ -416,6 +445,7 @@ export function FindingCaseList({
         if (row.case) {
           return (
             <FindingCaseFolder
+              standingByID={standingByID}
               key={`case:${row.case.id}`}
               row={row}
               selectedIds={selectedIds}
@@ -466,6 +496,7 @@ export function FindingCaseFolder({
   presentation = "compact",
   className,
   renderRecords,
+  standingByID,
 }: {
   row: FindingCaseListRow;
   selectedIds?: Set<string>;
@@ -475,15 +506,50 @@ export function FindingCaseFolder({
   presentation?: "compact" | "records" | "task" | "asset";
   className?: string;
   renderRecords?: (items: Finding[]) => React.ReactNode;
+  standingByID?: Record<number, { standing: "got" | "one_step" | "no_gain"; gap?: string }>;
 }) {
   const [open, setOpen] = React.useState(false);
   const group = row.case;
   const taskLabel = row.task_name?.trim() ? row.task_name : row.task_description;
   if (!group) return null;
+  // 案子级三段式：这条（合并后的）漏洞整体值不值钱。折叠状态下也要看得见，
+  // 所以放在标题旁而不是只放在展开后的成员行里。
+  const caseStanding = (() => {
+    if (!standingByID) return undefined;
+    let best: { standing: "got" | "one_step" | "no_gain"; gap?: string } | undefined;
+    for (const mid of row.matched_ids ?? []) {
+      const st = standingByID[mid];
+      if (!st) continue;
+      if (st.standing === "got") return st;
+      if (!best || (best.standing === "no_gain" && st.standing === "one_step")) best = st;
+    }
+    return best;
+  })();
   return (
     <Card className={cn("gap-0 overflow-hidden py-0", className)}>
       <CardHeader className={cn("px-4 py-3", open && "bg-muted/60")}>
         <div className="flex min-w-0 flex-wrap items-center gap-3">
+          {caseStanding ? (
+            <span
+              className={cn(
+                "shrink-0 rounded px-1 text-[9.5px] font-bold",
+                caseStanding.standing === "got"
+                  ? "bg-emerald-600 text-white"
+                  : caseStanding.standing === "no_gain"
+                    ? "bg-slate-500/25 text-slate-600 dark:text-slate-300"
+                    : "bg-amber-500/20 text-amber-700 dark:text-amber-300",
+              )}
+              title={
+                caseStanding.standing === "got"
+                  ? "已成立：这个案子对应能力行已拿到，有证据"
+                  : caseStanding.standing === "no_gain"
+                    ? "换不到东西：目前没有通向任何能力行"
+                    : `差一步：还缺「${caseStanding.gap || "下一个能力"}」`
+              }
+            >
+              {caseStanding.standing === "got" ? "已成立" : caseStanding.standing === "no_gain" ? "换不到" : "差一步"}
+            </span>
+          ) : null}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -577,6 +643,7 @@ export function FindingCaseFolder({
             selectedIds={selectedIds}
             onSelect={readOnly ? undefined : onSelect}
             contextTask={contextTask}
+            standingByID={standingByID}
           />
         </CardContent>
       ) : null}

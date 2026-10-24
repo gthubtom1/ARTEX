@@ -312,7 +312,9 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
             <TargetIcon className="size-3 text-emerald-600" />
             <b className="text-[11.5px]">现在能做到</b>
             <span className="text-[10px] text-muted-foreground">
-              （{doable.length} 件有前置、我能去做；每条都能挂着证据查）
+              {doable.length > 0
+                ? `（${doable.length} 件有前置、我能去做；每条都能挂着证据查）`
+                : "（现在一件都做不了 —— 前置还没满足）"}
             </span>
           </div>
           {shownDoable.length === 0 && (

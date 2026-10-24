@@ -1066,7 +1066,7 @@ export default function TasksPage() {
                     )}
                     <SortableTaskHead
                       field="duration"
-                      label="运行时长"
+                      label="时长"
                       activeField={sortField}
                       direction={sortDirection}
                       align="right"
