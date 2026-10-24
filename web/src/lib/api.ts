@@ -1609,6 +1609,8 @@ export interface BenchRunRow {
 export interface HitrateResponse {
   tables: Record<string, number>;
   tools: Record<string, number>;
+  /** 0 行的机制"要出现行需要什么条件"（不是坏了，是还没到条件） */
+  needs?: Record<string, string>;
 }
 
 export const hitrateapi = {

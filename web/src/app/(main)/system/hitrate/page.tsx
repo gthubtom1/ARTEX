@@ -119,6 +119,7 @@ export default function HitratePage() {
     () => Object.entries(data?.tools ?? {}).sort((a, b) => b[1] - a[1]),
     [data],
   );
+  const needs = data?.needs ?? {};
   const filled = tables.filter(([, n]) => n > 0).length;
   const empty = tables.length - filled;
   const totalRows = tables.reduce((s, [, n]) => s + n, 0);
@@ -246,10 +247,15 @@ export default function HitratePage() {
                             有数据
                           </Badge>
                         ) : (
-                          <Badge variant="secondary" className="gap-1 text-muted-foreground">
-                            <CircleSlashIcon className="size-3" />
-                            空表
-                          </Badge>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge variant="secondary" className="gap-1 text-muted-foreground">
+                              <CircleSlashIcon className="size-3" />
+                              空表
+                            </Badge>
+                            {needs[name] && (
+                              <span className="text-[10.5px] text-muted-foreground">{needs[name]}</span>
+                            )}
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>

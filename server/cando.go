@@ -797,5 +797,27 @@ func (s *Server) candoHitrate(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"tables": out, "tools": tools})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tables": out, "tools": tools,
+		// 「为什么是 0」：这些机制不是坏了，而是需要特定前置条件才会产出。
+		// 只显示一个 0 会让人以为功能没做（用户实测困惑）；把触发条件写出来，
+		// 才能判断"是还没到条件"还是"真的没接线"。
+		"needs": hitrateNeeds,
+	})
+}
+
+// hitrateNeeds 说明各机制"要出现行需要什么前置条件"。
+// 只写**已核实**的条件（2026-10-24 实测）；没有前置条件的表不出现在这里。
+var hitrateNeeds = map[string]string{
+	"assets_owned":             "需要先拿到立足点（后台/服务器权限）才会登记",
+	"asset_checks":             "需要持有台账里有资产且到期复查才会写",
+	"routes":                   "需要从立足点做横向路由才会写；纯外部侦察不产生",
+	"finding_traffic_bindings": "需要开启流量捕获，且报告 Agent 关联了具体请求/响应",
+	"finding_cases":            "需要同一任务里 ≥2 个漏洞才能合并成案例",
+	"capabilities":             "需要有已确认漏洞（带影响面）才会生成能力卡",
+	"creds_vault":              "需要任务里真的拿到账号/哈希/连接串",
+	"skill_usage":              "需要 Agent 主动调用技能（多数任务一次都不调）",
+	"cando_annotations":        "需要在战果里点「✦ 用 AI 说清楚」",
+	"loot_row_states":          "需要人在战果里标一次「还没试/不适用」",
+	"recheck_state":            "需要资产复查跑过一轮（关目标端口等）才会更新",
 }
