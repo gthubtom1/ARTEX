@@ -233,6 +233,44 @@ func (s *Server) reviewOnce(parent context.Context, taskIDStr string, taskID int
 
 	s.finishReviewRun(ctx, runID, v, modelName, g, ver, autoApplied, ackStatus, ackReason)
 
+	// 每次看完都往会话活动流里留一条「审查官」记录。
+	//
+	// 2026-10-24 实测反馈（VM task 7）：审查官跑了 3 次，右栏卡片能看到结论，但主对话
+	// 里一条都没有 —— 用户无法判断它到底有没有参与、规划对不对。根因是旧代码只在
+	// 「自动执行了动作」时才写活动；而常态是 verdict=continue + actions=[]（实测
+	// run 17/14 的 cites=null、actions=[]），于是完全静默。
+	//
+	// 判据：审查官每看一次，就留一条可读记录（看了什么、引没引证据、有没有动作、
+	// 有没有被门挡下），这样"它有没有在干活"是可观测的，不用猜。
+	if s.engine != nil {
+		citeN, actN := 0, 0
+		if v.Cites != nil {
+			citeN = len(v.Cites)
+		}
+		if v.Actions != nil {
+			actN = len(v.Actions)
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "审查官（%s）看完 %d 条事实后判「%s」", reviewModelLabel(modelName), len(snap.Facts), verdictCN(v.Verdict))
+		if citeN == 0 {
+			b.WriteString("；未引用证据（可信度低，仅作参考）")
+		} else {
+			fmt.Fprintf(&b, "；引用 %d 条证据", citeN)
+		}
+		if actN == 0 {
+			b.WriteString("；未提出动作（不干预执行）")
+		} else {
+			fmt.Fprintf(&b, "；提出 %d 个动作，自动执行 %d 个", actN, autoApplied)
+		}
+		if g.Drop != "" {
+			b.WriteString("；被门挡下：" + g.Drop)
+		}
+		if txt := strings.TrimSpace(v.Body); txt != "" {
+			b.WriteString("。结论：" + clipLine(txt, 100))
+		}
+		s.engine.emitActivity(task, db.Activity{Worker: "adviser", Kind: "text", Summary: b.String()})
+	}
+
 	// ack 窗口（docs/14 §4）：只有「还要人点头的动作」才开 90 秒倒计时。
 	// 已自动执行的减浪费动作不再等，否则超时会重复处理同一件事。
 	if g.Drop == "" && g.Level == review.LevelAction && reviewPendingActions(g) > 0 {
@@ -654,4 +692,26 @@ func cleanReviewText(raw string) string {
 	t = strings.TrimPrefix(t, "```")
 	t = strings.TrimSuffix(t, "```")
 	return strings.TrimSpace(t)
+}
+
+// verdictCN 把审查官的三档结论翻成人话（活动流里给人看，不出现英文枚举）。
+func verdictCN(v string) string {
+	switch strings.TrimSpace(v) {
+	case "pivot":
+		return "转向"
+	case "wrapup":
+		return "收口"
+	case "continue":
+		return "继续"
+	default:
+		return v
+	}
+}
+
+// reviewModelLabel 区分"模型版"和"规则版"，因为可信度完全不同。
+func reviewModelLabel(model string) string {
+	if strings.TrimSpace(model) == "rule" || strings.TrimSpace(model) == "" {
+		return "规则版"
+	}
+	return "模型版"
 }
