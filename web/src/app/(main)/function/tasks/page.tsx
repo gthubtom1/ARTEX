@@ -3270,6 +3270,11 @@ function CreateTaskSheet({
               onApply={(template) => {
                 setDescription(template.description);
                 setGoal(template.goal);
+                // 模板自带时长 → 预填「高级设置 → 超时」。以前把“建议时限”写在 goal 里，
+                // 而真正生效的是这个字段，等于没设置。
+                if (typeof template.timeout_min === "number" && template.timeout_min > 0) {
+                  setTimeoutMin(String(template.timeout_min));
+                }
                 setCategoryID(template.category_id ?? undefined);
                 setInterceptRules(template.intercept_rules ?? []);
                 setUploadCount(0);

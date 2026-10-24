@@ -627,6 +627,10 @@ CREATE TABLE IF NOT EXISTS task_templates (
 -- 补旧库(已发版,加列带 IF NOT EXISTS)。
 ALTER TABLE task_templates ADD COLUMN IF NOT EXISTS category_id BIGINT REFERENCES task_categories(id) ON DELETE SET NULL;
 ALTER TABLE task_templates ADD COLUMN IF NOT EXISTS intercept_rules JSONB NOT NULL DEFAULT '[]';
+-- 2026-10-24：模板自带**真实**预算。原来把"建议时限：20 分钟"写在 goal 文本里，
+-- 但真正生效的是任务表单「高级设置」的 timeout_min —— 文本里那句没有任何作用，
+-- 零基础用户照着点还是不限时/默认时长。这里把它做成可预填的字段。
+ALTER TABLE task_templates ADD COLUMN IF NOT EXISTS timeout_min INT NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_task_templates_updated ON task_templates(updated_at DESC, id DESC);
 DROP TRIGGER IF EXISTS trg_task_templates_upd ON task_templates;
 CREATE TRIGGER trg_task_templates_upd BEFORE UPDATE ON task_templates
