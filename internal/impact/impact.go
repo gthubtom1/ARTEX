@@ -46,21 +46,25 @@ type Stats struct {
 	AppControl  int // 登录后台/越权成功的证据条数
 	Shells      int // 拿到了命令执行证据（webshell/反弹shell）
 	DataSamples int // 读到的业务数据样本组数
-	OwnedHosts  int // 持有台账里的主机数（含 root/admin）
-	OwnedRoot   int // 其中 root/system 级
+	OwnedHosts  int // 持有台账里的条目数
+	OwnedRoot   int // 其中"操作系统级"的 root/system（access_type 为 shell/ssh/agent）
+	OwnedApp    int // 应用层控制（access_type 为 admin/web/session，例如登录进后台）
 }
 
 // Compute 返回当前等级与一句人话依据。
 func Compute(s Stats) (Level, string) {
 	switch {
+	// 教训（2026-10-24 实战验收）：台账里 access_type=admin 是"应用后台管理员"，
+	// 被当成"服务器 root"直接跳到 E5 —— 等级虚高比不显示更糟。
+	// 现在只有"操作系统级立足点"才算 E5；应用后台属于 E2。
 	case s.OwnedRoot > 0 || s.OwnedHosts > 1:
-		return E5, "持有台账里已有 root 级或跨主机立足点"
+		return E5, "已有操作系统级立足点（root/system）或跨主机控制"
 	case s.DataSamples > 0:
 		return E4, "已经拿到业务数据样本"
 	case s.Shells > 0:
 		return E3, "已经拿到命令执行证据"
-	case s.AppControl > 0:
-		return E2, "已经登录进后台 / 越权访问成功"
+	case s.OwnedApp > 0 || s.AppControl > 0:
+		return E2, "已经登录进后台 / 越权访问成功（应用层控制）"
 	case s.Creds > 0:
 		return E1, "凭据库里已有账号/哈希，但还没验证能登录"
 	case s.Findings > 0:

@@ -81,6 +81,11 @@ var reconForbidden = []*regexp.Regexp{
 // 风险是什么"，人在任务页点允许后才放行。拒绝也不影响其它路线。
 var ActionGate func(ctx context.Context, class string) bool
 
+// OnGrantNeeded 在"因为没授权而被拦"时回调一次（server 用来把它写进会话流）。
+// 为什么需要：拦截只写错误事件的话，用户得自己点开任务首页才知道要授权；
+// 实测（2026-10-24 实战验收）被拦 11 次而人完全不知情 —— 必须主动"问人"。
+var OnGrantNeeded func(ctx context.Context, class string)
+
 // actionPatterns 把命令归到需要授权的动作类别。判定刻意保守：
 // 只认"明显越界"的形态，宁可少拦（漏拦由阶段门/审计兜），不可误伤侦察。
 var actionClassPatterns = []struct {
@@ -419,6 +424,9 @@ func (g *Guard) preToolUse(ctx context.Context, ev hook.Event) hook.Result {
 				msg := "这一步需要你先授权：「" + actionClassCN(cls) + "」。" +
 					"到任务首页「下一步」卡片点『允许』，我就照这个方向继续；点『拒绝』也不会影响其它路线。"
 				errEvent(ctx, errev.ClassPolicyBlocked, "GrantGate", cmd)
+				if OnGrantNeeded != nil {
+					OnGrantNeeded(ctx, cls)
+				}
 				return g.block(ev.ToolName, msg, cmd)
 			}
 		}

@@ -226,8 +226,11 @@ func (s *Server) impactStats(ctx context.Context, _ *Task, taskID int64) impact.
 			// E4 要求"证据里真的出现数据样本"，只认这几类证据词，避免 XSS 之类被抬高。
 			dataVuln := strings.Contains(kind, "sql") || strings.Contains(kind, "注入") ||
 				strings.Contains(kind, "敏感信息") || strings.Contains(kind, "数据泄露") || strings.Contains(kind, "越权")
-			dataProof := strings.Contains(ev, "样本") || strings.Contains(ev, "条记录") || strings.Contains(ev, "rows") ||
-				strings.Contains(ev, "select ") || strings.Contains(ev, "返回值")
+			// 实测（2026-10-24）：SQLi 登录绕过里出现的 `select` 会被误判成"读到了数据"，
+			// 于是等级虚高到 E4。只认"真的取到记录"的证据词。
+			dataProof := strings.Contains(ev, "条记录") || strings.Contains(ev, "条样本") || strings.Contains(ev, "样本") ||
+				strings.Contains(ev, "rows returned") || strings.Contains(ev, "返回了") ||
+				strings.Contains(ev, "记录数") || strings.Contains(ev, "行数据")
 			if dataVuln && dataProof {
 				st.DataSamples++
 			}
@@ -242,8 +245,12 @@ func (s *Server) impactStats(ctx context.Context, _ *Task, taskID int64) impact.
 		       OR coalesce(n.payload->>'text','') ~ '(登录|后台).*(成功|已进入|通过|可访问|进去了)')`, taskID).Scan(&st.AppControl)
 	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM creds_vault WHERE task_id=$1`, taskID).Scan(&st.Creds)
 	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM assets_owned WHERE first_task_id=$1`, taskID).Scan(&st.OwnedHosts)
+	// 只有"操作系统级"的权限才算 E5（shell/ssh/agent + root/system）；
+	// access_type=admin 是应用后台，属于 E2。
 	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM assets_owned WHERE first_task_id=$1
-		AND lower(privilege) IN ('root','system','admin')`, taskID).Scan(&st.OwnedRoot)
+		AND lower(privilege) IN ('root','system')`, taskID).Scan(&st.OwnedRoot)
+	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM assets_owned WHERE first_task_id=$1
+		AND lower(access_type) IN ('admin','web','app','session','console')`, taskID).Scan(&st.OwnedApp)
 	if st.Shells > 0 && st.DataSamples == 0 {
 		st.DataSamples = 0 // 只按"有数据类证据"算，不被 RCE 顺带抬高
 	}

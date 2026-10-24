@@ -1288,6 +1288,16 @@ func (t *ToolSet) goalMet() actool.CoreTool {
 		func(_ context.Context, in json.RawMessage) (actool.Result, error) {
 			var a struct{ Reason string }
 			_ = json.Unmarshal(in, &a)
+			// 确定性闸门（2026-10-24 实战验收发现）：planner 在"只登录进后台"时就调 goal_met，
+			// 把所有 worker 中断，任务停在 E2 再也不动 —— 这是"跑很久拿不到权限"的直接原因之一。
+			// 判据不看模型怎么说，只看权限阶梯：目标要求"命令执行/数据/权限"而当前 < E3 → 拒绝收官。
+			if ImpactLevelFor != nil && t.taskID > 0 && goalDemandsExploit(t.goal) {
+				if lv, label := ImpactLevelFor(t.taskID); lv < 3 {
+					return actool.Text("拒绝收官：当前只到「" + label +
+						"」。任务目标要求拿到命令执行或数据访问，请先把一条漏洞推进到 E3（命令执行）或 E4（数据样本）再调本工具；" +
+						"如果你判断推不动，就写一条否定结论说明卡在哪。"), nil
+				}
+			}
 			t.GoalMet = true
 			t.Reason = a.Reason
 			return actool.Text("acknowledged: goal marked met"), nil
@@ -2228,4 +2238,20 @@ func (t *ToolSet) directionStats(summary string, anchors []int64) (attempts, yie
 		}
 	}
 	return attempts, yields
+}
+
+// ImpactLevelFor 由 server 注入：返回该任务当前权限等级（E0–E5）与中文标签。
+// 用于 goal_met 的确定性闸门（不依赖模型自述）。
+var ImpactLevelFor func(taskID int64) (int, string)
+
+// goalDemandsExploit 判断任务目标是否要求"拿到权限/数据"（而不是只要清单）。
+func goalDemandsExploit(goal string) bool {
+	g := strings.ToLower(goal)
+	for _, kw := range []string{"命令执行", "代码执行", "shell", "webshell", "getshell", "拿数据", "取数据",
+		"业务数据", "数据访问", "拿到权限", "提权", "横向", "横移"} {
+		if strings.Contains(g, kw) {
+			return true
+		}
+	}
+	return false
 }

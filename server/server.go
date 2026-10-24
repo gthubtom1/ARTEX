@@ -30,6 +30,7 @@ import (
 	"github.com/Autumn-27/artex/internal/egress"
 	"github.com/Autumn-27/artex/internal/env"
 	"github.com/Autumn-27/artex/internal/idem"
+	"github.com/Autumn-27/artex/internal/impact"
 	"github.com/Autumn-27/artex/internal/inject"
 	"github.com/Autumn-27/artex/internal/ledger"
 	"github.com/Autumn-27/artex/internal/netguard"
@@ -4546,6 +4547,33 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		return "", false
 	}
 	// 即时授权门：动作类别（file_write/data_dump/persist/lateral）必须由用户按任务授权。
+	var grantAskMu sync.Mutex
+	grantAsked := map[string]time.Time{}
+	guard.OnGrantNeeded = func(c context.Context, class string) {
+		id := agent.RunInfoFrom(c).TaskID
+		if id <= 0 {
+			return
+		}
+		k := strconv.FormatInt(id, 10) + "|" + class
+		grantAskMu.Lock()
+		if at, ok := grantAsked[k]; ok && time.Since(at) < 10*time.Minute {
+			grantAskMu.Unlock()
+			return
+		}
+		grantAsked[k] = time.Now()
+		grantAskMu.Unlock()
+		if tk, ok := s.m.Task(strconv.FormatInt(id, 10)); ok && tk != nil {
+			s.appendReviewActivity(c, id, "需要你授权：「"+classCN(class)+"」。到任务首页「下一步」卡片点『允许』我就继续，点『拒绝』不影响其它路线。")
+		}
+	}
+
+	// goal_met 的确定性闸门（见 agent/tools.go goalMet）：只给权限等级，不给模型自述留空子。
+	agent.ImpactLevelFor = func(taskID int64) (int, string) {
+		st := s.impactStats(context.Background(), nil, taskID)
+		lv, _ := impact.Compute(st)
+		return int(lv), lv.String()
+	}
+
 	guard.ActionGate = func(c context.Context, class string) bool {
 		id := agent.RunInfoFrom(c).TaskID
 		if id <= 0 {
