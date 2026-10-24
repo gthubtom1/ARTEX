@@ -10,6 +10,7 @@ import { toast } from "sonner";
 
 import { IntelligencePanel } from "@/components/intelligence-panel";
 import { StatusBadge } from "@/components/status-badge";
+import { TaskErrorBar } from "@/components/task-error-bar";
 import { TaskLLMProfileChain } from "@/components/task-llm-profile-chain";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -24,6 +25,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Popover,
   PopoverContent,
@@ -48,10 +55,11 @@ import { GraphTab } from "./_tabs/graph-tab";
 import { InterceptTab } from "./_tabs/intercept-tab";
 import { OverviewTab } from "./_tabs/overview-tab";
 import { ReportTab } from "./_tabs/report-tab";
-
-import { TaskErrorBar } from "@/components/task-error-bar";
 import { RetestsTab } from "./_tabs/retests-tab";
 import { SessionsTab } from "./_tabs/sessions-tab";
+
+// docs/25 §二：零基础只需要四个 Tab；其余是过程视图，折进「更多 ▾」。
+const PRIMARY_TABS = ["sessions", "overview", "findings", "report"];
 
 const TABS = [
   { value: "sessions", label: "会话" },
@@ -416,7 +424,7 @@ function TaskDetailInner() {
         {/* Tabs */}
         <div className="no-scrollbar min-w-0 overflow-x-auto">
           <TabsList variant="default" className="min-w-max">
-            {TABS.map((t) => (
+            {TABS.filter((t) => PRIMARY_TABS.includes(t.value)).map((t) => (
               <TabsTrigger key={t.value} value={t.value}>
                 {t.label}
                 {t.value === "intercept" && interceptPendingCount > 0 && (
@@ -426,6 +434,37 @@ function TaskDetailInner() {
                 )}
               </TabsTrigger>
             ))}
+            {/* 其余视图：不进主视线（新增 Tab 必须先删一个，见 docs/25 §十一） */}
+            {TABS.some((t) => !PRIMARY_TABS.includes(t.value)) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent"
+                    title="过程视图（探索链路/播报板/复测/测试资产/覆盖图/拦截审批/任务情报）"
+                  >
+                    更多 ▾
+                    {interceptPendingCount > 0 && (
+                      <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold leading-none text-white">
+                        {interceptPendingCount > 99 ? "99+" : interceptPendingCount}
+                      </span>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {TABS.filter((t) => !PRIMARY_TABS.includes(t.value)).map((t) => (
+                    <DropdownMenuItem key={t.value} onSelect={() => setTab(t.value)}>
+                      {t.label}
+                      {t.value === "intercept" && interceptPendingCount > 0 && (
+                        <span className="ml-auto rounded bg-amber-500 px-1 text-[10px] font-semibold text-white">
+                          {interceptPendingCount}
+                        </span>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </TabsList>
         </div>
       </header>

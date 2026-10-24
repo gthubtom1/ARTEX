@@ -69,6 +69,13 @@ export function TaskPhrases({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
+  // 「一盏灯」（docs/24 §九）：战况卡点了 ✦ 分析，短语这边免费重排一次（不再花 token）。
+  React.useEffect(() => {
+    const onAnalyze = () => void reload();
+    window.addEventListener("artex:analyze", onAnalyze);
+    return () => window.removeEventListener("artex:analyze", onAnalyze);
+  }, [reload]);
+
   if (items.length === 0) return null;
 
   return (

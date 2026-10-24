@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import {
-  ArrowUpRightIcon,
+  ChevronRightIcon,
   ClipboardCopyIcon,
   CrosshairIcon,
   ListChecksIcon,
@@ -27,17 +27,45 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-// 战况卡（P0-b）：任务总览顶部**唯一**一张卡。
+// 战况卡（docs/25 §五，一屏一问）
 //
-// 一张卡要回答四个问题，用户不用在页面里找：
-//   1) 我在哪（权限等级 + 值不值得打 + 下一步）
-//   2) 我有什么（已拿到的后台/立足点/命令执行/数据/凭据）
-//   3) 每一条漏洞能换到什么（规则版；P0-c 换成 AI 摘要）
-//   4) 我现在能做哪几件事（业务动作库，state 恒为 idle —— 只展示，永不自动执行）
+// 主视线只回答一个问题：**我现在能做什么？**
+//   ① 我在哪（等级 + 已确认几个洞）        —— 一行
+//   ② 我有什么（最多 3 个胶囊）            —— 一行
+//   ③ 现在能做到（最多 3 条 + [就做这个]） —— 这里是主视线
+//   ④ 差一步（一行：几个洞、缺什么）
+//   ⑤ 换不到（一行：几个洞）
+//   底：固定说明 + `✦ 分析`（主视线唯一的 AI 按钮）
 //
-// 数据源：GET /api/tasks/{id}/brief（一次拿全，避免前端拼三张卡）。
-// 利用链 / 越界授权不属于 brief（它们是"过程"和"人的决定"），仍然各拉一个接口，
-// 但都收进这张卡里显示，页面上不再出现第二张同义卡。
+// 其余（全部洞 / 全部后果 / 利用链 / 越界动作 / 判定依据）全部折叠，标题带数量。
+//
+// 一条铁律：AI 只写措辞，不改判定。能不能做（doable）成没成立（standing）都由后端规则算。
+// 「一盏灯」（docs/24 §九）：`✦ 分析` 是开关（花钱、有缓存），`⟳` 是免费重排；
+// 点 `✦` 会通知会话页的短语一起刷新（window 事件），做不到的地方就明确说"还没分析"。
+
+type FoldProps = {
+  title: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+};
+
+// Fold 是这张卡里唯一的"藏东西"方式：默认收起，标题上写数量。
+function Fold({ title, defaultOpen = false, children }: FoldProps) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  return (
+    <div className="rounded border bg-card/60">
+      <button
+        type="button"
+        className="flex w-full items-center gap-1 px-2 py-1 text-left text-[11px] text-muted-foreground hover:bg-accent/40"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <ChevronRightIcon className={cn("size-3 transition-transform", open && "rotate-90")} />
+        {title}
+      </button>
+      {open && <div className="border-t px-2 py-1.5">{children}</div>}
+    </div>
+  );
+}
 
 const LEVEL_HINT: Record<number, string> = {
   0: "只有信息（指纹/端口/入口清单），还没拿到任何权限",
@@ -56,7 +84,7 @@ const ITEM_ICON: Record<string, string> = {
   cred: "凭据",
 };
 
-function CardCopy({ text, label = "复制" }: { text: string; label?: string }) {
+function CopyBtn({ text, label = "复制" }: { text: string; label?: string }) {
   return (
     <button
       type="button"
@@ -82,57 +110,56 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
   const [verdict, setVerdict] = React.useState<TaskVerdict | null>(null);
   const [impact, setImpact] = React.useState<ImpactResponse | null>(null);
   const [chains, setChains] = React.useState<ChainView[]>([]);
-  const [showAllActions, setShowAllActions] = React.useState(false);
-  // 「为什么这么判」默认收起：先给结论，要查证据再展开（不丢原来的理由/攻击面）。
-  const [showWhy, setShowWhy] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
-  // P0-c：「能换到什么」让 AI 写（按证据 hash 缓存，失败回落规则版）
   const [aiBusy, setAiBusy] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
 
-  // 战况卡是纯规则计算，很便宜：进页面拉一次，之后 20s 刷。
-  React.useEffect(() => {
-    let alive = true;
-    const load = () => {
-      briefapi
-        .get(taskId)
-        .then((v) => alive && setBrief(v))
-        .catch(() => void 0);
-      verdictapi
-        .get(taskId)
-        .then((v) => alive && setVerdict(v))
-        .catch(() => void 0);
-      impactapi
-        .get(taskId)
-        .then((v) => alive && setImpact(v))
-        .catch(() => void 0);
-      chainapi
-        .get(taskId)
-        .then((v) => alive && setChains(v.chains ?? []))
-        .catch(() => void 0);
-    };
-    load();
-    const t = setInterval(load, 20000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
+  const load = React.useCallback(async () => {
+    const [b, v, im, ch] = await Promise.all([
+      briefapi.get(taskId).catch(() => null),
+      verdictapi.get(taskId).catch(() => null),
+      impactapi.get(taskId).catch(() => null),
+      chainapi.get(taskId).catch(() => null),
+    ]);
+    if (b) setBrief(b);
+    if (v) setVerdict(v);
+    if (im) setImpact(im);
+    if (ch) setChains(ch.chains ?? []);
   }, [taskId]);
+
+  React.useEffect(() => {
+    void load();
+    const t = setInterval(() => void load(), 20000);
+    return () => clearInterval(t);
+  }, [load]);
 
   const refresh = React.useCallback(async () => {
     setBusy(true);
     try {
-      const [b, v, im, ch] = await Promise.all([
-        briefapi.get(taskId).catch(() => null),
-        verdictapi.get(taskId).catch(() => null),
-        impactapi.get(taskId).catch(() => null),
-        chainapi.get(taskId).catch(() => null),
-      ]);
-      if (b) setBrief(b);
-      if (v) setVerdict(v);
-      if (im) setImpact(im);
-      if (ch) setChains(ch.chains ?? []);
+      await load();
     } finally {
       setBusy(false);
+    }
+  }, [load]);
+
+  // ✦ 分析 = 点亮这盏灯（花钱、有缓存）：洞解释 + 站点特有后果 + 通知短语一起刷新
+  const analyze = React.useCallback(async () => {
+    setAiBusy(true);
+    try {
+      const res = await briefapi.explainAI(taskId);
+      setBrief((prev) => (prev ? { ...prev, can: res.can } : prev));
+      // 短语组件监听这个事件做一次免费重排（同一盏灯，多个开关）
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("artex:analyze"));
+      if (res.filled > 0) {
+        toast.success(`AI 分析完成：${res.filled} 条（已按证据缓存，下次不再花 token）`);
+      } else if (res.asked === 0) {
+        toast.success("这几条都已经分析过了（命中缓存，没花钱）");
+      } else {
+        toast.error("模型这次没给出可用结果，先看规则版");
+      }
+    } catch {
+      toast.error("AI 暂时不可用，先看规则版（不影响其它）");
+    } finally {
+      setAiBusy(false);
     }
   }, [taskId]);
 
@@ -143,33 +170,14 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
       (a, b) => (rank[a.standing ?? "one_step"] ?? 1) - (rank[b.standing ?? "one_step"] ?? 1),
     );
   }, [brief?.can]);
+  const actions: BriefAction[] = brief?.actions ?? [];
   const aiCount = can.filter((c) => c.source === "ai").length;
   const gotCount = can.filter((c) => c.standing === "got").length;
-  const stepCount = can.filter((c) => c.standing === "one_step").length;
-  const noGainCount = can.filter((c) => c.standing === "no_gain").length;
-  const firstGap = can.find((c) => c.standing === "one_step")?.gap ?? "";
-
-  const explainAI = React.useCallback(async () => {
-    setAiBusy(true);
-    try {
-      const res = await briefapi.explainAI(taskId);
-      setBrief((prev) => (prev ? { ...prev, can: res.can } : prev));
-      if (res.filled > 0) {
-        toast.success(`AI 写好了 ${res.filled} 条（已按证据缓存，下次不再花 token）`);
-      } else if (res.asked === 0) {
-        toast.success("这几条都已经有 AI 解释了（命中缓存）");
-      } else {
-        toast.error("模型这次没给出可用结果，先看规则版");
-      }
-    } catch {
-      toast.error("AI 暂时不可用，先看规则版（不影响其它）");
-    } finally {
-      setAiBusy(false);
-    }
-  }, [taskId]);
-  const actions: BriefAction[] = brief?.actions ?? [];
+  const stepCan = can.filter((c) => c.standing === "one_step");
+  const noGainCan = can.filter((c) => c.standing === "no_gain");
+  const doable = actions.filter((a) => a.doable);
+  const shownDoable = doable.slice(0, 3);
   const level = brief?.level ?? 0;
-  const shownActions = showAllActions ? actions : actions.slice(0, 7);
   const verdictTone =
     verdict?.verdict === "worth"
       ? "text-emerald-700 dark:text-emerald-300"
@@ -178,29 +186,20 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
         : "text-amber-700 dark:text-amber-300";
   const openChains = (chains ?? []).filter((c) => c.status !== "dead");
   const steps: ImpactStep[] = impact?.steps ?? [];
+  const readySteps = steps.filter((s) => s.ready !== false);
 
   return (
     <Card className="border-sky-500/40 bg-sky-500/[0.04]">
-      <CardHeader className="pb-2">
+      {/* ── 抬头：等级 + 值不值得打 + 战果红点 + ✦分析 + 刷新 ── */}
+      <CardHeader className="pb-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="flex size-5 items-center justify-center rounded bg-sky-600 text-[10px] font-bold text-white">
             战
           </span>
-          <CardTitle className="text-base">
-            战况
-            {brief ? (
-              <span className="ml-1.5 font-normal">
-                · <b className="text-sky-700 dark:text-sky-300">{brief.level_label}</b>
-                <span className="ml-1 text-xs text-muted-foreground">{brief.basis}</span>
-              </span>
-            ) : (
-              <span className="ml-1.5 text-xs font-normal text-muted-foreground">读取中…</span>
-            )}
-          </CardTitle>
+          <CardTitle className="text-base">战况</CardTitle>
           {verdict && (
             <span className={cn("rounded border px-1.5 py-0.5 text-[11px] font-medium", verdictTone)}>
               {verdict.label}
-              <span className="ml-1 font-normal opacity-80">{verdict.headline}</span>
             </span>
           )}
           {brief && brief.new_since > 0 && (
@@ -214,74 +213,139 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
               战果 +{brief.new_since}
             </button>
           )}
+          {/* 主视线唯一的 AI 按钮 */}
           <button
             type="button"
-            className="ml-auto inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10.5px] text-muted-foreground hover:bg-accent"
+            className="ml-auto inline-flex items-center gap-1 rounded border border-violet-500/40 bg-violet-500/10 px-2 py-0.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-500/20 disabled:opacity-50 dark:text-violet-300"
+            onClick={() => void analyze()}
+            disabled={aiBusy || can.length === 0}
+            title="让 AI 分析：这个站现在真能做什么（按证据缓存，重复点不花钱；不会替你执行任何动作）"
+          >
+            {aiBusy ? <RefreshCwIcon className="size-3 animate-spin" /> : <SparklesIcon className="size-3" />}
+            {aiCount > 0 ? "✦ 重新分析" : "✦ 分析"}
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10.5px] text-muted-foreground hover:bg-accent"
             onClick={() => void refresh()}
             disabled={busy}
+            title="免费：重新读一遍当前状态（不调模型）"
           >
             <RefreshCwIcon className={cn("size-3", busy && "animate-spin")} /> 刷新
           </button>
         </div>
-        <p className="mt-1 text-[11.5px] text-muted-foreground">
-          {LEVEL_HINT[level] ?? "还没有结论：先跑②或③模板把入口摸全"}
-        </p>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-3 text-[11.5px]">
-        {/* 2) 我有什么 */}
-        <section>
-          <h5 className="mb-1 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-muted-foreground">
-            <TargetIcon className="size-3" /> 我有什么
-          </h5>
-          {has.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {has.map((h, i) => (
-                <span
-                  key={`${h.kind}-${i}`}
-                  className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-300"
-                >
-                  <b className="text-[9.5px] font-bold opacity-70">{ITEM_ICON[h.kind] ?? h.kind}</b>
-                  {h.text}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">还没有可直接利用的权限 —— 下面的 7 件事现在一件也做不到。</p>
+      <CardContent className="flex flex-col gap-2.5 text-[11.5px]">
+        {/* ① 我在哪 */}
+        <section className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">我在哪</span>
+          <b className="text-[13px]">{brief?.level_label ?? "读取中…"}</b>
+          <span className="flex items-center gap-0.5" title="E0 仅有信息 → E5 服务器控制">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <span
+                key={i}
+                className={cn("size-1.5 rounded-full", i <= level ? "bg-sky-600" : "bg-muted-foreground/25")}
+              />
+            ))}
+          </span>
+          <span className="text-muted-foreground">
+            {brief?.basis ?? ""}
+            {can.length > 0 ? ` · 已确认 ${can.length} 个洞` : ""}
+          </span>
+        </section>
+        <p className="-mt-1 text-[10.5px] text-muted-foreground">{LEVEL_HINT[level] ?? ""}</p>
+
+        {/* ② 我有什么（最多 3 个 + 还有 N） */}
+        <section className="flex flex-wrap items-center gap-1">
+          <span className="text-[10px] text-muted-foreground">我有什么</span>
+          {has.length === 0 && <span className="text-muted-foreground">还没有可直接利用的权限</span>}
+          {has.slice(0, 3).map((h, i) => (
+            <span
+              key={`${h.kind}-${i}`}
+              className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-300"
+            >
+              <b className="text-[9.5px] font-bold opacity-70">{ITEM_ICON[h.kind] ?? h.kind}</b>
+              {h.text}
+            </span>
+          ))}
+          {has.length > 3 && <span className="text-[10px] text-muted-foreground">还有 {has.length - 3} 项</span>}
+        </section>
+
+        {/* ③ 现在能做到（主视线，最多 3 条） */}
+        <section className="rounded border border-emerald-500/30 bg-emerald-500/[0.05] px-2 py-1.5">
+          <div className="mb-1 flex items-center gap-1">
+            <TargetIcon className="size-3 text-emerald-600" />
+            <b className="text-[11.5px]">现在能做到</b>
+            <span className="text-[10px] text-muted-foreground">
+              （{doable.length} 件有前置、我能去做；每条都能挂着证据查）
+            </span>
+          </div>
+          {shownDoable.length === 0 && (
+            <p className="text-muted-foreground">
+              还没有一件能做的 —— 先把它打成能读数据/能进后台，下面的「差一步」会告诉你缺什么。
+            </p>
+          )}
+          <ul className="flex flex-col gap-1">
+            {shownDoable.map((a) => (
+              <li key={a.class} className="flex flex-wrap items-center gap-1.5">
+                <span className="font-medium">{a.title}</span>
+                {a.run_state === "requested" && (
+                  <span className="rounded bg-sky-500/15 px-1 text-[9.5px] text-sky-700 dark:text-sky-300">
+                    已登记·等结果
+                  </span>
+                )}
+                {a.run_state === "done" && (
+                  <span
+                    className="rounded bg-emerald-500/20 px-1 text-[9.5px] text-emerald-700 dark:text-emerald-300"
+                    title={a.run_evidence || ""}
+                  >
+                    已完成
+                  </span>
+                )}
+                <CopyBtn text={a.say_it} label="就做这个" />
+              </li>
+            ))}
+          </ul>
+          {doable.length > 3 && (
+            <p className="mt-0.5 text-[10px] text-muted-foreground">还有 {doable.length - 3} 件，见下面折叠区</p>
           )}
         </section>
 
-        {/* 3) 能换到什么（每条漏洞）：规则版立刻给，AI 版按证据 hash 缓存（P0-c） */}
-        <section>
-          <h5 className="mb-1 flex flex-wrap items-center gap-1 text-[10px] font-semibold tracking-wide text-muted-foreground">
-            <CrosshairIcon className="size-3" /> 每个漏洞能换到什么
-            {can.length > 0 && (
-              <span className="font-normal opacity-80">
-                （{gotCount} 个已成立 · {stepCount} 个差一步
-                {stepCount > 0 && firstGap ? `（缺：${firstGap}）` : ""}
-                {noGainCount > 0 ? ` · ${noGainCount} 个换不到` : ""} · {aiCount}/{can.length} AI 版）
-              </span>
-            )}
-            {can.length > 0 && (
-              <button
-                type="button"
-                className="ml-auto inline-flex items-center gap-1 rounded border border-violet-500/40 bg-violet-500/5 px-1.5 py-0.5 text-[10.5px] font-semibold text-violet-600 hover:bg-violet-500/10 disabled:opacity-50"
-                onClick={() => void explainAI()}
-                disabled={aiBusy}
-                title="让 AI 把每条漏洞翻成人话（按证据 hash 缓存，证据不变就不重复花 token）"
-              >
-                {aiBusy ? <RefreshCwIcon className="size-3 animate-spin" /> : <SparklesIcon className="size-3" />}
-                {aiCount > 0 && aiCount === can.length ? "✦ 重新解释" : "✦ 用 AI 说清楚"}
-              </button>
-            )}
-          </h5>
-          {can.length > 0 ? (
+        {/* ④ 差一步 / ⑤ 换不到：各一行，不铺开 */}
+        {stepCan.length > 0 && (
+          <section className="flex flex-wrap items-center gap-1 text-amber-700 dark:text-amber-300">
+            <span className="rounded bg-amber-500/15 px-1 text-[9.5px] font-bold">差一步</span>
+            <span>
+              {stepCan.length} 个洞差一步就能换到东西
+              {stepCan[0]?.gap ? ` —— 缺：${stepCan[0].gap}` : ""}
+            </span>
+          </section>
+        )}
+        {noGainCan.length > 0 && (
+          <section className="flex flex-wrap items-center gap-1 text-muted-foreground">
+            <span className="rounded bg-muted px-1 text-[9.5px] font-bold">换不到</span>
+            <span>{noGainCan.length} 个洞目前换不到任何现实后果（不是误报，只是没到能用的程度）</span>
+          </section>
+        )}
+
+        {/* 一句话：想做就在会话里说 */}
+        <section className="flex flex-wrap items-center gap-1.5 rounded border border-sky-500/30 bg-sky-500/[0.06] px-2 py-1.5">
+          <span className="min-w-0 flex-1">
+            {brief?.say_this || "想做上面哪一步，直接在下面主对话里说；我不会自己动手。"}
+          </span>
+          {actions.length > 0 && <CopyBtn text={actions[0].say_it} label="复制第一句" />}
+        </section>
+        <p className="text-[10px] text-muted-foreground">
+          灰的是"可能清单"，只有拿到证据才会点亮；AI 只做解释，不替你决定，也不会自己动手。
+        </p>
+
+        {/* ── 折叠区（点开才看，标题带数量）── */}
+        <div className="flex flex-col gap-1">
+          <Fold title={`${can.length} 个洞 · 每个能换到什么${aiCount > 0 ? `（${aiCount} 条 AI 版）` : ""}`}>
             <ul className="flex flex-col gap-1">
               {can.map((c) => (
-                <li
-                  key={`${c.finding_id}-${c.title}`}
-                  className="flex items-start gap-1.5 rounded border bg-card px-2 py-1"
-                >
+                <li key={`${c.finding_id}-${c.title}`} className="flex flex-wrap items-start gap-1.5">
                   <span
                     className={cn(
                       "mt-[1px] shrink-0 rounded px-1 text-[9.5px] font-bold",
@@ -295,52 +359,43 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                       c.standing === "got"
                         ? "已成立：对应能力行已拿到，有证据"
                         : c.standing === "no_gain"
-                          ? "换不到东西：这条洞没有通向任何能力行（不是误报，只是没到能用的程度）"
+                          ? "换不到东西：这条洞没有通向任何能力行"
                           : `差一步：还缺「${c.gap || "下一个能力"}」`
                     }
                   >
                     {c.standing === "got" ? "已成立" : c.standing === "no_gain" ? "换不到" : "差一步"}
                   </span>
                   <b className="shrink-0 font-medium">{c.title}</b>
-                  <span className="flex min-w-0 items-start gap-1 text-muted-foreground">
-                    {c.source === "ai" && (
-                      <span
-                        className="mt-[1px] shrink-0 rounded bg-violet-500/15 px-1 text-[9px] font-bold text-violet-600"
-                        title={c.cached ? "AI 解释（命中缓存，没花 token）" : "AI 解释"}
-                      >
-                        AI
-                      </span>
-                    )}
-                    <span>→ {c.grants}</span>
+                  {c.source === "ai" && (
+                    <span
+                      className="mt-[1px] shrink-0 rounded bg-violet-500/15 px-1 text-[9px] font-bold text-violet-600"
+                      title={c.cached ? "AI 解释（命中缓存，没花 token）" : "AI 解释"}
+                    >
+                      AI
+                    </span>
+                  )}
+                  <span className="min-w-0 text-muted-foreground">
+                    → {c.grants}
+                    {c.standing === "one_step" && c.gap ? `（缺：${c.gap}）` : ""}
                   </span>
                   <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">#{c.finding_id}</span>
                 </li>
               ))}
+              {can.length === 0 && <p className="text-muted-foreground">还没确认任何漏洞。</p>}
             </ul>
-          ) : (
-            <p className="text-muted-foreground">还没确认任何漏洞，所以暂时换不到东西。</p>
-          )}
-        </section>
+          </Fold>
 
-        {/* 4) 能做哪几件事（业务动作库：只展示，永不自动执行） */}
-        <section>
-          <h5 className="mb-1 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-muted-foreground">
-            <SparklesIcon className="size-3" /> 我现在能做到的现实后果（{actions.length} 件，我不会自己动手）
-          </h5>
-          <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
-            {shownActions.map((a) => {
-              return (
+          <Fold title={`${actions.length} 件能做到的事（含前置与留证要求）`}>
+            <div className="flex flex-col gap-1">
+              {actions.map((a) => (
                 <div
                   key={a.class}
                   className={cn(
                     "rounded border px-2 py-1",
-                    a.doable
-                      ? "border-emerald-500/50 bg-emerald-500/[0.07]"
-                      : "border-border bg-card opacity-55 grayscale-[0.3]",
+                    a.doable ? "border-emerald-500/40 bg-emerald-500/[0.05]" : "opacity-60",
                   )}
-                  title={a.doable ? "前置已满足：现在说一句就能做" : `还做不到，前置：${a.need}`}
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center gap-1">
                     <span className="font-medium">{a.title}</span>
                     <span
                       className={cn(
@@ -354,163 +409,113 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                       不自动执行
                     </span>
                   </div>
-                  <div className="mt-0.5 flex items-start gap-1 text-muted-foreground">
-                    <span className="shrink-0 opacity-70">前置：{a.need}</span>
-                    <CardCopy text={a.say_it} label="复制说法" />
-                  </div>
+                  <div className="mt-0.5 text-muted-foreground">前置：{a.need}</div>
+                  <div className="text-foreground/70">想让我做就说：「{a.say_it}」</div>
+                  {a.evidence_need && (
+                    <div className="text-[10px] text-muted-foreground">做完要留证：{a.evidence_need}</div>
+                  )}
                   {a.run_state === "requested" && (
-                    <div className="mt-0.5 rounded bg-sky-500/10 px-1 text-[10.5px] text-sky-700 dark:text-sky-300">
+                    <div className="text-[10.5px] text-sky-700 dark:text-sky-300">
                       已登记（等结果）{a.run_say_it ? `· 你说的是：「${a.run_say_it}」` : ""}
                     </div>
                   )}
                   {a.run_state === "done" && (
-                    <div className="mt-0.5 rounded bg-emerald-500/10 px-1 text-[10.5px] text-emerald-700 dark:text-emerald-300">
+                    <div className="text-[10.5px] text-emerald-700 dark:text-emerald-300">
                       已完成{a.run_evidence ? ` · ${a.run_evidence}` : ""}
                     </div>
                   )}
-                  {(a.run_state === "failed" || a.run_state === "aborted") && (
-                    <div className="mt-0.5 rounded bg-slate-500/10 px-1 text-[10.5px] text-slate-600">
-                      {a.run_state === "failed" ? "失败了" : "已放弃"}
-                      {a.run_evidence ? ` · ${a.run_evidence}` : ""}
-                    </div>
-                  )}
-                  <div className="mt-0.5 text-[10.5px] text-foreground/70">想让我做就说：「{a.say_it}」</div>
-                  {a.evidence_need && (
-                    <div className="text-[10px] text-muted-foreground">做完要留证：{a.evidence_need}</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {actions.length > 7 && (
-            <button
-              type="button"
-              className="mt-1 rounded border px-1.5 py-0.5 text-[10.5px] text-muted-foreground hover:bg-accent"
-              onClick={() => setShowAllActions((v) => !v)}
-            >
-              {showAllActions ? "只看前 7 件" : `还有 ${actions.length - 7} 件（展开）`}
-            </button>
-          )}
-        </section>
-
-        {/* 利用链：串联漏洞才是渗透本质（收进同一张卡，不再单独占一张） */}
-        {openChains.length > 0 && (
-          <section>
-            <h5 className="mb-1 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-muted-foreground">
-              <ListChecksIcon className="size-3" /> 利用链（{openChains.length} 条在走）
-            </h5>
-            <div className="flex flex-col gap-1">
-              {openChains.slice(0, 4).map((c) => (
-                <div key={c.key} className="rounded border bg-card px-2 py-1">
-                  <div className="flex items-center gap-1.5">
-                    <b className="font-medium">{c.title}</b>
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.5 text-[10px] font-semibold",
-                        c.status === "done"
-                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                          : "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-                      )}
-                    >
-                      {c.status === "done" ? "已拿到收益" : "进行中"}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                    {(c.steps ?? []).map((st) => (
-                      <span
-                        key={st.Key}
-                        className={cn(
-                          "rounded border px-1 py-0.5 text-[10px]",
-                          st.Status === "done"
-                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                            : st.Status === "failed"
-                              ? "border-slate-400/50 text-slate-500 line-through"
-                              : "border-amber-500/40 text-amber-700 dark:text-amber-300",
-                        )}
-                        title={st.Title}
-                      >
-                        {st.Title.length > 22 ? st.Title.slice(0, 22) + "…" : st.Title}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-0.5 text-muted-foreground">下一步：{c.next}</div>
                 </div>
               ))}
             </div>
-          </section>
-        )}
+          </Fold>
 
-        {/* 越界动作（P4）：不再放"允许/拒绝"按钮 —— 授权只剩一条路：在对话里说。
-            这里只显示"它建议往哪走 + 你现在允许到哪一步"，按钮消失，说明保留一行。 */}
-        {steps.length > 0 && (
-          <section>
-            <h5 className="mb-1 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-muted-foreground">
-              <ShieldAlertIcon className="size-3" /> 越界动作（默认不做；要做就在对话里说「帮我…」）
-            </h5>
-            <div className="flex flex-col gap-1">
-              {steps.map((st) => {
-                const g = (impact?.grants ?? []).find((x) => x.class === st.class);
-                return (
-                  <div
-                    key={st.class}
-                    className="flex flex-wrap items-center gap-1 rounded border bg-card px-2 py-1"
-                    title={`为什么能做：${st.why}
-我会做什么：${st.plan}
-风险：${st.risk}`}
-                  >
-                    <span className="font-medium">{st.title}</span>
-                    <span className="text-muted-foreground">→ 做成升到 E{st.next}</span>
-                    {st.ready === false && st.precondition && (
-                      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10.5px] text-amber-700 dark:text-amber-300">
-                        还差前置：{st.precondition}
+          {openChains.length > 0 && (
+            <Fold title={`${openChains.length} 条利用链在走`}>
+              <div className="flex flex-col gap-1">
+                {openChains.slice(0, 6).map((c) => (
+                  <div key={c.key} className="rounded border px-2 py-1">
+                    <div className="flex items-center gap-1.5">
+                      <b className="font-medium">{c.title}</b>
+                      <span
+                        className={cn(
+                          "rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                          c.status === "done"
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                            : "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+                        )}
+                      >
+                        {c.status === "done" ? "已拿到收益" : "进行中"}
                       </span>
-                    )}
-                    {g?.granted ? (
-                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-emerald-700 dark:text-emerald-300">
-                        已在对话里授权（{g.decided_at}）
-                      </span>
-                    ) : g ? (
-                      <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-slate-600">
-                        已明确拒绝（{g.decided_at}）
-                      </span>
-                    ) : (
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10.5px] text-muted-foreground">未授权</span>
-                    )}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                      {(c.steps ?? []).map((st) => (
+                        <span
+                          key={st.Key}
+                          className={cn(
+                            "rounded border px-1 py-0.5 text-[10px]",
+                            st.Status === "done"
+                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                              : st.Status === "failed"
+                                ? "border-slate-400/50 text-slate-500 line-through"
+                                : "border-amber-500/40 text-amber-700 dark:text-amber-300",
+                          )}
+                          title={st.Title}
+                        >
+                          {st.Title.length > 22 ? `${st.Title.slice(0, 22)}…` : st.Title}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-0.5 text-muted-foreground">下一步：{c.next}</div>
                   </div>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-[10.5px] text-muted-foreground">
-              这里不放"允许/拒绝"按钮：说一句就是授权（「帮我挂个 webshell」），否定句（「不要…」）自动不算。
-            </p>
-          </section>
-        )}
+                ))}
+              </div>
+            </Fold>
+          )}
 
-        {/* 一句话：想做哪一步就去主会话说（确定性模板，不自动发） */}
-        <section className="flex flex-wrap items-center gap-1.5 rounded border border-sky-500/30 bg-sky-500/[0.06] px-2 py-1.5">
-          <ArrowUpRightIcon className="size-3.5 shrink-0 text-sky-600" />
-          <span className="min-w-0 flex-1">
-            {brief?.say_this || "想做上面哪一步，直接在下面主对话里说；我不会自己动手。"}
-          </span>
-          {actions.length > 0 && <CardCopy text={actions[0].say_it} label="复制第一句" />}
-        </section>
-        {verdict && (
-          <div className="text-[10.5px] text-muted-foreground">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span>为什么这么判：{verdict.advice}</span>
-              <span className="opacity-60">（规则判定，不调模型）</span>
-              {((verdict.reasons ?? []).length > 0 || (verdict.surface ?? []).length > 0) && (
-                <button
-                  type="button"
-                  className="rounded border px-1.5 py-0.5 hover:bg-accent"
-                  onClick={() => setShowWhy((v) => !v)}
-                >
-                  {showWhy ? "收起依据" : `看依据（${(verdict.reasons ?? []).length} 条理由）`}
-                </button>
-              )}
-            </div>
-            {showWhy && (
-              <div className="mt-1 flex flex-col gap-1">
+          {steps.length > 0 && (
+            <Fold title={`${steps.length} 个越界动作（默认不做，要做就在对话里说）`}>
+              <div className="flex flex-col gap-1">
+                {steps.map((st) => {
+                  const g = (impact?.grants ?? []).find((x) => x.class === st.class);
+                  return (
+                    <div
+                      key={st.class}
+                      className="rounded border px-2 py-1"
+                      title={`为什么能做：${st.why}\n我会做什么：${st.plan}\n风险：${st.risk}`}
+                    >
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="font-medium">{st.title}</span>
+                        <span className="text-muted-foreground">→ 做成升到 E{st.next}</span>
+                        {st.ready === false && st.precondition && (
+                          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10.5px] text-amber-700 dark:text-amber-300">
+                            还差前置：{st.precondition}
+                          </span>
+                        )}
+                        {g?.granted ? (
+                          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] text-emerald-700 dark:text-emerald-300">
+                            已在对话里授权（{g.decided_at}）
+                          </span>
+                        ) : g ? (
+                          <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10.5px] text-slate-600">
+                            已明确拒绝（{g.decided_at}）
+                          </span>
+                        ) : st.ready !== false ? (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10.5px] text-muted-foreground">
+                            未授权
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Fold>
+          )}
+
+          {verdict && (verdict.reasons?.length > 0 || verdict.surface?.length > 0) && (
+            <Fold title={`为什么这么判（${verdict.reasons?.length ?? 0} 条理由）`}>
+              <div className="flex flex-col gap-1">
+                <p>{verdict.advice}</p>
                 <ul className="flex flex-col gap-0.5">
                   {(verdict.reasons ?? []).map((r) => (
                     <li key={`${r.kind}-${r.id ?? 0}`} className="flex items-start gap-1.5">
@@ -541,9 +546,16 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                   </div>
                 )}
               </div>
-            )}
-          </div>
-        )}
+            </Fold>
+          )}
+
+          {readySteps.length > 0 && (
+            <p className="px-1 text-[10px] text-muted-foreground">
+              下一步最值得做：{readySteps[0].title}
+              {readySteps[0].precondition ? `（${readySteps[0].precondition}）` : ""}
+            </p>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
