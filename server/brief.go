@@ -12,6 +12,14 @@ import (
 
 // 战况卡（P0）：一次拿全"我在哪 / 我有什么 / 能换到什么 / 能做什么"，避免前端拼多张卡。
 // 全部只读；动作只展示不执行（P2 的铁律）。
+type briefInherited struct {
+	TaskID     int64    `json:"task_id"`
+	Name       string   `json:"name,omitempty"`
+	LevelLabel string   `json:"level_label"`
+	Findings   int      `json:"findings"`
+	Has        []string `json:"has,omitempty"`
+}
+
 type briefItem struct {
 	Kind  string `json:"kind"`
 	Text  string `json:"text"`
@@ -64,6 +72,10 @@ type brief struct {
 	VerdictTag string         `json:"verdict_label"`
 	// Stall：进度健康度（docs/23 §五 闸门2）。全确定性：只看"多久没有新证据"。
 	Stall stallState `json:"stall"`
+	// Inherited：这个任务继承了哪些任务的成果（只读参考）。
+	// 真机跑 #18（继承 #14）时发现：用户会问"我明明已经拿到后台了，为什么新任务是 E0"——
+	// 因为战果只算**本任务**的证据。所以这里必须显式说明"继承 ≠ 本任务已自证"。
+	Inherited []briefInherited `json:"inherited,omitempty"`
 	// NewSince：上次打开战果面板之后新拿到的战果行数（胶囊红点）。
 	// 游标存在 loot_seen（0014），只看 done 行的证据 id 是否越过游标。
 	NewSince int64 `json:"new_since"`
@@ -155,6 +167,8 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	// 真正"人要求过没有 / 有没有证据"看 run_state。先做一次证据收口再读工单。
 	s.closeActionsByEvidence(r.Context(), t, taskID)
 	out.Actions = s.briefActions(r.Context(), taskID, st)
+
+	out.Inherited = s.briefInherited(r.Context(), taskID)
 
 	// 闸门2：多久没有新证据（只读判定，暂停动作由后台巡检做）。
 	// 只在"真在跑"的任务上提示：已结束/已暂停的任务显示"建议收工"是噪音（用户会以为它还烧钱）。
@@ -349,4 +363,58 @@ func rowCapability(rowKey string, st impact.Stats) bool {
 		return st.OwnedRoot > 0
 	}
 	return false
+}
+
+// briefInherited 读 task_relations，把"我继承了谁的成果"翻译成人话。
+// 只读、最多 5 条；读不到就返回空（不影响战况卡）。
+func (s *Server) briefInherited(ctx context.Context, taskID int64) []briefInherited {
+	out := []briefInherited{}
+	if s.m == nil || s.m.pg == nil || taskID <= 0 {
+		return out
+	}
+	rows, err := s.m.pg.QueryContext(ctx,
+		`SELECT source_task_id FROM task_relations WHERE task_id=$1 ORDER BY source_task_id LIMIT 5`, taskID)
+	if err != nil {
+		return out
+	}
+	ids := []int64{}
+	for rows.Next() {
+		var id int64
+		if rows.Scan(&id) == nil && id > 0 {
+			ids = append(ids, id)
+		}
+	}
+	rows.Close()
+	for _, id := range ids {
+		t, ok := s.m.Task(strconv.FormatInt(id, 10))
+		if !ok || t == nil {
+			continue
+		}
+		st := s.impactStats(ctx, t, id)
+		lv, _ := impact.Compute(st)
+		has := []string{}
+		if st.OwnedApp > 0 {
+			has = append(has, "后台管理员会话")
+		}
+		if st.Shells > 0 {
+			has = append(has, "命令执行")
+		}
+		if st.DataSamples > 0 {
+			has = append(has, "业务数据样本")
+		}
+		if st.Creds > 0 {
+			has = append(has, "凭据")
+		}
+		name := strings.TrimSpace(t.Name)
+		if name == "" {
+			name = strings.TrimSpace(t.Description)
+		}
+		if r := []rune(name); len(r) > 40 {
+			name = string(r[:40]) + "…"
+		}
+		out = append(out, briefInherited{
+			TaskID: id, Name: name, LevelLabel: lv.String(), Findings: st.Findings, Has: has,
+		})
+	}
+	return out
 }

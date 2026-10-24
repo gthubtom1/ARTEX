@@ -2172,6 +2172,8 @@ export interface TaskBrief {
   new_since: number;
   // 进度健康度（闸门2）：ok / warn（30 分钟无新证据）/ stop（60 分钟，建议收工）
   stall?: { level: "ok" | "warn" | "stop"; minutes: number; advice: string };
+  // 继承自哪些任务（只读参考）：本任务的等级只算自己的证据，所以要说明"已有 ≠ 本任务已自证"
+  inherited?: { task_id: number; name?: string; level_label: string; findings: number; has?: string[] }[];
 }
 
 // ── 动态快捷短语（P1）：GET /api/tasks/{id}/phrases ──────────

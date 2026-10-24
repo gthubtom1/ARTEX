@@ -265,6 +265,25 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
         </section>
         <p className="-mt-1 text-[10.5px] text-muted-foreground">{LEVEL_HINT[level] ?? ""}</p>
 
+        {/* 继承 ≠ 本任务已自证（真机跑 #18 时用户的疑问）：显式写清"我从谁那儿继承了啥" */}
+        {(brief?.inherited ?? []).length > 0 && (
+          <section className="rounded border border-sky-500/30 bg-sky-500/[0.05] px-2 py-1 text-[10.5px]">
+            <span className="text-muted-foreground">继承自：</span>
+            {(brief?.inherited ?? []).map((it) => (
+              <span key={it.task_id} className="mr-2 inline-flex flex-wrap items-center gap-1">
+                <b>#{it.task_id}</b>
+                {it.name ? <span className="opacity-70">{it.name}</span> : null}
+                <span className="rounded bg-muted px-1">{it.level_label}</span>
+                {it.findings > 0 ? <span className="opacity-70">{it.findings} 个洞</span> : null}
+                {(it.has ?? []).length > 0 ? <span className="opacity-70">已拿到 {it.has?.join("/")}</span> : null}
+              </span>
+            ))}
+            <span className="text-amber-700 dark:text-amber-300">
+              · 这些是只读参考：本任务的等级只算它自己验证过的证据
+            </span>
+          </section>
+        )}
+
         {/* 闸门2：没进展时直说（warn 黄 / stop 红），并给"该说什么" */}
         {brief?.stall && brief.stall.level !== "ok" && (
           <section
