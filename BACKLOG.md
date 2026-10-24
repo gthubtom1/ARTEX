@@ -255,11 +255,25 @@ F4 成本可见 / F5 零基础可走通），并给出**当前实测值**：
 
 - ✅ **P0-a 后端**：`GET /api/tasks/{id}/brief`（server/brief.go）已上线 (0.11.8-p9)，实测 task 14：
   等级 E4 / 已拿到 3 项 / "能换到什么"按漏洞类型映射 / 业务动作 7 个且 `state=idle` / `say_this` 一句话。
-- ⬜ **P0-b 前端**（下一步）：在 `web/src/app/(main)/function/tasks/detail/_tabs/overview-tab.tsx`
-  顶部用一张「战况卡」替换现有三张（利用链 / 现在到哪一步 / 值不值得打），数据源改为 `/brief`；
-  战果面板（`loot-panel.tsx`）每行改白话 + 胶囊未读红点 + 顶部「详情看战况 →」链接。
-  判据：打开任务顶部一张卡即可回答"我在哪/我有什么/能换到什么/能做哪 7 件事"。
-- ⬜ **P0-c**：「能换到什么」接 AI（按 finding 证据 hash 缓存，失败回落 `abilityText`）。
+- ✅ **P0-b 前端**（2026-10-24 完成）：任务总览顶部只剩**一张「战况卡」**（`web/src/app/(main)/function/tasks/detail/_tabs/battle-card.tsx`），
+  数据源 `GET /api/tasks/{id}/brief`；原来的「利用链 / 现在到哪一步 / 值不值得打」三张卡已删除，
+  利用链、越界授权（允许/拒绝收成一行）、「为什么这么判（可展开依据）」都收进这同一张卡，页面上不再有同义卡。
+  战果面板（`loot-panel.tsx`）：每行主语改白话（`plain`）+ 原归类名降为副行；胶囊未读红点用 `/brief` 的 `new_since`
+  （游标表 `db/migrations/0014_loot_seen.sql`，打开面板即调 `POST /api/tasks/{id}/loot/seen` 清零）；
+  面板头部「详情看战况 →」跳回总览（`?tab=overview`），反向「战果 +N」跳 `?tab=sessions&panel=loot` 并自动打开战果。
+  **实测（mock 全站 `NEXT_PUBLIC_MOCK=1` + Playwright，截图 `screenshots/p0b-*.png`）**：
+  一张卡同时给出 `E3 命令执行` / 「我有什么」4 条（后台·凭据·数据·命令）/ 6 条「每个漏洞能换到什么」/
+  7 件业务动作（每条都标「不自动执行」+ 前置 + 可复制的说法）/ 3 条利用链 / 一句话说法；
+  战果胶囊 `战果 +5` → 打开战果面板后变 `战果 5`（红点清零）；战果行主行是白话；
+  点「详情看战况 →」URL 变 `tab=overview` 且战况卡在页；展开依据出 3 条理由 + 攻击面 URL；浏览器 0 条 console error。
+  `npx tsc --noEmit` / `npx next build`（36 路由无错）/ `go build ./...` / `go vet ./server` 全过，
+  `go test ./server -run TestCountUnreadLoot` PASS。
+  **仍未验证（本机无 docker/PG）**：`new_since` 的 SQL 与 `0014` 迁移没在真库上跑过 —— 上 VM 只需两条：
+  `curl -s -H "Authorization: Bearer <token>" .../api/tasks/<id>/brief | jq .new_since` 有非 0，
+  `curl -X POST .../api/tasks/<id>/loot/seen` 之后再取一次变 0；且 `select * from loot_seen` 有行。
+- ⬜ **P0-c**（下一步）：「能换到什么」接 AI（按 finding 证据 hash 缓存，失败回落 `abilityText`）。
+  落地位置：`server/brief.go` 的 `abilityText` 换成 `loot_explanations` 同款缓存（`0015` 加一列/一表即可），
+  前端 `battle-card.tsx` 的 `can[].source` 已经是 `rule|ai` 两态，只需把 `ai` 用角标显示出来。
 - ⬜ **P1** 动态快捷短语（按当前漏洞生成 3–5 条，点一下只填入）。
 - ⬜ **P2** 业务动作执行通道（7 类动作 + 对话即授权 + 留证）。
 - ⬜ **P3** 未读通知（红点/任务列表徽章/标题）+ 审查官喂 Brief 并下硬动作。

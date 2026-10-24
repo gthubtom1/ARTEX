@@ -2109,3 +2109,43 @@ export interface ChainView {
   steps: ChainStep[];
   next: string;
 }
+
+// ── 战况卡（P0）：GET /api/tasks/{id}/brief 一次拿全 ──────────
+// 页面只需要问这一个接口，就能回答「我在哪 / 我有什么 / 能换到什么 / 能做哪几件事」。
+export interface BriefItem {
+  kind: "app" | "os" | "shell" | "data" | "cred" | string;
+  text: string;
+  ref_id?: number;
+}
+
+export interface BriefAbility {
+  finding_id: number;
+  title: string;
+  grants: string;
+  doable: boolean;
+  source: "rule" | "ai";
+}
+
+export interface BriefAction {
+  class: string;
+  title: string;
+  // 永远 idle：业务动作只展示，不自动执行（P2 的铁律）
+  state: "idle";
+  need: string;
+  // 想让我做就发这句（确定性命中模板，前端只做复制/填入，不自动发）
+  say_it: string;
+}
+
+export interface TaskBrief {
+  level: number;
+  level_label: string;
+  basis: string;
+  has: BriefItem[];
+  can: BriefAbility[];
+  actions: BriefAction[];
+  say_this: string;
+  verdict: "worth" | "not_worth" | "unclear" | string;
+  verdict_label: string;
+  // 上次看战果之后新拿到的行数（胶囊红点）
+  new_since: number;
+}

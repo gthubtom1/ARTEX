@@ -1918,9 +1918,20 @@ export const impactapi = {
 };
 
 export const verdictapi = {
-  // 「值不值得打」：值得 / 不值得 / 还没探够 + 最多 3 条理由 + 攻击面
   get: (taskId: string) =>
     get<import("@/lib/types").TaskVerdict>(`/tasks/${encodeURIComponent(taskId)}/verdict`),
+};
+
+export const briefapi = {
+  // 战况卡（P0）：一次拿全「我在哪 / 我有什么 / 能换到什么 / 能做哪几件事」。
+  // 全部只读；actions 恒为 idle（业务动作只展示，不执行）。
+  get: (taskId: string) => get<import("@/lib/types").TaskBrief>(`/tasks/${encodeURIComponent(taskId)}/brief`),
+  // 把战果未读游标推到当前位置（人打开战果面板/战况卡时调）。
+  markSeen: (taskId: string) =>
+    post<{ ok: boolean; seen_finding_id: number; new_since: number }>(
+      `/tasks/${encodeURIComponent(taskId)}/loot/seen`,
+      {},
+    ),
 };
 
 export const lootapi = {

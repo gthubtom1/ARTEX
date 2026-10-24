@@ -3,8 +3,9 @@
 import * as React from "react";
 
 import { CheckIcon, ClipboardCopyIcon, Loader2Icon, RefreshCwIcon, SparklesIcon, XIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 
-import { lootapi, type LootResponse, type LootRow } from "@/lib/api";
+import { briefapi, lootapi, type LootResponse, type LootRow } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 // 战果清单（CARD-B01）
@@ -35,13 +36,20 @@ export function LootCapsule({
   onToggle: () => void;
 }) {
   const [done, setDone] = React.useState<number | null>(null);
+  // 未读战果（P0-b）：后端 /brief 带的 new_since，不看就一直是数字。
+  const [fresh, setFresh] = React.useState(0);
   React.useEffect(() => {
     let alive = true;
-    const load = () =>
+    const load = () => {
       lootapi
         .get(taskId)
         .then((d) => alive && setDone(d.done))
         .catch(() => void 0);
+      briefapi
+        .get(taskId)
+        .then((b) => alive && setFresh(b.new_since ?? 0))
+        .catch(() => void 0);
+    };
     load();
     const t = setInterval(load, 20000);
     return () => {
@@ -50,19 +58,34 @@ export function LootCapsule({
     };
   }, [taskId]);
 
+  // 胶囊底色：打开中 > 有新战果 > 默认（写成变量，避免嵌套三元）
+  let tone = "hover:bg-accent";
+  if (fresh > 0) tone = "border-rose-500/50 hover:bg-rose-500/5";
+  if (open) tone = "border-emerald-500/40 bg-emerald-500/10 text-emerald-700";
+
   return (
     <button
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors",
-        open ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700" : "hover:bg-accent",
+        tone,
       )}
       onClick={onToggle}
-      title="战果清单：这个站现在拿到了哪些权限/数据"
+      title={
+        fresh > 0
+          ? `战果清单：有 ${fresh} 条新战果还没看（打开即清零）`
+          : "战果清单：这个站现在拿到了哪些权限/数据"
+      }
     >
       <CheckIcon className="size-3.5" />
       战果
       {done !== null && done > 0 && (
         <span className="rounded bg-emerald-500/15 px-1 text-[10px] font-semibold text-emerald-600">{done}</span>
+      )}
+      {fresh > 0 && (
+        <span className="inline-flex items-center gap-0.5 rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white">
+          <span className="size-1 rounded-full bg-white/90" />
+          {fresh > 9 ? "9+" : fresh}
+        </span>
       )}
     </button>
   );
@@ -75,6 +98,7 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState("");
   const [stamp, setStamp] = React.useState("");
+  const router = useRouter();
 
   // 详情区：selected===null 时完全不渲染（不占空间）
   const [selected, setSelected] = React.useState<string | null>(null);
@@ -113,6 +137,12 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
   React.useEffect(() => {
     load();
   }, [load]);
+
+  // 打开战果面板 = 已读：把后端未读游标推到现在（新战果红点回零）。
+  // 失败不影响展示：游标只是显示层的东西，不阻塞任何判定。
+  React.useEffect(() => {
+    briefapi.markSeen(taskId).catch(() => void 0);
+  }, [taskId]);
 
   React.useEffect(() => {
     if (!auto) return;
@@ -266,6 +296,13 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
         <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-600">
           {data ? `${data.done}/${data.total || data.rows.length}` : "…"}
         </span>
+        <button
+          className="shrink-0 rounded border border-sky-500/40 bg-sky-500/5 px-1.5 py-0.5 text-[10.5px] font-medium text-sky-700 hover:bg-sky-500/10 dark:text-sky-300"
+          onClick={() => router.push(`/function/tasks/detail?id=${taskId}&tab=overview`)}
+          title="打开战况卡：我在哪 / 我有什么 / 能换到什么 / 能做哪几件事"
+        >
+          详情看战况 →
+        </button>
         <button className="text-muted-foreground hover:text-foreground" onClick={onClose} aria-label="关闭">
           <XIcon className="size-4" />
         </button>
@@ -335,8 +372,9 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                     onClick={() => pick(r)}
                   >
                     <td className="px-3 py-1.5">
-                      <div className="font-medium">{r.label}</div>
-                      {r.plain && <div className="mt-0.5 text-[10.5px] leading-snug text-muted-foreground">{r.plain}</div>}
+                      {/* 主行说白话（plain），原始归类名降为次要行：零基础看得懂“拿到了什么”而不是“哪一类能力”。 */}
+                      <div className="font-medium leading-snug">{r.plain || r.label}</div>
+                      {r.plain && <div className="mt-0.5 text-[10px] text-muted-foreground">{r.label}</div>}
                     </td>
                     <td className="px-1 py-1.5">
                       <span className={cn("inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-semibold", st.cls)}>

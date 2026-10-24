@@ -430,7 +430,12 @@ function TaskDetailInner() {
       {/* Tab content */}
       <div className="flex-1 p-4 lg:p-6">
         <TabsContent value="sessions" className="mt-0">
-          <SessionsTab key={id} taskId={id} requestedSession={searchParams.get("session") ?? ""} />
+          <SessionsTab
+            key={id}
+            taskId={id}
+            requestedSession={searchParams.get("session") ?? ""}
+            requestedPanel={searchParams.get("panel") ?? ""}
+          />
         </TabsContent>
         <TabsContent value="overview" className="mt-0">
           <OverviewTab taskId={id} />

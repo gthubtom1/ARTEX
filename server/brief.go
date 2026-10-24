@@ -42,6 +42,9 @@ type brief struct {
 	SayThis    string         `json:"say_this"`
 	Verdict    string         `json:"verdict"`
 	VerdictTag string         `json:"verdict_label"`
+	// NewSince：上次打开战果面板之后新拿到的战果行数（胶囊红点）。
+	// 游标存在 loot_seen（0014），只看 done 行的证据 id 是否越过游标。
+	NewSince int64 `json:"new_since"`
 }
 
 func (s *Server) registerBriefRoutes(mux *http.ServeMux) {
@@ -100,12 +103,38 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 		{Class: "deface", Title: "改首页 / 挂马 / 换收款地址", State: "idle", Need: "上传或写入权限", SayIt: "把它首页的收款地址换成我的，先备份原文件"},
 		{Class: "persist", Title: "留账号/计划任务（持久化）", State: "idle", Need: "命令执行", SayIt: "留一个可用的后台账号，任务结束前删掉"},
 	}
+	// 未读战果（胶囊红点）：done 行的证据 id 越过 loot_seen 游标 => 算新。
+	// 读不到游标/没库时 lootSeenFindingID 返回 0，此时全部算新（首屏就该提示）。
+	fs := s.lootFindings(t)
+	out.NewSince = countUnreadLoot(s.lootRowsForTask(r.Context(), t, fs), s.lootSeenFindingID(r.Context(), taskID))
+
 	if len(out.Has) > 0 {
 		out.SayThis = "想做上面哪一步，直接在下面主对话里说，例如「" + out.Actions[0].SayIt + "」；我不会自己动手。"
 	} else {
 		out.SayThis = "现在还没有可直接利用的权限。先跑②或③模板把漏洞打出来。"
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// countUnreadLoot 数"上次看过战果之后新拿到"的行：只看已拿到（done）的行，
+// 用该行证据 id 的最大值跟游标比。行是实时算的，所以不需要行的创建时间。
+func countUnreadLoot(rows []lootRow, seen int64) int64 {
+	var n int64
+	for _, row := range rows {
+		if row.Status != "done" {
+			continue
+		}
+		var maxID int64
+		for _, e := range row.Evidence {
+			if e.ID > maxID {
+				maxID = e.ID
+			}
+		}
+		if maxID > seen {
+			n++
+		}
+	}
+	return n
 }
 
 // abilityText 把漏洞标题翻成"能换到什么"（规则版；AI 版后续按证据 hash 缓存替换）。

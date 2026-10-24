@@ -17,6 +17,7 @@ import type {
   CompanyScopeRule,
   Conversation,
   EvidenceBodyPreview,
+  Finding,
   FindingRetest,
   FindingTraffic,
   FindingTrafficBinding,
@@ -998,6 +999,287 @@ function parseBody(body?: BodyInit | null): Record<string, unknown> {
   }
 }
 
+// ── 战况卡（P0-b）：demo 里按 findings 现算，口径与 server/brief.go 一致 ──────
+// 为什么要现算而不是写死：真后端的战况是「实时规则算出来的」，mock 也必须这样，
+// 否则改一处 findings 就得到一份对不上的假演示。
+const mockLootSeen: Record<string, number> = {};
+
+function mockFindingNum(id: string): number {
+  const n = Number(String(id).replace(/\D/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+// 与 server/brief.go 的 abilityText 同口径：关键词映射成「能换到什么」。
+function mockAbilityText(title: string): string {
+  const t = title.toLowerCase();
+  if (t.includes("sql") || title.includes("注入")) return "能读它的数据库（用户表/订单表等），也可能写入或提权";
+  if (t.includes("idor") || title.includes("越权") || title.includes("未授权"))
+    return "能直接读到别人的数据（订单/资料），不用登录";
+  if (t.includes("jwt") || title.includes("登录绕过") || title.includes("认证") || t.includes("credential"))
+    return "能进它的后台，之后可看用户与订单、找上传点";
+  if (t.includes("xss")) return "能偷管理员会话，进而接管后台";
+  if (title.includes("上传") || title.includes("写文件")) return "能落文件，进一步可拿命令执行";
+  if (t.includes("rce") || title.includes("代码执行") || title.includes("命令执行"))
+    return "能在服务器上执行命令，进而控制整机";
+  if (title.includes("文件读取") || title.includes("路径穿越") || t.includes("lfi"))
+    return "能读服务器文件（配置里常有数据库口令）";
+  return "需要人工判断：把证据打开看能读到什么、能做什么";
+}
+
+// 业务动作库（与 server/brief.go 的 7 条一致）：只展示，state 恒为 idle。
+function mockActions() {
+  return [
+    {
+      class: "data_export",
+      title: "按条件导出数据（订单/用户/卡密）",
+      state: "idle",
+      need: "注入点或数据库权限",
+      say_it: "帮我把它数据库里的订单表数据拉出来，先各取几条看看",
+    },
+    {
+      class: "account_read",
+      title: "看后台的用户名/密码或哈希",
+      state: "idle",
+      need: "后台管理员或数据库",
+      say_it: "把后台的用户列表和密码（或哈希）给我看看",
+    },
+    {
+      class: "account_create",
+      title: "开一个管理员账号",
+      state: "idle",
+      need: "后台或命令执行",
+      say_it: "用管理员权限帮我开一个后台账号，我登录看看",
+    },
+    {
+      class: "money_adjust",
+      title: "给指定账号加钱/改余额",
+      state: "idle",
+      need: "后台或写库权限",
+      say_it: "给这个账号加 100，把改前改后都记下来",
+    },
+    {
+      class: "money_approve",
+      title: "把提款/订单审批通过",
+      state: "idle",
+      need: "后台",
+      say_it: "在后台把这笔提款审批通过",
+    },
+    {
+      class: "deface",
+      title: "改首页 / 挂马 / 换收款地址",
+      state: "idle",
+      need: "上传或写入权限",
+      say_it: "把它首页的收款地址换成我的，先备份原文件",
+    },
+    {
+      class: "persist",
+      title: "留账号/计划任务（持久化）",
+      state: "idle",
+      need: "命令执行",
+      say_it: "留一个可用的后台账号，任务结束前删掉",
+    },
+  ];
+}
+
+type MockWarEv = { kind: string; id: number; title: string };
+type MockWarRow = {
+  key: string;
+  label: string;
+  status: "done" | "run" | "tried";
+  why: string;
+  plain: string;
+  proof_state: "real" | "reachable" | "tried";
+  evidence?: MockWarEv[];
+};
+
+function mockWarCard(
+  task: Task,
+  own: Finding[],
+): {
+  brief: Record<string, unknown>;
+  verdict: Record<string, unknown>;
+  chains: { chains: Record<string, unknown>[]; count: number };
+  loot: Record<string, unknown>;
+} {
+  const fname = (f: Finding) => f.name || f.vulnclass || "未命名漏洞";
+  const text = (f: Finding) => `${f.vulnclass} ${fname(f)} ${f.summary ?? ""}`;
+  const pick = (re: RegExp) => own.filter((f) => re.test(text(f)));
+  const sql = pick(/sql|注入/i);
+  const admin = pick(/credential|jwt|登录|口令|认证/i);
+  const rce = pick(/rce|代码执行|命令执行|反序列化/i);
+  const xss = pick(/xss/i);
+  const idor = pick(/idor|越权|未授权/i);
+  const ev = (f: Finding): MockWarEv => ({ kind: "finding", id: mockFindingNum(f.id), title: fname(f) });
+
+  const rows: MockWarRow[] = [];
+  if (admin.length > 0) {
+    rows.push({
+      key: "admin",
+      label: "管理员 / 后台登录",
+      status: "done",
+      why: "登录页默认口令直接进去了，后台功能都能点",
+      plain: "我已经能用管理员身份进它的后台了（默认口令登录），后台功能基本都能点。",
+      proof_state: "real",
+      evidence: admin.slice(0, 2).map(ev),
+    });
+  }
+  if (sql.length > 0) {
+    rows.push({
+      key: "db",
+      label: "数据库查询",
+      status: "done",
+      why: "报错型注入，可枚举库表",
+      plain: "能直接读它的数据库：库名、表结构、用户表和订单表都能查出来。",
+      proof_state: "real",
+      evidence: sql.slice(0, 2).map(ev),
+    });
+    rows.push({
+      key: "data",
+      label: "数据拉取（用户/订单/卡密）",
+      status: "done",
+      why: "已从订单表取到样本行",
+      plain: "已经能拉出业务数据样本（订单号、手机号前几位），这里只放脱敏后的样例。",
+      proof_state: "real",
+      evidence: sql.slice(0, 1).map(ev),
+    });
+  }
+  if (rce.length > 0) {
+    rows.push({
+      key: "rce",
+      label: "服务器命令执行",
+      status: "done",
+      why: "命令回显，可执行系统命令",
+      plain: "能在服务器上执行系统命令，等于拿到了这台机器。",
+      proof_state: "real",
+      evidence: rce.slice(0, 2).map(ev),
+    });
+  }
+  if (idor.length > 0) {
+    rows.push({
+      key: "idor",
+      label: "越权读他人数据",
+      status: "done",
+      why: "改 id 直接读到别人的订单",
+      plain: "改一下地址里的编号就能看到别人的订单，不用登录也不用猜密码。",
+      proof_state: "real",
+      evidence: idor.slice(0, 1).map(ev),
+    });
+  }
+  if (xss.length > 0) {
+    rows.push({
+      key: "session_hijack",
+      label: "偷管理员会话",
+      status: "tried",
+      why: "反射型 XSS 已确认，但后台没有能触发的展示点",
+      plain: "能在页面里执行脚本，但还没找到管理员会点开的位置，暂时偷不到会话。",
+      proof_state: "tried",
+      evidence: xss.slice(0, 1).map(ev),
+    });
+  }
+
+  const done = rows.filter((r) => r.status === "done");
+  const maxEv = (r: MockWarRow) => Math.max(0, ...(r.evidence ?? []).map((e) => e.id));
+  const seen = mockLootSeen[task.id] ?? 0;
+  const newSince = done.filter((r) => maxEv(r) > seen).length;
+
+  const rawHas = done.map((r) =>
+    r.key === "admin"
+      ? { kind: "app", text: "后台管理员会话（可浏览后台功能）" }
+      : r.key === "rce"
+        ? { kind: "shell", text: "命令执行能力" }
+        : r.key === "data" || r.key === "idor"
+          ? { kind: "data", text: "业务数据样本" }
+          : { kind: "cred", text: "凭据（账号/哈希，未验证登录）" },
+  );
+  // 同一句“已拿到”只留一条（不同行可能归到同一类战果）。
+  const has = rawHas.filter((h, i) => rawHas.findIndex((x) => x.text === h.text) === i);
+
+  const level = done.some((r) => r.key === "rce")
+    ? 3
+    : done.some((r) => r.key === "data" || r.key === "db")
+      ? 2
+      : done.length > 0
+        ? 1
+        : 0;
+  const levelLabel = ["E0 仅有信息", "E1 有效凭据", "E2 应用控制", "E3 命令执行", "E4 数据访问", "E5 服务器控制"][
+    level
+  ];
+  const basis =
+    level >= 3 ? `已确认 ${own.length} 个漏洞，其中 ${rce.length} 个能命令执行` : `已确认 ${own.length} 个漏洞`;
+
+  const brief = {
+    level,
+    level_label: levelLabel,
+    basis,
+    has,
+    can: own.slice(0, 6).map((f) => ({
+      finding_id: mockFindingNum(f.id),
+      title: fname(f),
+      grants: mockAbilityText(fname(f)),
+      doable: true,
+      source: "rule",
+    })),
+    actions: mockActions(),
+    say_this:
+      has.length > 0
+        ? "想做上面哪一步，直接在下面主对话里说，例如「帮我把它数据库里的订单表数据拉出来，先各取几条看看」；我不会自己动手。"
+        : "现在还没有可直接利用的权限。先跑②或③模板把漏洞打出来。",
+    verdict: own.length > 0 ? "worth" : "unclear",
+    verdict_label: own.length > 0 ? "值得打" : "还没探够",
+    new_since: newSince,
+  };
+
+  const verdict = {
+    verdict: own.length > 0 ? "worth" : "unclear",
+    label: own.length > 0 ? "值得打" : "还没探够",
+    headline: own.length > 0 ? `已确认 ${own.length} 个漏洞，其中有可直接利用的入口` : "还没有可用入口",
+    reasons: own.slice(0, 3).map((f) => ({ kind: "finding", id: mockFindingNum(f.id), text: fname(f) })),
+    surface: own.slice(0, 4).map((f) => ({
+      url: `https://www.acme.com/${f.vulnclass.toLowerCase().replace(/\s+/g, "-")}`,
+      note: fname(f),
+      kind: "confirmed",
+      ref: mockFindingNum(f.id),
+    })),
+    counts: { findings: own.length, facts: own.length * 2, assumptions: 1 },
+    advice: sql.length > 0 ? "先把注入打到能读表，再拿后台口令进管理端，收益最大。" : "先确认入口是否可利用。",
+    rule: "mock",
+  };
+
+  const chains = {
+    chains: own.slice(0, 3).map((f, i) => ({
+      key: `chain-${i}`,
+      title: fname(f),
+      status: "open",
+      steps: [
+        { Key: "entry", Seq: 1, Kind: "entry", Title: "确认入口可利用", Status: "done", RefID: mockFindingNum(f.id) },
+        {
+          Key: "auth",
+          Seq: 2,
+          Kind: "authorize",
+          Title: "拿到后台/数据库权限",
+          Status: i === 0 ? "done" : "pending",
+          RefID: 0,
+        },
+        { Key: "gain", Seq: 3, Kind: "gain", Title: "取到业务数据样本", Status: i === 0 ? "done" : "pending", RefID: 0 },
+      ],
+      next: i === 0 ? "把样本量扩大，并核对是不是真实业务数据" : "先确认这个入口能不能读回数据",
+    })),
+    count: Math.min(3, own.length),
+  };
+
+  const loot = {
+    goal: task.goal,
+    done: done.length,
+    todo: 0,
+    na: 0,
+    total: rows.length,
+    findings: own.length,
+    rows,
+  };
+
+  return { brief, verdict, chains, loot };
+}
+
 export async function mockHandle<T>(method: string, rawPath: string, body?: BodyInit | null): Promise<T> {
   advanceMockRetests();
   await delay();
@@ -1513,6 +1795,24 @@ function route(m: string, path: string, seg: string[], q: URLSearchParams, b: Re
       for (const item of mockTasks) item.active = item.id === id;
     }
     return { active: mockActiveTask };
+  }
+
+  // ── 战况卡 / 战果 / 利用链 / 值不值得打（P0-b）：demo 里按 findings 现算，口径与真后端一致 ──
+  if (seg[0] === "tasks" && seg.length === 3 && m === "GET" && ["brief", "verdict", "chains", "loot"].includes(seg[2])) {
+    const task = mockTasks.find((item) => item.id === seg[1]);
+    if (!task) throw new Error("任务不存在");
+    const own = mockFindings.filter((item) => item.task_id === task.id);
+    const demo = mockWarCard(task, own);
+    if (seg[2] === "brief") return demo.brief;
+    if (seg[2] === "verdict") return demo.verdict;
+    if (seg[2] === "chains") return demo.chains;
+    return demo.loot;
+  }
+  // 战果已读游标：打开面板就推到当前（demo 内存态，刷新页面后红点自然消失）
+  if (seg[0] === "tasks" && seg[3] === "seen" && seg[2] === "loot" && m === "POST") {
+    const own = mockFindings.filter((item) => item.task_id === seg[1]);
+    mockLootSeen[seg[1]] = Math.max(0, ...own.map((item) => mockFindingNum(item.id)));
+    return { ok: true, seen_finding_id: mockLootSeen[seg[1]], new_since: 0 };
   }
 
   // ── 覆盖度 / 覆盖图 / 资产关联（任务维度）──

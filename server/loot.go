@@ -76,6 +76,51 @@ func (s *Server) registerLootRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/tasks/{id}/loot/explain", s.lootExplain)
 	mux.HandleFunc("POST /api/tasks/{id}/loot/suggest", s.lootSuggest)
 	mux.HandleFunc("POST /api/tasks/{id}/loot/state", s.lootSetState)
+	mux.HandleFunc("POST /api/tasks/{id}/loot/seen", s.lootMarkSeen)
+}
+
+// lootSeenFindingID 读"上次看到哪儿"的游标（0014）。
+// 读不到（没库 / 表还不存在 / 从没看过）一律返回 0 = 全都算未读。
+func (s *Server) lootSeenFindingID(ctx context.Context, taskID int64) int64 {
+	if s.m == nil || s.m.pg == nil || taskID == 0 {
+		return 0
+	}
+	var seen int64
+	if err := s.m.pg.QueryRowContext(ctx,
+		`SELECT seen_finding_id FROM loot_seen WHERE task_id=$1`, taskID).Scan(&seen); err != nil {
+		return 0
+	}
+	return seen
+}
+
+// lootMarkSeen 把游标推到当前任务的最大 finding id —— 人打开战果面板就调一次。
+// 只写游标，不动任何战果/证据：未读是显示层的东西，不能反过来改判定。
+func (s *Server) lootMarkSeen(w http.ResponseWriter, r *http.Request) {
+	t, ok := s.m.Task(r.PathValue("id"))
+	if !ok || t == nil {
+		writeErr(w, http.StatusNotFound, "task not found")
+		return
+	}
+	if s.m == nil || s.m.pg == nil {
+		writeErr(w, http.StatusServiceUnavailable, "数据库不可用")
+		return
+	}
+	taskID, _ := strconv.ParseInt(t.ID, 10, 64)
+	fs := s.lootFindings(t)
+	var maxID int64
+	for _, f := range fs {
+		if f.id > maxID {
+			maxID = f.id
+		}
+	}
+	if _, err := s.m.pg.ExecContext(r.Context(), `INSERT INTO loot_seen(task_id,seen_finding_id,updated_at)
+		VALUES($1,$2,now())
+		ON CONFLICT (task_id) DO UPDATE SET seen_finding_id=GREATEST(loot_seen.seen_finding_id, EXCLUDED.seen_finding_id), updated_at=now()`,
+		taskID, maxID); err != nil {
+		writeErr(w, http.StatusInternalServerError, "标记已读失败")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "seen_finding_id": maxID, "new_since": 0})
 }
 
 func (s *Server) taskLoot(w http.ResponseWriter, r *http.Request) {

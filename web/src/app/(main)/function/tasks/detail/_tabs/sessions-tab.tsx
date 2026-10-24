@@ -502,7 +502,15 @@ function WorkerAssetBadge({ assets }: { assets: IntentAsset[] }) {
   );
 }
 
-export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string; requestedSession?: string }) {
+export function SessionsTab({
+  taskId,
+  requestedSession = "",
+  requestedPanel = "",
+}: {
+  taskId: string;
+  requestedSession?: string;
+  requestedPanel?: string;
+}) {
   const approvalFocus = useApprovalFocus({ taskId });
   const [selectedSessionId, setActiveId] = React.useState(MAIN_ID);
   const [linkedSession, setLinkedSession] = React.useState<Session>();
@@ -1334,6 +1342,10 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
   // 审查官：与旁路提问共用右侧方框；开关（enabled）与“是否打开面板”互相独立。
   const [reviewOpen, setReviewOpen] = React.useState(false);
   const [lootOpen, setLootOpen] = React.useState(false);
+  // 从战况卡点「战果 +N」进来时带 panel=loot：进门就把战果面板打开（不是新状态，只是代传意图）。
+  React.useEffect(() => {
+    if (requestedPanel === "loot") setLootOpen(true);
+  }, [requestedPanel]);
   const review = useReviewEnabled(taskId);
   const side = useSideQuestions(
     active.role === "mainagent"

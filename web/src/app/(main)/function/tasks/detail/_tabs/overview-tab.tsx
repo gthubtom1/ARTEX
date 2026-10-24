@@ -20,6 +20,8 @@ import {
   XIcon,
 } from "lucide-react";
 
+import { useRouter } from "next/navigation";
+
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,9 +29,8 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
 
-import { api, chainapi, impactapi, verdictapi } from "@/lib/api";
+import { api } from "@/lib/api";
 import type {
   AssetInterceptKind,
   AssetInterceptRule,
@@ -42,6 +43,8 @@ import type {
   TaskNode,
   TaskScopeRow,
 } from "@/lib/types";
+
+import { BattleCard } from "./battle-card";
 
 // 紧凑格式化 token 数（12345 → 12.3k，2000000 → 2M）。
 function fmtTokens(n: number): string {
@@ -106,52 +109,10 @@ function StatCard({
 }
 
 export function OverviewTab({ taskId }: { taskId: string }) {
+  const router = useRouter();
   const [task, setTask] = React.useState<Task | null>(null);
-  // 「值不值得打」：纯规则判定，打开任务首页就能看到结论（A1）
-  const [verdict, setVerdict] = React.useState<import("@/lib/types").TaskVerdict | null>(null);
-  // 权限阶梯 + 下一步提案（越界动作要用户当场授权，见 internal/impact）
-  const [impactView, setImpactView] = React.useState<import("@/lib/types").ImpactResponse | null>(null);
-  // 利用链：每条漏洞一条链（确认→授权→收益）
-  const [chains, setChains] = React.useState<import("@/lib/types").ChainView[]>([]);
-
-  // 「值不值得打」与「现在到哪一步」：进页面拉一次，之后 20s 刷（都是纯规则计算，很便宜）。
-  React.useEffect(() => {
-    let alive = true;
-    const load = () => {
-      verdictapi
-        .get(taskId)
-        .then((v) => alive && setVerdict(v))
-        .catch(() => void 0);
-      impactapi
-        .get(taskId)
-        .then((v) => alive && setImpactView(v))
-        .catch(() => void 0);
-      chainapi
-        .get(taskId)
-        .then((v) => alive && setChains(v.chains ?? []))
-        .catch(() => void 0);
-    };
-    load();
-    const t = setInterval(load, 20000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
-  }, [taskId]);
-
-  // 用户当场拍板：允许/拒绝某类越界动作（写库 → 立即回读）
-  const decide = React.useCallback(
-    async (cls: string, granted: boolean) => {
-      try {
-        await impactapi.grant(taskId, cls, granted);
-        setImpactView(await impactapi.get(taskId));
-        toast.success(granted ? "已授权，它会照这个方向继续" : "已拒绝，它不会动这一步");
-      } catch (e) {
-        toast.error(String(e));
-      }
-    },
-    [taskId],
-  );
+  // 战况卡的数据由 <BattleCard> 自己拉（/brief + 利用链 + 越界授权），
+  // 总览不再分别拼「利用链 / 现在到哪一步 / 值不值得打」三张卡。
   const [stats, setStats] = React.useState<Stats | null>(null);
   const [intents, setIntents] = React.useState<TaskNode[]>([]);
   const [findings, setFindings] = React.useState<Finding[]>([]);
@@ -479,6 +440,12 @@ export function OverviewTab({ taskId }: { taskId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 战况卡（P0-b）：总览顶部唯一一张卡 —— 我在哪/我有什么/能换到什么/能做哪几件事。
+          数据源 /api/tasks/{id}/brief；利用链与越界授权也收在这张卡里，页面不再出现同义卡。 */}
+      <BattleCard
+        taskId={taskId}
+        onOpenLoot={() => router.push(`/function/tasks/detail?id=${taskId}&tab=sessions&panel=loot`)}
+      />
       {/* 原始任务描述与目标(创建时填写的),置顶便于随时回看。 */}
       <Card>
         <CardHeader>
@@ -1087,178 +1054,6 @@ export function OverviewTab({ taskId }: { taskId: string }) {
         </Card>
       )}
 
-      {/* 利用链：一条漏洞走到哪一步（确认→授权→收益） */}
-      {(chains ?? []).length > 0 && (
-        <Card className="border-violet-500/40 bg-violet-500/5">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5 text-xs">
-              <ListChecksIcon className="size-3.5" />
-              利用链（串联漏洞才是渗透本质）
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-[11.5px]">
-            {(chains ?? []).slice(0, 4).map((c) => (
-              <div key={c.key} className="rounded border bg-card px-2 py-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-medium">{c.title}</span>
-                  <span
-                    className={
-                      "rounded px-1.5 py-0.5 text-[10px] font-semibold " +
-                      (c.status === "done"
-                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                        : c.status === "dead"
-                          ? "bg-slate-500/15 text-slate-600"
-                          : "bg-amber-500/15 text-amber-700 dark:text-amber-300")
-                    }
-                  >
-                    {c.status === "done" ? "已拿到收益" : c.status === "dead" ? "链路已放弃" : "进行中"}
-                  </span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-1">
-                  {(c.steps ?? []).map((st) => (
-                    <span
-                      key={st.Key}
-                      className={
-                        "rounded border px-1 py-0.5 text-[10px] " +
-                        (st.Status === "done"
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                          : st.Status === "failed"
-                            ? "border-slate-400/50 text-slate-500 line-through"
-                            : "border-amber-500/40 text-amber-700 dark:text-amber-300")
-                      }
-                      title={st.Title}
-                    >
-                      {st.Title.length > 22 ? st.Title.slice(0, 22) + "…" : st.Title}
-                    </span>
-                  ))}
-                </div>
-                <div className="mt-1 text-muted-foreground">下一步：{c.next}</div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 权限阶梯 + 下一步（要不要越界，由你当场决定） */}
-      {impactView && (
-        <Card className="border-sky-500/40 bg-sky-500/5">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5 text-xs">
-              <ShieldAlertIcon className="size-3.5" />
-              现在到哪一步 · 下一步由你决定
-            </CardDescription>
-            <CardTitle className="text-base">
-              {impactView.level_label}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">{impactView.basis}</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-[11.5px]">
-            {(impactView.steps ?? []).length === 0 && (
-              <p className="text-muted-foreground">暂时没有可推进的下一步：先跑②模板把入口摸全，或等漏洞确认。</p>
-            )}
-            {(impactView.steps ?? []).map((st) => {
-              const g = (impactView.grants ?? []).find((x) => x.class === st.class);
-              return (
-                <div key={st.class} className="rounded border bg-card px-2 py-1.5">
-                  <div className="font-medium">{st.title}</div>
-                  <div className="mt-0.5 text-muted-foreground">为什么能做：{st.why}</div>
-                  <div className="text-muted-foreground">我会做什么：{st.plan}</div>
-                  <div className="text-amber-700 dark:text-amber-400">风险：{st.risk}</div>
-                  <div className="mt-1 flex items-center gap-1.5">
-                    {g?.granted ? (
-                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-emerald-700 dark:text-emerald-300">
-                        已授权（{g.decided_at}）
-                      </span>
-                    ) : g ? (
-                      <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-slate-600">
-                        已拒绝（{g.decided_at}）
-                      </span>
-                    ) : null}
-                    <button
-                      className="rounded border border-emerald-600/50 bg-emerald-600 px-2 py-0.5 text-[10.5px] font-medium text-white hover:bg-emerald-700"
-                      onClick={() => void decide(st.class, true)}
-                      title="允许它做这一步（只在这个任务内有效）"
-                    >
-                      允许
-                    </button>
-                    <button
-                      className="rounded border px-2 py-0.5 text-[10.5px] hover:bg-accent"
-                      onClick={() => void decide(st.class, false)}
-                      title="不允许：它不会动这一步，其它路线照常"
-                    >
-                      拒绝
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 「值不值得打」结论卡：零基础打开任务就该看到的一句话结论 + 可点理由 */}
-      {verdict && (
-        <Card
-          className={
-            verdict.verdict === "worth"
-              ? "border-emerald-500/40 bg-emerald-500/5"
-              : verdict.verdict === "not_worth"
-                ? "border-rose-500/40 bg-rose-500/5"
-                : "border-amber-500/40 bg-amber-500/5"
-          }
-        >
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5 text-xs">
-              <TargetIcon className="size-3.5" />
-              值不值得打（规则判定，不调模型）
-            </CardDescription>
-            <CardTitle className="text-base">
-              {verdict.label}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">{verdict.headline}</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-[11.5px]">
-            {verdict.reasons.length > 0 && (
-              <ul className="flex flex-col gap-1">
-                {verdict.reasons.map((r, i) => (
-                  <li key={`${r.kind}-${r.id ?? i}`} className="flex items-start gap-1.5">
-                    <span className="mt-[2px] size-1.5 shrink-0 rounded-full bg-current opacity-40" />
-                    <span>
-                      {r.text}
-                      {r.id ? <span className="ml-1 font-mono text-[10px] text-muted-foreground">#{r.id}</span> : null}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {verdict.surface.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {verdict.surface.slice(0, 6).map((v) => (
-                  <span
-                    key={v.url}
-                    className={
-                      "rounded border px-1.5 py-0.5 font-mono text-[10px] " +
-                      (v.kind === "confirmed"
-                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                        : "border-border bg-muted text-muted-foreground")
-                    }
-                    title={v.note || "观测到的入口"}
-                  >
-                    {v.url.length > 48 ? v.url.slice(0, 48) + "…" : v.url}
-                  </span>
-                ))}
-              </div>
-            )}
-            <p className="text-muted-foreground">
-              下一步：{verdict.advice}
-              <span className="ml-2 opacity-60">
-                （依据 {verdict.counts.findings ?? 0} 个漏洞 / {verdict.counts.facts ?? 0} 条事实 /{" "}
-                {verdict.counts.assumptions ?? 0} 条否定结论）
-              </span>
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
