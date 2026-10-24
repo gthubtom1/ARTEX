@@ -1242,6 +1242,7 @@ func (s *Server) setActive(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err.Error())
 		return
 	}
+
 	if !s.m.SetActive(req.ID) {
 		writeErr(w, 404, "task not found")
 		return
@@ -4197,6 +4198,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err.Error())
 		return
 	}
+	s.maybeGrantFromChat(r.Context(), t, req.Message)
 	agentMessage, ok := s.prepareChatMentionMessage(w, req.Message)
 	if !ok {
 		return
