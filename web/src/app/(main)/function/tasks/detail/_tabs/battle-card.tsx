@@ -343,7 +343,7 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
         {/* ── 折叠区（点开才看，标题带数量）── */}
         <div className="flex flex-col gap-1">
           <Fold title={`${can.length} 个洞 · 每个能换到什么${aiCount > 0 ? `（${aiCount} 条 AI 版）` : ""}`}>
-            <ul className="flex flex-col gap-1">
+            <ul className="flex flex-col gap-1.5">
               {can.map((c) => (
                 <li key={`${c.finding_id}-${c.title}`} className="flex flex-wrap items-start gap-1.5">
                   <span
@@ -386,13 +386,15 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
           </Fold>
 
           <Fold title={`${actions.length} 件能做到的事（含前置与留证要求）`}>
-            <div className="flex flex-col gap-1">
+            <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
               {actions.map((a) => (
                 <div
                   key={a.class}
                   className={cn(
-                    "rounded border px-2 py-1",
-                    a.doable ? "border-emerald-500/40 bg-emerald-500/[0.05]" : "opacity-60",
+                    "rounded-md border px-2.5 py-2",
+                    a.doable
+                      ? "border-emerald-500/50 bg-emerald-500/[0.07] shadow-sm"
+                      : "border-border bg-muted/30 opacity-70",
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-1">
@@ -474,13 +476,13 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
 
           {steps.length > 0 && (
             <Fold title={`${steps.length} 个越界动作（默认不做，要做就在对话里说）`}>
-              <div className="flex flex-col gap-1">
+              <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
                 {steps.map((st) => {
                   const g = (impact?.grants ?? []).find((x) => x.class === st.class);
                   return (
                     <div
                       key={st.class}
-                      className="rounded border px-2 py-1"
+                      className="rounded-md border bg-muted/20 px-2.5 py-2"
                       title={`为什么能做：${st.why}\n我会做什么：${st.plan}\n风险：${st.risk}`}
                     >
                       <div className="flex flex-wrap items-center gap-1">
