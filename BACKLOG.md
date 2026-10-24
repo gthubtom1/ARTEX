@@ -189,6 +189,21 @@ proxychains4 只是**出口包装器**（侦察时常用），不是横移 —�
 - 审查官规则版新增一句：`有 N 个漏洞但还没有变成任何访问权 → 下一步优先把它变成登录/命令执行/数据样本，而不是继续找新洞`。
 - `internal/impact` 补单测：7 种统计组合的等级判定 + 提案字段完整性（why/plan/risk 缺一即失败）。
 
+
+### 阶段 E 收口（2026-10-24，按 1→3→4→2 顺序做完并实测）
+
+| 步骤 | 内容 | 判据 → 实测 |
+|---|---|---|
+| 1 链对象 | `chains`/`chain_steps` + `internal/chain.Build()` 纯函数 + `GET /api/tasks/{id}/chains`（派生后幂等落库） | task 7 返回 1 条链 `F200`：`confirm done` → `authorize:file_write done` → `authorize:data_dump failed`，下一步「已授权，等它把这一步做完并登记收益」；库 `chains` 1 行 + `chain_steps` 3 行与派生一致；单测覆盖 open/dead/done 三态 |
+| 3 E2 信号 | facts 里「登录/后台 + 成功/已进入/可访问」→ E2 | `impact` 统计新增 `AppControl`；task 7 = 0（无登录事实），等级仍 E0 |
+| 4 登记提醒 | 有命令执行证据但台账为空 → 审查官要求先 `owned_register` | 规则版正文新增该句（有判据：正文含「还没登记立足点」） |
+| 2 后渗透清单 | 有命令执行 → 给标准动作清单（读配置→取样→提权检查→横移→写回证据） | 规则版正文新增清单段 |
+| 发版 | Release 追平代码 | `v0.11.2-p9`（latest）：windows zip ×2（含稳定名）+ linux zip + SHA256SUMS + USER-GUIDE.md |
+| 回归 | 全链路 + 判据脚本 | 两轮真实任务回归：第一轮抓到 proxychains 误拦（已修），第二轮零拦截；`verify-0.9.6.sh` → `VERIFY_RESULT PASS`（VM 0.11.1-p9） |
+
+**仍未验证（外部条件）**：真机 `bootstrap.sh`（docker 可选路线）、StageGate/GrantGate 首条真机拦截记录、
+五个条件机制（立足点 / ≥2 漏洞 / 流量捕获）。
+
 ## 配置建议（**不是待办**，你随时改）
 
 模型选择是你的决定，不是代码缺陷，不阻塞任何功能（不绑也能用，只是全用同一个模型）。
