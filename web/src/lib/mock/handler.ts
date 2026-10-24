@@ -1026,6 +1026,23 @@ function mockAbilityText(title: string): string {
   return "需要人工判断：把证据打开看能读到什么、能做什么";
 }
 
+// P0-c demo：AI 版的「能换到什么」（比规则版更口语，模拟模型写出来的那句）。
+// 真后端是调模型 + 按证据 hash 缓存；demo 只模拟"点一次就都变成 AI 版、再点走缓存"这个可见行为。
+const mockAIAbilities: Record<string, Record<number, string>> = {};
+
+function mockAIGrants(title: string): string {
+  const t = title.toLowerCase();
+  if (t.includes("sql") || title.includes("注入")) return "能翻它的数据库：用户表、订单表都读得到。";
+  if (t.includes("idor") || title.includes("越权") || title.includes("未授权")) return "换掉地址里的编号，就能看别人的订单。";
+  if (t.includes("xss")) return "能往页面里塞脚本，管理员一打开就丢登录态。";
+  if (title.includes("上传") || title.includes("写文件")) return "能往服务器放文件，再往前一步就能跑命令。";
+  if (t.includes("rce") || title.includes("代码执行") || title.includes("命令执行")) return "能在机器上跑系统命令，等于这台机器归你。";
+  if (t.includes("jwt") || title.includes("登录") || title.includes("认证") || t.includes("credential"))
+    return "能进后台管理界面，用户和订单随你看。";
+  if (title.includes("文件读取") || title.includes("路径穿越") || t.includes("lfi")) return "能读服务器上的配置文件，里面常有数据库口令。";
+  return "需要打开证据看具体能读到什么。";
+}
+
 // 业务动作库（与 server/brief.go 的 7 条一致）：只展示，state 恒为 idle。
 function mockActions() {
   return [
@@ -1212,13 +1229,20 @@ function mockWarCard(
     level_label: levelLabel,
     basis,
     has,
-    can: own.slice(0, 6).map((f) => ({
-      finding_id: mockFindingNum(f.id),
-      title: fname(f),
-      grants: mockAbilityText(fname(f)),
-      doable: true,
-      source: "rule",
-    })),
+    // GET /brief 也要吃 AI 缓存：否则轮询会把刚生成的 AI 版冲回规则版（真后端读的是 0015 缓存表）。
+    can: own.slice(0, 6).map((f) => {
+      const id = mockFindingNum(f.id);
+      const name = fname(f);
+      const ai = mockAIAbilities[task.id]?.[id];
+      return {
+        finding_id: id,
+        title: name,
+        grants: ai ?? mockAbilityText(name),
+        doable: true,
+        source: ai ? "ai" : "rule",
+        cached: Boolean(ai),
+      };
+    }),
     actions: mockActions(),
     say_this:
       has.length > 0
@@ -1807,6 +1831,34 @@ function route(m: string, path: string, seg: string[], q: URLSearchParams, b: Re
     if (seg[2] === "verdict") return demo.verdict;
     if (seg[2] === "chains") return demo.chains;
     return demo.loot;
+  }
+  // P0-c：让 AI 写「能换到什么」（demo 内存态缓存：第一次全部生成，第二次全是命中）
+  if (seg[0] === "tasks" && seg[2] === "brief" && seg[3] === "ai" && m === "POST") {
+    const task = mockTasks.find((item) => item.id === seg[1]);
+    if (!task) throw new Error("任务不存在");
+    const own = mockFindings.filter((item) => item.task_id === task.id);
+    const store = (mockAIAbilities[task.id] ??= {});
+    let filled = 0;
+    for (const f of own.slice(0, 8)) {
+      const id = mockFindingNum(f.id);
+      if (store[id]) continue;
+      store[id] = mockAIGrants(f.name || f.vulnclass);
+      filled++;
+    }
+    const can = own.slice(0, 6).map((f) => {
+      const id = mockFindingNum(f.id);
+      const name = f.name || f.vulnclass;
+      const ai = store[id];
+      return {
+        finding_id: id,
+        title: name,
+        grants: ai ?? mockAbilityText(name),
+        doable: true,
+        source: ai ? "ai" : "rule",
+        cached: Boolean(ai),
+      };
+    });
+    return { can, asked: filled === 0 ? 0 : filled, filled, model: "demo" };
   }
   // 战果已读游标：打开面板就推到当前（demo 内存态，刷新页面后红点自然消失）
   if (seg[0] === "tasks" && seg[3] === "seen" && seg[2] === "loot" && m === "POST") {

@@ -2123,7 +2123,10 @@ export interface BriefAbility {
   title: string;
   grants: string;
   doable: boolean;
+  // rule = 规则模板（关键词映射）；ai = 模型写的那句（已按证据 hash 缓存）
   source: "rule" | "ai";
+  // true = 命中缓存，没花 token
+  cached?: boolean;
 }
 
 export interface BriefAction {

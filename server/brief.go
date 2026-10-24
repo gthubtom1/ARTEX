@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,6 +23,7 @@ type briefAbility struct {
 	Grants    string `json:"grants"`
 	Doable    bool   `json:"doable"`
 	Source    string `json:"source"` // rule|ai
+	Cached    bool   `json:"cached"` // true = 命中缓存（没花 token）
 }
 
 type briefAction struct {
@@ -49,6 +51,34 @@ type brief struct {
 
 func (s *Server) registerBriefRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks/{id}/brief", s.taskBrief)
+	// P0-c：「能换到什么」交给 AI 写一遍（按证据 hash 缓存，失败回落规则模板）
+	mux.HandleFunc("POST /api/tasks/{id}/brief/ai", s.taskBriefAI)
+}
+
+// briefCan 组装「每个漏洞能换到什么」。
+// 优先用 AI 缓存（source=ai / cached=true），否则用规则模板 abilityText（source=rule）。
+// 缓存命中要求 evidence_hash 与当前证据一致：证据改了就不再拿旧解释充数。
+func (s *Server) briefCan(ctx context.Context, t *Task, taskID int64) []briefAbility {
+	out := []briefAbility{}
+	cache := s.briefAbilityCache(ctx, taskID)
+	byID := map[int64]lootFinding{}
+	if t != nil {
+		for _, f := range s.lootFindings(t) {
+			byID[f.id] = f
+		}
+	}
+	for _, f := range s.chainFindings(ctx, taskID) {
+		item := briefAbility{FindingID: f.ID, Title: f.Title, Grants: abilityText(f.Title), Doable: true, Source: "rule"}
+		if lf, ok := byID[f.ID]; ok {
+			if c, hit := cache[f.ID]; hit && c.Hash == briefAbilityHash(lf) && strings.TrimSpace(c.Text) != "" {
+				item.Grants = c.Text
+				item.Source = "ai"
+				item.Cached = true
+			}
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
@@ -85,13 +115,8 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 		out.Has = append(out.Has, briefItem{Kind: "cred", Text: "凭据（账号/哈希，未验证登录）"})
 	}
 
-	// 每个漏洞能换到什么（先规则，AI 版按证据 hash 缓存后续接）
-	for _, f := range s.chainFindings(r.Context(), taskID) {
-		out.Can = append(out.Can, briefAbility{
-			FindingID: f.ID, Title: f.Title,
-			Grants: abilityText(f.Title), Doable: true, Source: "rule",
-		})
-	}
+	// 每个漏洞能换到什么（先 AI 缓存；没有就用规则模板，见 brief_ai.go）
+	out.Can = s.briefCan(r.Context(), t, taskID)
 
 	// 业务动作（P2）：只展示，state 恒为 idle
 	out.Actions = []briefAction{

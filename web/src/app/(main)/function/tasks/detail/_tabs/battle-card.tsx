@@ -86,6 +86,8 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
   // 「为什么这么判」默认收起：先给结论，要查证据再展开（不丢原来的理由/攻击面）。
   const [showWhy, setShowWhy] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  // P0-c：「能换到什么」让 AI 写（按证据 hash 缓存，失败回落规则版）
+  const [aiBusy, setAiBusy] = React.useState(false);
 
   // 战况卡是纯规则计算，很便宜：进页面拉一次，之后 20s 刷。
   React.useEffect(() => {
@@ -150,6 +152,26 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
 
   const has: BriefItem[] = brief?.has ?? [];
   const can = brief?.can ?? [];
+  const aiCount = can.filter((c) => c.source === "ai").length;
+
+  const explainAI = React.useCallback(async () => {
+    setAiBusy(true);
+    try {
+      const res = await briefapi.explainAI(taskId);
+      setBrief((prev) => (prev ? { ...prev, can: res.can } : prev));
+      if (res.filled > 0) {
+        toast.success(`AI 写好了 ${res.filled} 条（已按证据缓存，下次不再花 token）`);
+      } else if (res.asked === 0) {
+        toast.success("这几条都已经有 AI 解释了（命中缓存）");
+      } else {
+        toast.error("模型这次没给出可用结果，先看规则版");
+      }
+    } catch {
+      toast.error("AI 暂时不可用，先看规则版（不影响其它）");
+    } finally {
+      setAiBusy(false);
+    }
+  }, [taskId]);
   const actions: BriefAction[] = brief?.actions ?? [];
   const level = brief?.level ?? 0;
   const shownActions = showAllActions ? actions : actions.slice(0, 7);
@@ -234,10 +256,27 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
           )}
         </section>
 
-        {/* 3) 能换到什么（每条漏洞） */}
+        {/* 3) 能换到什么（每条漏洞）：规则版立刻给，AI 版按证据 hash 缓存（P0-c） */}
         <section>
-          <h5 className="mb-1 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-muted-foreground">
+          <h5 className="mb-1 flex flex-wrap items-center gap-1 text-[10px] font-semibold tracking-wide text-muted-foreground">
             <CrosshairIcon className="size-3" /> 每个漏洞能换到什么
+            {can.length > 0 && (
+              <span className="font-normal opacity-80">
+                （{aiCount}/{can.length} 条 AI 版）
+              </span>
+            )}
+            {can.length > 0 && (
+              <button
+                type="button"
+                className="ml-auto inline-flex items-center gap-1 rounded border border-violet-500/40 bg-violet-500/5 px-1.5 py-0.5 text-[10.5px] font-semibold text-violet-600 hover:bg-violet-500/10 disabled:opacity-50"
+                onClick={() => void explainAI()}
+                disabled={aiBusy}
+                title="让 AI 把每条漏洞翻成人话（按证据 hash 缓存，证据不变就不重复花 token）"
+              >
+                {aiBusy ? <RefreshCwIcon className="size-3 animate-spin" /> : <SparklesIcon className="size-3" />}
+                {aiCount > 0 && aiCount === can.length ? "✦ 重新解释" : "✦ 用 AI 说清楚"}
+              </button>
+            )}
           </h5>
           {can.length > 0 ? (
             <ul className="flex flex-col gap-1">
@@ -247,7 +286,17 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                   className="flex items-start gap-1.5 rounded border bg-card px-2 py-1"
                 >
                   <b className="shrink-0 font-medium">{c.title}</b>
-                  <span className="text-muted-foreground">→ {c.grants}</span>
+                  <span className="flex min-w-0 items-start gap-1 text-muted-foreground">
+                    {c.source === "ai" && (
+                      <span
+                        className="mt-[1px] shrink-0 rounded bg-violet-500/15 px-1 text-[9px] font-bold text-violet-600"
+                        title={c.cached ? "AI 解释（命中缓存，没花 token）" : "AI 解释"}
+                      >
+                        AI
+                      </span>
+                    )}
+                    <span>→ {c.grants}</span>
+                  </span>
                   <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">#{c.finding_id}</span>
                 </li>
               ))}

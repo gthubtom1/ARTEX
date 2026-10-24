@@ -1932,6 +1932,15 @@ export const briefapi = {
       `/tasks/${encodeURIComponent(taskId)}/loot/seen`,
       {},
     ),
+  // P0-c：「能换到什么」让 AI 写一遍（按证据 hash 缓存；失败回落规则版）。
+  // 不传 finding_ids 时后端取前 8 条还没 AI 解释的；force 则强制重写。
+  explainAI: (taskId: string, opts?: { finding_ids?: number[]; force?: boolean }) =>
+    post<{
+      can: import("@/lib/types").BriefAbility[];
+      asked: number;
+      filled: number;
+      model: string;
+    }>(`/tasks/${encodeURIComponent(taskId)}/brief/ai`, opts ?? {}),
 };
 
 export const lootapi = {

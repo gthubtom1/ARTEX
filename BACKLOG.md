@@ -271,9 +271,20 @@ F4 成本可见 / F5 零基础可走通），并给出**当前实测值**：
   **仍未验证（本机无 docker/PG）**：`new_since` 的 SQL 与 `0014` 迁移没在真库上跑过 —— 上 VM 只需两条：
   `curl -s -H "Authorization: Bearer <token>" .../api/tasks/<id>/brief | jq .new_since` 有非 0，
   `curl -X POST .../api/tasks/<id>/loot/seen` 之后再取一次变 0；且 `select * from loot_seen` 有行。
-- ⬜ **P0-c**（下一步）：「能换到什么」接 AI（按 finding 证据 hash 缓存，失败回落 `abilityText`）。
-  落地位置：`server/brief.go` 的 `abilityText` 换成 `loot_explanations` 同款缓存（`0015` 加一列/一表即可），
-  前端 `battle-card.tsx` 的 `can[].source` 已经是 `rule|ai` 两态，只需把 `ai` 用角标显示出来。
+- ✅ **P0-c 前端+后端**（2026-10-24 完成）：「能换到什么」AI 版上线。
+  后端 `server/brief_ai.go` + `db/migrations/0015_finding_abilities.sql`：缓存键 = `sha256(标题|摘要|证据原文)`，
+  证据一变 hash 就变（旧解释自然失效）；一次调用批量问（`POST /api/tasks/{id}/brief/ai`，默认取前 8 条未缓存的），
+  模型编出来的 finding_id 一律丢弃、超 80 字丢弃；失败什么都不写，`/brief` 继续用规则模板 `abilityText`。
+  `GET /brief` 的 `can[]` 现在带 `source: rule|ai` + `cached`，前端 `battle-card.tsx` 显示 AI 角标
+  （悬停「命中缓存，没花 token」）+「✦ 用 AI 说清楚 / 重新解释」按钮，`（N/M 条 AI 版）` 计数。
+  **实测（mock 全站 + Playwright，截图 `screenshots/p0c-ai-abilities.png`）**：点一次 `（0/6 → 6/6 条 AI 版）`，
+  每行出现 `AI` 角标、文案从「能读它的数据库（用户表/订单表等）」变成「能翻它的数据库：用户表、订单表都读得到。」；
+  等一个 20s 轮询周期仍是 6/6（GET 也吃缓存，不会被轮询冲回规则版）；再点一次 toast
+  「这几条都已经有 AI 解释了（命中缓存）」；浏览器 0 console error。
+  `TestBriefAbilityHash`（证据变则键变 / id 不影响键）+ `TestParseBriefAbilities`（Markdown 包裹、前后废话、非 JSON）PASS。
+  **仍未验证（本机无库无可调模型）**：真模型输出质量、`0015` 迁移、缓存命中率 —— 上 VM 一条命令：
+  `curl -s -XPOST -H "Authorization: Bearer <t>" .../api/tasks/<id>/brief/ai | jq '.filled, (.can[]|select(.source=="ai")|.grants)'`，
+  再 `select count(*) from finding_abilities where task_id=<id>` 看落库。
 - ⬜ **P1** 动态快捷短语（按当前漏洞生成 3–5 条，点一下只填入）。
 - ⬜ **P2** 业务动作执行通道（7 类动作 + 对话即授权 + 留证）。
 - ⬜ **P3** 未读通知（红点/任务列表徽章/标题）+ 审查官喂 Brief 并下硬动作。
