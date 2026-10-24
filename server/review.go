@@ -159,6 +159,11 @@ func (s *Server) reviewOnce(parent context.Context, taskIDStr string, taskID int
 
 	notes, ver, _ := review.LoadNotes(ctx, s.m.PG(), taskID)
 	snap, err := review.BuildWithKB(ctx, s.m.PG(), taskID, notes, s.kbRoot())
+	if err == nil && snap != nil {
+		// P3：把战况（等级/已拿到/三段式/真能做的/是否停摆）喂给审查官，
+		// 否则它只看漏洞条数，会把"洞多但换不到东西"误判成有进展。
+		snap.War = s.warBriefForReview(ctx, task, taskID)
+	}
 	if err != nil {
 		log.Printf("[review] snapshot build failed (task=%d): %v", taskID, err)
 		return 0, fmt.Errorf("快照生成失败")
@@ -567,6 +572,11 @@ func (s *Server) applyReviewActionsForRun(ctx context.Context, t *Task, runID in
 			// 引擎没有"换阶段"接口：只记账，不假称已执行。
 			notes = append(notes, "换阶段需要你在任务设置里手动确认，已记录")
 			continue
+		case "ask_human":
+			// 需要人提供东西：不改任何状态，只在会话里留一句，并给人一个明确的"提供什么"。
+			notes = append(notes, "已在会话里请你确认："+a.Why)
+			s.appendReviewActivity(ctx, taskIDForTask(t), "审查官需要你确认一件事："+a.Why)
+			continue
 		case "propose_intent":
 			// 只提议：写成一条 hint 给主链路 + 一条 worker="mainagent" 的活动（「会话」tab 看得见），
 			// 不派生任务、不派活，并记 feedback=proposed。走与 B 级建议同一条投递路径，
@@ -787,4 +797,13 @@ func (s *Server) appendReviewActivity(ctx context.Context, taskID int64, summary
 		taskID, summary); err != nil {
 		log.Printf("[review] 写审查官活动失败(pg): %v", err)
 	}
+}
+
+// taskIDForTask 把 *Task 换成数字 id（审查官动作里要用）。
+func taskIDForTask(t *Task) int64 {
+	if t == nil {
+		return 0
+	}
+	id, _ := strconv.ParseInt(t.ID, 10, 64)
+	return id
 }

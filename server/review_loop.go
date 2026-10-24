@@ -302,6 +302,10 @@ func (s *Server) finishReviewRun(ctx context.Context, runID int64, v review.Verd
 	if g.Drop != "" {
 		status = "superseded" // 自检没过：只留内部日志，不进主会话、不亮红点
 	}
+	// 模型没写 expectation 时用 gate 兜底给的那条（战况兜底动作自带的判据）。
+	if strings.TrimSpace(v.Expectation) == "" {
+		v.Expectation = strings.TrimSpace(g.Expectation)
+	}
 	_, err := s.m.pg.ExecContext(ctx, `UPDATE review_runs SET status=$2, verdict=$3, body=$4, cites=$5, actions=$6,
 		model=$7, notes_version=$8, dedupe_key=$9, level=$10, reason_class=$11,
 		auto_applied=$12, ack_status=$13, ack_reason=$14, error=$15, expectation=$16, finished_at=now() WHERE id=$1`,

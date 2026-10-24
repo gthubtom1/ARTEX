@@ -370,6 +370,23 @@ data_export←读到数据；account_read←进过后台或库里有凭据；per
 task 14（E4）→ 6 件 doable、standing got。测试 `TestActionDoableFollowsCapability` /
 `TestFindingStandingNeedsCapability` PASS。
 
+**⑥ 审查官 P3 已上线（2026-10-24，0.11.28）**：
+- **读战况**：`Snapshot.War`（`internal/review/snapshot.go`）由 `server/review_war.go` 填 ——
+  等级/依据/已拿到/三段式计数/真能做的 doable/是否停摆/在办的业务工单数，口径与 `/brief` 同源；
+  提示词新增 4b/4c/4d：判断战况只看 war、stall=stop 必须给动作、**不许只在正文抱怨**、动作必须带 expectation。
+- **新增动作 `ask_human`**（第三类"要人提供东西"）：不指向意图、永远不自动、必须写清要人提供什么；
+  面板文案"需要你提供：…"；采纳后只在会话留一句，不改任何状态。
+- **战况兜底（关键）**：模型只写"还差什么"却不给动作时，`gate` 按确定性判据
+  （`war.got==0 && one_step>0 && (停摆|任务已结束)`）**自己补一条 ask_human + expectation**，
+  避免"看完还是不知道下一步做什么"。判据缺口从 `war.first_gap` 取。
+- 真机（Kali 0.11.28，跑掉 2 次模型调用）：run 86 → `level:"action"`、
+  `actions:[{kind:"ask_human",why:"…缺的是「管理员 / 后台登录」…"}]`、
+  `expectation:"「管理员 / 后台登录」被拿到并用证据登记（战果页对应行变成已拿到）"`。
+  测试 `TestDecideKeepsAskHuman` / `TestDecideWarFallbackAddsAskHuman` /
+  `TestWarFallbackExposesExpectation` / `TestSnapshotPromptIncludesWar` PASS。
+  踩到并修掉的真 bug：兜底给的 expectation 原来只存在于 `in.Verdict` 副本里，落库是空 —— 
+  现在 `GateOut.Expectation` 显式返回，`review_loop` 存库时兜底（run 85 复现、run 86 修复）。
+
 **④⑤ 模板重写 + 投入产出闸门（2026-10-24，0.11.24）**：
 - **模板 8 → 3 开局 + 更多**：`0017_template_primary.sql` 加 `is_primary`；①③⑤ 升级成**三段落文本**
   （【这一轮干什么】/【看到什么算"有"】/【什么时候必须停】），并把"没有就记为不适用，别硬凑"写进正文；

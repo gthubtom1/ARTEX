@@ -221,3 +221,102 @@ func TestAdviceTextCarriesProtocol(t *testing.T) {
 		}
 	}
 }
+
+// P3：ask_human 是"需要人提供东西"的动作，不指向具体意图、永远不自动执行，
+// 但必须写清 why（要人提供什么），否则等于没说。
+func TestDecideKeepsAskHuman(t *testing.T) {
+	in := GateIn{
+		Verdict: Verdict{
+			Verdict: "pivot",
+			Cites:   []Cite{{Kind: "finding", ID: 298}},
+			Actions: []Action{
+				{Kind: "ask_human", Why: "需要一个普通用户账号才能验证越权"},
+				{Kind: "ask_human"}, // 没写 why → 剔除
+			},
+			Expectation: "拿到账号后能读到别人的订单",
+		},
+		Snap: Snapshot{Findings: []FindingBrief{{ID: 298, Title: "IDOR"}}},
+	}
+	out := Decide(in)
+	if !out.NeedHuman {
+		t.Fatal("ask_human 必须交给人")
+	}
+	var kept []string
+	for _, a := range out.Actions {
+		kept = append(kept, a.Kind)
+	}
+	if len(kept) != 1 {
+		t.Fatalf("应只保留 1 条（没写 why 的剔除），得到 %v / notes=%v", kept, out.Notes)
+	}
+}
+
+// 战况必须进快照：审查官不能只看漏洞条数判断"有没有进展"。
+func TestSnapshotPromptIncludesWar(t *testing.T) {
+	s := Snapshot{
+		Goal: "test",
+		War: &WarBrief{
+			Level: "E0 仅有信息", Has: nil,
+			CanStanding: map[string]int{"got": 0, "one_step": 3},
+			Doable:      []string{}, Stall: "stop（61 分钟没有新证据）",
+		},
+	}
+	p := s.Prompt()
+	for _, want := range []string{"war", "can_standing", "stall", "one_step"} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("快照提示里缺 %q：%s", want, p)
+		}
+	}
+}
+
+// P3 战况兜底：模型只写"还差什么"不给动作时，审查官必须自己补一条（否则用户看完还是不知道下一步）。
+// 判据纯确定性：war.got==0 且 one_step>0 且（停摆或任务已结束）→ 补 ask_human + 写 expectation。
+func TestDecideWarFallbackAddsAskHuman(t *testing.T) {
+	in := GateIn{
+		Verdict: Verdict{Verdict: "continue", Body: "还差证据"}, // 模型没给动作、没写 expectation
+		Snap: Snapshot{
+			War: &WarBrief{
+				CanStanding: map[string]int{"got": 0, "one_step": 2},
+				Stall:       "stop（61 分钟没有新证据）",
+				FirstGap:    "管理员 / 后台登录",
+			},
+		},
+	}
+	out := Decide(in)
+	if len(out.Actions) != 1 || out.Actions[0].Kind != "ask_human" {
+		t.Fatalf("战况停摆时应补一条 ask_human，得到 %+v", out.Actions)
+	}
+	if out.Level != LevelAction {
+		t.Fatalf("补了动作就应该是 action 级，得到 %s", out.Level)
+	}
+	if !out.NeedHuman {
+		t.Fatal("ask_human 必须交给人")
+	}
+	if out.Drop != "" {
+		t.Fatalf("兜底动作自带判据，不该因 E1 被丢：%s", out.Drop)
+	}
+
+	// 已经有 got 时不该硬塞动作（有战果就别催）
+	ok := GateIn{Verdict: Verdict{Verdict: "continue"}, Snap: Snapshot{War: &WarBrief{
+		CanStanding: map[string]int{"got": 1, "one_step": 2}, Stall: "stop", FirstGap: "x",
+	}}}
+	if got := Decide(ok); len(got.Actions) != 0 {
+		t.Fatalf("已经有 got 时不该补动作，得到 %+v", got.Actions)
+	}
+}
+
+// 兜底动作的判据必须能被调用方存下来（真实踩过：run 85 actions 有、expectation 空）。
+func TestWarFallbackExposesExpectation(t *testing.T) {
+	out := Decide(GateIn{
+		Verdict: Verdict{Verdict: "continue"},
+		Snap: Snapshot{War: &WarBrief{
+			CanStanding: map[string]int{"got": 0, "one_step": 1},
+			Stall:       "stop（70 分钟没有新证据）", FirstGap: "数据库查询",
+		}},
+	})
+	if strings.TrimSpace(out.Expectation) == "" {
+		t.Fatal("战况兜底必须给出可存库的 expectation")
+	}
+	if !strings.Contains(out.Expectation, "数据库查询") {
+		t.Fatalf("expectation 应指名缺口，得到 %q", out.Expectation)
+	}
+}

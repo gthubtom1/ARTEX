@@ -88,6 +88,9 @@ type GateOut struct {
 	NeedHuman   bool     // 结论涉及收口/换目标：必须人决定（红点不消）
 	Trip        bool     // 本次触发熔断 → tier 转 observe
 	TripReason  string
+	// Expectation：战况兜底补的"做完怎么算成功"（模型没写时由规则给）。
+	// 调用方存库时要用它兜底，否则兜底动作没有判据（真实踩过：run 85 actions 有、expectation 空）。
+	Expectation string
 }
 
 // Decide 实现投递前的全部判定。顺序即优先级：
@@ -136,6 +139,16 @@ func Decide(in GateIn) GateOut {
 	for _, a := range in.Verdict.Actions {
 		// propose_intent（提新方向）不指向已有意图，所以不能走下面的「必须指向快照里真实意图」校验。
 		// 它只需要一个依据（cites 非空 + why 非空），且永远不能自动执行。
+		// ask_human 同样不指向意图（它要的是"人提供东西"），跳过意图校验，只要求写清 why。
+		if a.Kind == "ask_human" {
+			if strings.TrimSpace(a.Why) == "" {
+				out.Notes = append(out.Notes, "剔除 ask_human：没写要人提供什么（why 为空）")
+				continue
+			}
+			out.NeedHuman = true
+			kept = append(kept, a)
+			continue
+		}
 		if a.Kind == "propose_intent" {
 			if strings.TrimSpace(a.Why) == "" {
 				out.Notes = append(out.Notes, "剔除 propose_intent：没说依据（why 为空）")
@@ -180,6 +193,9 @@ func Decide(in GateIn) GateOut {
 			out.NeedHuman = true
 		case "propose_intent":
 			// 上文已单独处理（不指向已有意图）；这里只保留白名单语义。
+			out.NeedHuman = true
+		case "ask_human":
+			// 需要人提供东西（账号/授权/选择哪个方向）。永远不自动，也不改任何状态。
 			out.NeedHuman = true
 		default:
 			out.Notes = append(out.Notes, fmt.Sprintf("剔除未知动作 %q", a.Kind))
@@ -249,6 +265,36 @@ func Decide(in GateIn) GateOut {
 		out.Notes = append(out.Notes, out.TripReason+"（R6）")
 	}
 
+	// ── 战况兜底（P3）：模型没给动作，但战况明摆着"有洞、一个现实后果都没有" ──
+	// 不能让审查官只写一段"还差什么"就完事（用户要的是"下一步做什么"）。
+	// 判据全确定性：war.can_standing.got==0 且 one_step>0，且（停摆 warn/stop 或任务已结束）。
+	if len(kept) == 0 && in.Snap.War != nil {
+		w := in.Snap.War
+		stalled := strings.HasPrefix(w.Stall, "warn") || strings.HasPrefix(w.Stall, "stop") || strings.Contains(w.Stall, "未在运行")
+		if w.CanStanding["got"] == 0 && w.CanStanding["one_step"] > 0 && stalled {
+			gap := strings.TrimSpace(w.FirstGap)
+			if gap == "" {
+				gap = "第一个能换到东西的能力"
+			}
+			kept = append(kept, Action{
+				Kind: "ask_human",
+				Why:  "现在有漏洞但一个现实后果都没拿到；缺的是「" + gap + "」。要不要我下一步专攻它？",
+			})
+			if out.Expectation == "" {
+				out.Expectation = "「" + gap + "」被拿到并用证据登记（战果页对应行变成已拿到）"
+			}
+			out.NeedHuman = true
+			out.Notes = append(out.Notes, "战况兜底：模型没给动作，按战况规则补一条 ask_human（缺 "+gap+"）")
+			// 兜底动作同样必须有判据：拿不到就写"拿到 X 并用证据登记"。
+			if strings.TrimSpace(in.Verdict.Expectation) == "" {
+				in.Verdict.Expectation = "「" + gap + "」被拿到并用证据登记（战果页对应行变成已拿到）"
+			}
+		}
+		if len(kept) > 0 && !downweighted {
+			out.Actions = kept
+		}
+	}
+
 	// ── R5 分级与自动执行 ──
 	out.Level = LevelRead
 	if len(out.Actions) > 0 && !downweighted {
@@ -293,7 +339,7 @@ func Decide(in GateIn) GateOut {
 // 前者只会被写成一条建议（不改目标、不派活），后者引擎根本没有接口。
 func NeedHumanFor(kind string) bool {
 	switch kind {
-	case "propose_intent", "set_next_stage":
+	case "propose_intent", "set_next_stage", "ask_human":
 		return true
 	}
 	return false

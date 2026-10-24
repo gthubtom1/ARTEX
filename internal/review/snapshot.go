@@ -84,6 +84,21 @@ type Snapshot struct {
 	// 拒因回读（docs/15 §3 / docs/14 §7-4）：该任务最近 3 条被拒理由（带 run id），
 	// 让它下次别再提已经被合理拒绝的建议。空就整段不出现。
 	LastRejections []string `json:"last_rejections,omitempty"`
+	// War 是战况卡那份数据（docs/23 三层模型）：审查官必须看"现在到底能做什么"，
+	// 不能凭漏洞条数猜战况。为空表示调用方没填（老路径/测试）。
+	War *WarBrief `json:"war,omitempty"`
+}
+
+// WarBrief 是战况的只读摘要（与 /api/tasks/{id}/brief 同源口径）。
+type WarBrief struct {
+	Level       string         `json:"level"` // E0..E5 的口径文字
+	Basis       string         `json:"basis"`
+	Has         []string       `json:"has"`          // 已拿到：后台/命令/数据/凭据
+	CanStanding map[string]int `json:"can_standing"` // 漏洞三段式计数 got/one_step/no_gain
+	Doable      []string       `json:"doable"`       // 现在真能做的后果（class 列表）
+	Stall       string         `json:"stall"`        // ok|warn|stop + 分钟说明
+	FirstGap    string         `json:"first_gap"`    // 第一个"差一步"缺的能力（战况兜底动作用）
+	OpenActions int            `json:"open_actions"` // 已登记还没结果的业务动作工单数
 }
 
 // Hash 是快照指纹（落地对账用；不含时间，否则缓存永远失效）。

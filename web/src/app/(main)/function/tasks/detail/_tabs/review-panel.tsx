@@ -289,6 +289,11 @@ function actionLabel(a: PanelAction): string {
   if (a.kind === "kill_intent") return `放弃方向 #${a.intent ?? "?"}`;
   if (a.kind === "retry_intent") return `重跑被打断的方向 #${a.intent ?? "?"}`;
   if (a.kind === "set_next_stage") return "换阶段（需你手动确认）";
+  // ask_human（P3）：它需要人提供东西，不是让你点头执行
+  if (a.kind === "ask_human") {
+    const ask = (a.why ?? a.text ?? "").trim();
+    return ask ? `需要你提供：${ask}` : "需要你提供信息/授权";
+  }
   // propose_intent（docs/14 §3）：只提议，不自己派活
   const t = (a.text ?? a.target ?? a.summary ?? "").trim();
   return t ? `建议新方向：${t}` : "建议新方向（它没写具体方向）";
