@@ -38,13 +38,32 @@
 
 ---
 
-## 2. Linux（Kali / Debian / Ubuntu / VPS）—— 一条命令
+## 2. Linux（Kali / Debian / Ubuntu / VPS）—— 三条路线，按需要选
+
+**不要默认装 Docker。** ARTEX 本体只需要「二进制 + 本机 PostgreSQL + systemd」；
+Docker 只用于 ① 新机器一条命令装好 ② 资产测绘（ScopeSentry 要 Mongo+Redis+host 网络的扫描节点）。
+
+### 路线 A（推荐，无 Docker，VPS 首选）
 
 ```bash
 git clone https://github.com/gthubtom1/ARTEX.git artex && cd artex
-sudo bash deploy/bootstrap.sh          # 装依赖→起 docker→生成 .env→构建→起服务→设密码→装测绘→接线→体检
-bash deploy/status.sh                  # 必须 STATUS PASS
+sudo bash scripts/install-native.sh                      # 本地编译（需 Go+Node）
+# 用 Release 里的二进制（不需要 Go/Node）：
+sudo bash scripts/install-native.sh --binary ./artex
 ```
+它做：装依赖 → 确保 PostgreSQL → 建库/角色 → 放二进制 → 写 config.json → systemd 单元 → 等 health → 校验前端已内嵌。
+支持 `--prefix/--port/--db/--unit/--dry-run`，幂等。
+
+### 路线 B（要资产测绘时才用 Docker）
+
+```bash
+sudo bash deploy/bootstrap.sh --with-asm   # 装 docker→起 PG+ARTEX+ScopeSentry→接线→体检
+bash deploy/status.sh                      # 必须 STATUS PASS
+```
+
+### 路线 C（Windows）
+
+双击 `部署.bat`（自动下 Release 的 exe + Docker 起 PostgreSQL）。
 
 - 只要本体：`sudo bash deploy/bootstrap.sh --no-asm`
 - 装完端口：ARTEX `:8787`（用户 `ARTEX`，密码在 `.env` 的 `ARTEX_PASSWORD`）、
@@ -80,6 +99,7 @@ powershell -File scripts/detect-env.ps1   # Windows 原生
 
 ```bash
 bash scripts/stub-bootstrap.sh      # 期望 STUB_RESULT PASS；它 stub 掉 docker/curl/jq，只验流程
+bash scripts/verify-0.9.6.sh        # 装好后的判据（版本无关）：期望 VERIFY_RESULT PASS
 ```
 
 ## 5. 装完只有两件事必须你亲自做
