@@ -103,8 +103,11 @@ var actionClassPatterns = []struct {
 		regexp.MustCompile(`(?i)authorized_keys`),
 	}},
 	{"lateral", []*regexp.Regexp{
+		// 注意：proxychains4 只是"出口包装器"，侦察时经常 `proxychains4 curl 目标`
+		// —— 2026-10-24 回归实测把它误判成横移，直接把正常侦察链路拦断了。
+		// 横移只认"真的连另一台主机"的形态。
 		regexp.MustCompile(`(?i)\bssh(pass)?\b[^\n]*@`),
-		regexp.MustCompile(`(?i)\b(?:proxychains4?|impacket-|psexec)\b`),
+		regexp.MustCompile(`(?i)\b(?:impacket-[a-z]+|psexec|wmiexec|smbexec)\b`),
 		regexp.MustCompile(`(?i)\b(?:nxc|netexec|crackmapexec)\b`),
 	}},
 }

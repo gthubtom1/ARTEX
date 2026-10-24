@@ -50,11 +50,15 @@ var builtinTaskTemplates = []builtinTaskTemplate{
 		description: "在已摸清的入口上找可复现的漏洞，每条带完整请求与响应证据。",
 		timeoutMin:  40,
 		stage:       "exploit",
-		goal: `在已摸清的入口上找可复现的漏洞。每个漏洞必须带三样：完整请求（方法/URL/参数/必要 header）、响应里证明成功的片段（关键字或长度差异）、影响（能读到什么/能做什么）。
+		goal: `目标不是"列出漏洞"，而是**至少把一条漏洞变成实际的命令执行或数据访问**。
 
-优先顺序：未授权访问与越权 → 注入（SQL/命令/模板）→ XSS → 任意文件读取 → 上传 → 默认口令（只试默认口令，不爆破）。
+每个漏洞必须带三样：完整请求（方法/URL/参数/必要 header）、响应里证明成功的片段、影响（能读到什么/能做什么）。
+然后挑最有希望的一条往上推一步：上传/写文件 → 验证命令回显 → 或直接读出数据样本（每类 ≤3 条）。
+做到就调用 owned_register / record_fact 把"拿到了什么权限"登记下来，等级会自动上升。
 
-边界：只读验证。不删除、不改数据、不传 webshell；需要写入的动作先停下来问人。`,
+优先顺序：未授权访问与越权 → 注入（SQL/命令/模板）→ 文件读取 → 上传 → XSS（用来拿会话）→ 默认口令（不爆破）。
+
+边界：需要越界的动作（上传/写文件、批量取数据、留账号、横移）由平台向你请求授权，你按提示停下等人确认。`,
 	},
 	{
 		name:        "④ 能拿到什么数据（30 分钟）",
@@ -64,10 +68,12 @@ var builtinTaskTemplates = []builtinTaskTemplate{
 		goal: `证明这个站的哪些数据实际可读：用户表、订单/支付/卡密、手机号与邮箱、配置文件与连接串。
 
 每条证据最多取 3 行样本，写清表名与字段名；不整表导出、不落盘大量数据。
+拿到样本后用 record_fact 写回"读到了哪张表哪些字段"，战果页会自动标成 ✓ 已拿到。
 
-结论必须写：能拿到什么级别的后果（敏感信息泄露 / 账户接管 / 数据库访问 / 仅信息收集）。
+结论必须写：能拿到什么级别的后果（敏感信息泄露 / 账户接管 / 数据库访问 / 仅信息收集），
+以及"再往下一步需要什么"（提权？横移？还是到此为止）。
 
-边界：只读。任何修改类操作都不做。`,
+边界：只读。需要越界的动作（批量导出、写文件、留账号）由平台向你请求授权。`,
 	},
 	{
 		name:        "⑤ 全面评估出报告（60 分钟）",
@@ -96,11 +102,28 @@ var legacyBuiltinTemplateGoals = map[string]string{
 	"全面评估": "给出这个站的完整评估结论：有哪些洞、能拿到什么、还差什么。\n\n力度：正常；建议时限：60 分钟。",
 }
 
+// 老版本 ③④ 的 goal 全文（用于"只升级未被用户改过的那两条"）。
+const (
+	oldGoalExploit = `在已摸清的入口上找可复现的漏洞。每个漏洞必须带三样：完整请求（方法/URL/参数/必要 header）、响应里证明成功的片段（关键字或长度差异）、影响（能读到什么/能做什么）。
+
+优先顺序：未授权访问与越权 → 注入（SQL/命令/模板）→ XSS → 任意文件读取 → 上传 → 默认口令（只试默认口令，不爆破）。
+
+边界：只读验证。不删除、不改数据、不传 webshell；需要写入的动作先停下来问人。`
+
+	oldGoalData = `证明这个站的哪些数据实际可读：用户表、订单/支付/卡密、手机号与邮箱、配置文件与连接串。
+
+每条证据最多取 3 行样本，写清表名与字段名；不整表导出、不落盘大量数据。
+
+结论必须写：能拿到什么级别的后果（敏感信息泄露 / 账户接管 / 数据库访问 / 仅信息收集）。
+
+边界：只读。任何修改类操作都不做。`
+)
+
 // seedBuiltinTaskTemplates inserts the shipped presets once per database.
 // Gated by a settings flag so a user's later rename/edit/delete is never
 // resurrected on restart. ON CONFLICT (nkey) DO NOTHING is a second guard.
 func (d *DB) seedBuiltinTaskTemplates() error {
-	const flag = "task_templates_seed_v3"
+	const flag = "task_templates_seed_v4"
 	if v, _, _ := d.GetSetting(flag); v == "done" {
 		return nil
 	}
@@ -111,6 +134,17 @@ INSERT INTO task_templates(name, nkey, description, goal, timeout_min, stage)
 VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (nkey) DO NOTHING`, name, taskTemplateNKey(name), t.description, t.goal, t.timeoutMin, t.stage); err != nil {
 			return err
+		}
+	}
+	// 回填 ③④ 的 goal（判据仍是"未被用户改过"）：这两条的含义从"列漏洞"变成"拿到权限/数据"。
+	// 老库不会因为 ON CONFLICT DO NOTHING 更新，所以单独做一次条件更新。
+	if len(builtinTaskTemplates) > 3 {
+		for i, oldGoal := range map[int]string{2: oldGoalExploit, 3: oldGoalData} {
+			t := builtinTaskTemplates[i]
+			if _, err := d.Exec(`UPDATE task_templates SET goal=$1, updated_at=now()
+				WHERE nkey=$2 AND goal=$3`, t.goal, taskTemplateNKey(t.name), oldGoal); err != nil {
+				return err
+			}
 		}
 	}
 	// 回填 stage：老库里这批模板已经存在（ON CONFLICT DO NOTHING 不会更新），

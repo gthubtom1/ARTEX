@@ -157,6 +157,38 @@ mysqldump、useradd/chpasswd、crontab、authorized_keys、ssh@、proxychains、
 后渗透执行器（拿到 E3 后解锁 webshell/shell 池/数据取样），以及模板③④的 goal 改成
 "拿到命令执行或数据样本才算完成"。
 
+
+### 全链路回归（2026-10-24，两轮，第二轮抓出并修掉一个真回归）
+
+**第一轮（v0.10.2）**：建真实 recon 任务（12）跑 200s，逐轮检查每一环：
+```
+状态 created · 节点 intent=3 goal=1 fact 1→3 hint 5 · 工具调用 14→86
+判定 unclear（reasons 1→3，surface 1→4）· 等级 E0 · 审查官 1/adviser
+⚠ 第 5 轮出现 policy_blocked(GrantGate)
+```
+**定位**：新加的即时授权门把 `proxychains4 curl/nmap ...` 判成了「横向移动」。
+proxychains4 只是**出口包装器**（侦察时常用），不是横移 ——
+**这就是"加功能把别处链路打断"的典型**：改一行分类清单就好，但如果不跑回归根本发现不了。
+
+**修复**：`lateral` 只认真的连另一台主机的形态（`ssh@`、`impacket-*`、`psexec/wmiexec/smbexec`、
+`nxc/netexec/crackermapexec`），移除 proxychains；单测补两条
+（`proxychains4 -q curl ...`、`proxychains4 nmap ...` 必须放行）。
+
+**第二轮（v0.10.3）同脚本复跑**：
+```
+第 1~5 轮：被门拦 = 无
+节点 fact 2 · intent 3 · hint 3 · 工具调用 74
+判定 unclear（reasons 2，surface 4）· 等级 E0 · 审查官 1/adviser
+报告接口 543 字节（该任务无漏洞，属正常）
+清理：delete → 200；剩余任务 6/done、7/done
+```
+**结论：建任务 → planner → worker → guard → 事实 → 判定 → 权限阶梯 → 审查官 → 报告 → 删除，全链路无中断。**
+
+### 其它收口（本轮）
+- 模板 ③④ 的 goal 从"列漏洞"改成"**至少把一条漏洞变成命令执行或数据访问**"（并要求 `owned_register`/`record_fact` 登记，等级才会涨）；老库按"未被用户改过"回填。
+- 审查官规则版新增一句：`有 N 个漏洞但还没有变成任何访问权 → 下一步优先把它变成登录/命令执行/数据样本，而不是继续找新洞`。
+- `internal/impact` 补单测：7 种统计组合的等级判定 + 提案字段完整性（why/plan/risk 缺一即失败）。
+
 ## 配置建议（**不是待办**，你随时改）
 
 模型选择是你的决定，不是代码缺陷，不阻塞任何功能（不绑也能用，只是全用同一个模型）。

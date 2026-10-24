@@ -205,6 +205,11 @@ func RuleBased(s *Snapshot) Verdict {
 	if len(dead) > 0 {
 		fmt.Fprintf(&b, "另外 %d 条方向是目标明确拒绝的，别再试。", len(dead))
 	}
+	// 「串联漏洞才是渗透本质」：有洞但没变成任何访问权时，明确催它去串链。
+	// 判据：review_runs.body 出现「还没有变成任何访问权」；只在有漏洞且无立足点时出现。
+	if len(s.Findings) > 0 && len(s.Owned) == 0 {
+		fmt.Fprintf(&b, "\n注意：已经有 %d 个漏洞，但还没有变成任何访问权（无凭据、无立足点）。下一步优先把其中一个变成登录/命令执行/数据样本，而不是继续找新洞。", len(s.Findings))
+	}
 	if b.Len() < 40 {
 		b.WriteString("暂时没有明显走偏的迹象。")
 	}

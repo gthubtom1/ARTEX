@@ -9,19 +9,19 @@ func TestClassifyAction(t *testing.T) {
 	cases := map[string]string{
 		// file_write：向目标写文件 / 传 webshell
 		`curl -s -F "file=@shell.php" http://t/upload.php`: "file_write",
-		`curl -X PUT --data-binary @x.jsp http://t/x.jsp`:   "file_write",
-		`echo '<?php system($_GET[c]); ?>' > webshell.php`:  "file_write",
+		`curl -X PUT --data-binary @x.jsp http://t/x.jsp`:  "file_write",
+		`echo '<?php system($_GET[c]); ?>' > webshell.php`: "file_write",
 		// data_dump：整库/整表导出
 		`sqlmap -u http://t/a?id=1 --batch --dump`: "data_dump",
 		`mysqldump -h db -u root -p x > all.sql`:   "data_dump",
 		// persist：留账号/计划任务
-		`useradd -m backdoor && echo 'p' | chpasswd`: "persist",
-		`echo "* * * * * curl x" | crontab -`:        "persist",
+		`useradd -m backdoor && echo 'p' | chpasswd`:   "persist",
+		`echo "* * * * * curl x" | crontab -`:          "persist",
 		`echo "ssh-rsa AAA" >> ~/.ssh/authorized_keys`: "persist",
 		// lateral：横移
-		`sshpass -p p ssh root@10.0.0.5`:            "lateral",
-		`proxychains4 nmap -sT 10.0.0.0/24`:          "lateral",
-		`nxc smb 10.0.0.5 -u a -p b -x whoami`:       "lateral",
+		`sshpass -p p ssh root@10.0.0.5`:       "lateral",
+		`impacket-psexec a/b@10.0.0.5`:         "lateral",
+		`nxc smb 10.0.0.5 -u a -p b -x whoami`: "lateral",
 	}
 	for cmd, want := range cases {
 		if got := classifyAction(cmd); got != want {
@@ -35,6 +35,9 @@ func TestClassifyAction(t *testing.T) {
 		`curl -s -o /dev/null -w "%{http_code}" http://t/admin/`,
 		`ffuf -u http://t/FUZZ -w w.txt`,
 		`sqlmap -u http://t/a?id=1 --batch --banner`,
+		// 回归实测：proxychains4 是出口包装器，包着侦察命令时必须放行
+		`proxychains4 -q curl -s -o /dev/null -w "%{http_code}" https://t/`,
+		`proxychains4 nmap -sT -p80,443 10.0.0.5`,
 		`cat /etc/passwd`,
 		`grep -n "form" index.html`,
 	} {
