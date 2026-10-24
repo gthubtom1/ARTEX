@@ -84,6 +84,44 @@ const ITEM_ICON: Record<string, string> = {
   cred: "凭据",
 };
 
+// ── 界面规格（docs/28）里的基础组件：状态标 / 左标签行 / 告警条 / 三口味 ──
+
+type Tone = "ok" | "warn" | "muted" | "danger";
+
+const TONE_CLS: Record<Tone, string> = {
+  ok: "bg-emerald-600 text-white",
+  warn: "bg-amber-500/25 text-amber-700 dark:text-amber-300",
+  muted: "bg-slate-500/20 text-slate-600 dark:text-slate-300",
+  danger: "bg-rose-500/20 text-rose-700 dark:text-rose-300",
+};
+const TONE_ICON: Record<Tone, string> = { ok: "✓", warn: "▲", muted: "○", danger: "⛔" };
+
+// StatusChip：尺寸字号固定，永远带文字（不靠颜色传达状态）
+function StatusChip({ tone, children, title }: { tone: Tone; children: React.ReactNode; title?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-[18px] shrink-0 items-center gap-0.5 rounded-[3px] px-1.5 text-[10px] font-bold",
+        TONE_CLS[tone],
+      )}
+      title={title}
+    >
+      <span className="opacity-80">{TONE_ICON[tone]}</span>
+      {children}
+    </span>
+  );
+}
+
+// LabelRow：左标签固定 64px，内容靠右，纵向对齐（扫读时眼睛只走一列）
+function LabelRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[64px_minmax(0,1fr)] items-start gap-2">
+      <span className="pt-[2px] text-[10px] font-semibold text-muted-foreground">{label}</span>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
 function CopyBtn({ text, label = "复制" }: { text: string; label?: string }) {
   return (
     <button
@@ -250,24 +288,25 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
             </p>
           </section>
         )}
-        {/* ① 我在哪 */}
-        <section className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] text-muted-foreground">我在哪</span>
-          <b className="text-[13px]">{brief?.level_label ?? "读取中…"}</b>
-          <span className="flex items-center gap-0.5" title="E0 仅有信息 → E5 服务器控制">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <span
-                key={i}
-                className={cn("size-1.5 rounded-full", i <= level ? "bg-sky-600" : "bg-muted-foreground/25")}
-              />
-            ))}
-          </span>
-          <span className="text-muted-foreground">
-            {brief?.basis ?? ""}
-            {can.length > 0 ? ` · 已确认 ${can.length} 个洞` : ""}
-          </span>
-        </section>
-        <p className="-mt-1 text-[10.5px] text-muted-foreground">{LEVEL_HINT[level] ?? ""}</p>
+        {/* ① 我在哪（左标签固定宽，纵向对齐） */}
+        <LabelRow label="我在哪">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <b className="text-[13px]">{brief?.level_label ?? "读取中…"}</b>
+            <span className="flex items-center gap-0.5" title="E0 仅有信息 → E5 服务器控制">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <span
+                  key={i}
+                  className={cn("size-1.5 rounded-full", i <= level ? "bg-sky-600" : "bg-muted-foreground/25")}
+                />
+              ))}
+            </span>
+            <span className="text-muted-foreground">
+              {brief?.basis ?? ""}
+              {can.length > 0 ? ` · 已确认 ${can.length} 个洞` : ""}
+            </span>
+          </div>
+          <p className="mt-0.5 text-[10.5px] text-muted-foreground">{LEVEL_HINT[level] ?? ""}</p>
+        </LabelRow>
 
         {/* 继承 ≠ 本任务已自证（真机跑 #18 时用户的疑问）：显式写清"我从谁那儿继承了啥" */}
         {(brief?.inherited ?? []).length > 0 && (
@@ -313,181 +352,223 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
           </section>
         )}
 
-        {/* 我的目标：把"我想拖库/进后台"翻译成"现在能不能做到、差什么" */}
+        {/* 我的目标（焦点区，docs/28 §5.3-5.5）：violet 左边框 + 左标签对齐 + 两行一步骤 */}
         {activeGoal && (
-          <section className="rounded border border-violet-500/30 bg-violet-500/[0.05] px-2 py-1.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] text-muted-foreground">我的目标是</span>
-              <select
-                className="rounded border bg-card px-1 py-0.5 text-[11px]"
-                value={goalKey || brief?.goal_guess || activeGoal.key}
-                onChange={(e) => setGoalKey(e.target.value)}
-                aria-label="选择我的目标"
-              >
-                {goalFits.map((g) => (
-                  <option key={g.key} value={g.key}>
-                    {g.label}
-                  </option>
-                ))}
-              </select>
-              <span
-                className={cn(
-                  "rounded px-1.5 py-0.5 text-[10px] font-bold",
-                  activeGoal.status === "yes"
-                    ? "bg-emerald-600 text-white"
-                    : activeGoal.status === "one_step"
-                      ? "bg-amber-500/25 text-amber-700 dark:text-amber-300"
-                      : "bg-rose-500/20 text-rose-700 dark:text-rose-300",
-                )}
-              >
-                {activeGoal.status === "yes" ? "现在就能做到" : activeGoal.status === "one_step" ? "差一步" : "现在还做不到"}
-              </span>
-              {activeGoal.status === "yes" && <CopyBtn text={activeGoal.say_it} label="就做这个" />}
-              {activeGoal.applicable === "unlikely" && (
-                <span
-                  className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300"
-                  title={activeGoal.applicable_why || ""}
+          <section className="rounded-[8px] border border-violet-500/30 border-l-[3px] bg-violet-500/[0.05] px-3 py-2">
+            <LabelRow label="我的目标">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <select
+                  className="h-6 w-[240px] max-w-full rounded-[6px] border bg-card px-1.5 text-[11.5px]"
+                  value={goalKey || brief?.goal_guess || activeGoal.key}
+                  onChange={(e) => setGoalKey(e.target.value)}
+                  aria-label="选择我的目标"
                 >
-                  这站看不出有这类东西
-                </span>
-              )}
-              {activeGoal.applicable === "unknown" && (
-                <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-slate-300">
-                  还没探过，先侦察
-                </span>
-              )}
-            </div>
-            {activeGoal.status !== "yes" && activeGoal.missing.length > 0 && (
-              <div className="mt-1 text-[11px]">
-                还缺：<b className="text-amber-700 dark:text-amber-300">{activeGoal.missing.join(" / ")}</b>
-                <span className="ml-2 text-muted-foreground">{activeGoal.steps[0]}</span>
-                <span className="ml-1">
-                  <CopyBtn text={activeGoal.say_it} label="照这句说" />
-                </span>
+                  {goalFits.map((g) => (
+                    <option key={g.key} value={g.key}>
+                      {g.label}
+                    </option>
+                  ))}
+                </select>
+                <StatusChip
+                  tone={activeGoal.status === "yes" ? "ok" : activeGoal.status === "one_step" ? "warn" : "danger"}
+                  title={
+                    activeGoal.status === "yes"
+                      ? "能力已经够了，可以真去做"
+                      : activeGoal.status === "one_step"
+                        ? "还缺一环"
+                        : "现在做不到"
+                  }
+                >
+                  {activeGoal.status === "yes"
+                    ? "现在就能做到"
+                    : activeGoal.status === "one_step"
+                      ? "差一步"
+                      : "现在还做不到"}
+                </StatusChip>
+                {activeGoal.applicable === "unlikely" && (
+                  <StatusChip tone="danger" title={activeGoal.applicable_why || ""}>
+                    这站看不出有这类东西
+                  </StatusChip>
+                )}
+                {activeGoal.applicable === "unknown" && (
+                  <StatusChip tone="muted" title={activeGoal.applicable_why || ""}>
+                    还没探过
+                  </StatusChip>
+                )}
+                {activeGoal.status === "yes" && <CopyBtn text={activeGoal.say_it} label="就做这个" />}
               </div>
-            )}
-            <div className="mt-0.5 text-[10px] text-muted-foreground">
-              {activeGoal.why}
-              {activeGoal.applicable === "unlikely" && activeGoal.applicable_why
-                ? ` · ${activeGoal.applicable_why}`
-                : ""}
-              {activeGoal.status === "yes" ? ` · 风险：${activeGoal.risk}` : ""}
-            </div>
 
-            {/* 往哪儿深究（Top3）：每条带 成本 / 成功长相 / 失败怎么办 */}
-            {(activeGoal.next_moves ?? []).length > 0 && (
-              <div className="mt-1 flex flex-col gap-0.5">
-                <span className="text-[10px] text-muted-foreground">往哪儿深究（按省时省钱的顺序）</span>
-                {(activeGoal.next_moves ?? []).map((mv, i) => (
-                  <div key={`${mv.text}-${i}`} className="flex flex-wrap items-baseline gap-1 text-[11px]">
-                    <b className="text-muted-foreground">{i + 1}.</b>
-                    <span>{mv.text}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      · 成本 {mv.cost} · 成功长相：{mv.expect} · 不成：{mv.fail}
-                    </span>
-                    <CopyBtn text={mv.text} label="照这句说" />
-                  </div>
-                ))}
+              {/* 一句解释（10.5px，最多两行） */}
+              <p className="mt-1 text-[10.5px] leading-snug text-muted-foreground">
+                {activeGoal.why}
+                {activeGoal.applicable === "unlikely" && activeGoal.applicable_why
+                  ? ` · ${activeGoal.applicable_why}`
+                  : ""}
+                {activeGoal.status === "yes" ? ` · 风险：${activeGoal.risk}` : ""}
+              </p>
+
+              {/* 往哪儿深究：每条两行（主句 / 成本+成功长相+不成），整行可点复制 */}
+              {(activeGoal.next_moves ?? []).length > 0 && (
+                <div className="mt-1.5">
+                  <div className="mb-0.5 text-[10px] text-muted-foreground">往哪儿深究（按省时省钱的顺序）</div>
+                  <ol className="flex flex-col gap-1">
+                    {(activeGoal.next_moves ?? []).map((mv, i) => (
+                      <li key={`${mv.text}-${i}`} className="flex items-start gap-1.5">
+                        <span className="mt-[1px] flex size-4 shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-[10px] font-bold text-violet-700 dark:text-violet-300">
+                          {i + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] leading-snug">{mv.text}</div>
+                          <div className="text-[10px] leading-snug text-muted-foreground">
+                            成本 {mv.cost} · 成功长相：{mv.expect} ·{" "}
+                            <span className="text-amber-700 dark:text-amber-300">不成：{mv.fail}</span>
+                          </div>
+                        </div>
+                        <CopyBtn text={mv.text} label="照这句说" />
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* 三口味：颜色区分 继续/换路线/收工 */}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                <span className="text-[10px] text-muted-foreground">可以对它说：</span>
+                {activeGoal.say_continue && (
+                  <button
+                    type="button"
+                    className="rounded-[6px] border border-emerald-600/50 px-2 py-0.5 text-[10.5px] font-medium text-emerald-700 hover:bg-emerald-600/10 dark:text-emerald-300"
+                    title={activeGoal.say_continue}
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(activeGoal.say_continue ?? "");
+                      toast.success("已复制「继续」，粘到下方输入框发送");
+                    }}
+                  >
+                    继续
+                  </button>
+                )}
+                {activeGoal.say_pivot && (
+                  <button
+                    type="button"
+                    className="rounded-[6px] border border-sky-600/50 px-2 py-0.5 text-[10.5px] font-medium text-sky-700 hover:bg-sky-600/10 dark:text-sky-300"
+                    title={activeGoal.say_pivot}
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(activeGoal.say_pivot ?? "");
+                      toast.success("已复制「换路线」，粘到下方输入框发送");
+                    }}
+                  >
+                    换路线
+                  </button>
+                )}
+                {activeGoal.say_stop && (
+                  <button
+                    type="button"
+                    className="rounded-[6px] border border-rose-600/50 px-2 py-0.5 text-[10.5px] font-medium text-rose-700 hover:bg-rose-600/10 dark:text-rose-300"
+                    title={activeGoal.say_stop}
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(activeGoal.say_stop ?? "");
+                      toast.success("已复制「收工」，粘到下方输入框发送");
+                    }}
+                  >
+                    收工
+                  </button>
+                )}
               </div>
-            )}
-
-            {/* 三个口味：不懂术语也能用（点了只填入不发送） */}
-            <div className="mt-1 flex flex-wrap items-center gap-1">
-              <span className="text-[10px] text-muted-foreground">可以对它说：</span>
-              {activeGoal.say_continue && <CopyBtn text={activeGoal.say_continue} label="继续" />}
-              {activeGoal.say_pivot && <CopyBtn text={activeGoal.say_pivot} label="换路线" />}
-              {activeGoal.say_stop && <CopyBtn text={activeGoal.say_stop} label="收工" />}
-            </div>
+            </LabelRow>
           </section>
         )}
 
-        {/* 卡在哪（失败归因，确定性）：跑完没成果时，别只说"还没探够" */}
+        {/* 卡在哪（告警条，rose 左边框 + ⛔）：先看阻塞再看能力 */}
         {(brief?.blockers ?? []).length > 0 && (
-          <section className="rounded border border-amber-500/40 bg-amber-500/[0.06] px-2 py-1 text-[11px]">
-            <span className="rounded bg-amber-500/25 px-1 text-[9.5px] font-bold text-amber-800 dark:text-amber-200">
-              卡在哪
-            </span>
-            {(brief?.blockers ?? []).map((b) => (
-              <span key={b.class} className="ml-1.5">
-                <b>{b.class}</b> ×{b.count} —— {b.advice}
-              </span>
-            ))}
+          <section className="rounded-[8px] border border-rose-500/30 border-l-[3px] border-l-rose-500 bg-rose-500/[0.06] px-3 py-1.5">
+            <LabelRow label="卡在哪">
+              <div className="flex flex-wrap gap-x-2 text-[11px]">
+                {(brief?.blockers ?? []).map((b) => (
+                  <span key={b.class}>
+                    <b>{b.class}</b> ×{b.count} —— {b.advice}
+                  </span>
+                ))}
+              </div>
+            </LabelRow>
           </section>
         )}
 
         {/* ② 我有什么（最多 3 个 + 还有 N） */}
-        <section className="flex flex-wrap items-center gap-1">
-          <span className="text-[10px] text-muted-foreground">我有什么</span>
-          {has.length === 0 && <span className="text-muted-foreground">还没有可直接利用的权限</span>}
-          {has.slice(0, 3).map((h, i) => (
-            <span
-              key={`${h.kind}-${i}`}
-              className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-300"
-            >
-              <b className="text-[9.5px] font-bold opacity-70">{ITEM_ICON[h.kind] ?? h.kind}</b>
-              {h.text}
-            </span>
-          ))}
-          {has.length > 3 && <span className="text-[10px] text-muted-foreground">还有 {has.length - 3} 项</span>}
-        </section>
+        <LabelRow label="我有什么">
+          <div className="flex flex-wrap items-center gap-1">
+            {has.length === 0 && <span className="text-muted-foreground">还没有可直接利用的权限</span>}
+            {has.slice(0, 3).map((h, i) => (
+              <span
+                key={`${h.kind}-${i}`}
+                className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-300"
+              >
+                <b className="text-[9.5px] font-bold opacity-70">{ITEM_ICON[h.kind] ?? h.kind}</b>
+                {h.text}
+              </span>
+            ))}
+            {has.length > 3 && <span className="text-[10px] text-muted-foreground">还有 {has.length - 3} 项</span>}
+          </div>
+        </LabelRow>
 
         {/* ③ 现在能做到（主视线，最多 3 条） */}
-        <section className="rounded border border-emerald-500/30 bg-emerald-500/[0.05] px-2 py-1.5">
-          <div className="mb-1 flex items-center gap-1">
-            <TargetIcon className="size-3 text-emerald-600" />
-            <b className="text-[11.5px]">现在能做到</b>
-            <span className="text-[10px] text-muted-foreground">
-              {doable.length > 0
-                ? `（${doable.length} 件有前置、我能去做；每条都能挂着证据查）`
-                : "（现在一件都做不了 —— 前置还没满足）"}
-            </span>
-          </div>
-          {shownDoable.length === 0 && (
-            <p className="text-muted-foreground">
-              还没有一件能做的 —— 先把它打成能读数据/能进后台，下面的「差一步」会告诉你缺什么。
-            </p>
-          )}
-          <ul className="flex flex-col gap-1">
-            {shownDoable.map((a) => (
-              <li key={a.class} className="flex flex-wrap items-center gap-1.5">
-                <span className="font-medium">{a.title}</span>
-                {a.run_state === "requested" && (
-                  <span className="rounded bg-sky-500/15 px-1 text-[9.5px] text-sky-700 dark:text-sky-300">
-                    已登记·等结果
-                  </span>
-                )}
-                {a.run_state === "done" && (
-                  <span
-                    className="rounded bg-emerald-500/20 px-1 text-[9.5px] text-emerald-700 dark:text-emerald-300"
-                    title={a.run_evidence || ""}
-                  >
-                    已完成
-                  </span>
-                )}
-                <CopyBtn text={a.say_it} label="就做这个" />
-              </li>
-            ))}
-          </ul>
-          {doable.length > 3 && (
-            <p className="mt-0.5 text-[10px] text-muted-foreground">还有 {doable.length - 3} 件，见下面折叠区</p>
-          )}
+        <section className="rounded-[8px] border border-emerald-500/30 bg-emerald-500/[0.05] px-3 py-2">
+          <LabelRow label="能做到">
+            <div className="flex flex-wrap items-center gap-1">
+              <TargetIcon className="size-3 text-emerald-600" />
+              <b className="text-[11.5px]">这些现在就能做</b>
+              <span className="text-[10px] text-muted-foreground">
+                {doable.length > 0
+                  ? `（${doable.length} 件有前置、我能去做；每条都能挂着证据查）`
+                  : "（现在一件都做不了 —— 前置还没满足）"}
+              </span>
+            </div>
+            {shownDoable.length === 0 && (
+              <p className="text-muted-foreground">
+                还没有一件能做的 —— 先把它打成能读数据/能进后台，下面的「差一步」会告诉你缺什么。
+              </p>
+            )}
+            <ul className="flex flex-col gap-1">
+              {shownDoable.map((a) => (
+                <li key={a.class} className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-medium">{a.title}</span>
+                  {a.run_state === "requested" && (
+                    <span className="rounded bg-sky-500/15 px-1 text-[9.5px] text-sky-700 dark:text-sky-300">
+                      已登记·等结果
+                    </span>
+                  )}
+                  {a.run_state === "done" && (
+                    <span
+                      className="rounded bg-emerald-500/20 px-1 text-[9.5px] text-emerald-700 dark:text-emerald-300"
+                      title={a.run_evidence || ""}
+                    >
+                      已完成
+                    </span>
+                  )}
+                  <CopyBtn text={a.say_it} label="就做这个" />
+                </li>
+              ))}
+            </ul>
+            {doable.length > 3 && (
+              <p className="mt-0.5 text-[10px] text-muted-foreground">还有 {doable.length - 3} 件，见下面折叠区</p>
+            )}
+          </LabelRow>
         </section>
 
         {/* ④ 差一步 / ⑤ 换不到：各一行，不铺开 */}
         {stepCan.length > 0 && (
-          <section className="flex flex-wrap items-center gap-1 text-amber-700 dark:text-amber-300">
-            <span className="rounded bg-amber-500/15 px-1 text-[9.5px] font-bold">差一步</span>
-            <span>
+          <LabelRow label="差一步">
+            <span className="text-amber-700 dark:text-amber-300">
               {stepCan.length} 个洞差一步就能换到东西
               {stepCan[0]?.gap ? ` —— 缺：${stepCan[0].gap}` : ""}
             </span>
-          </section>
+          </LabelRow>
         )}
         {noGainCan.length > 0 && (
-          <section className="flex flex-wrap items-center gap-1 text-muted-foreground">
-            <span className="rounded bg-muted px-1 text-[9.5px] font-bold">换不到</span>
-            <span>{noGainCan.length} 个洞目前换不到任何现实后果（不是误报，只是没到能用的程度）</span>
-          </section>
+          <LabelRow label="换不到">
+            <span className="text-muted-foreground">
+              {noGainCan.length} 个洞目前换不到任何现实后果（不是误报，只是没到能用的程度）
+            </span>
+          </LabelRow>
         )}
 
         {/* 一句话：想做就在会话里说 */}
