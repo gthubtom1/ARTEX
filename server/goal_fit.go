@@ -89,21 +89,38 @@ func goalDefByKey(k string) (goalDef, bool) {
 	return goalDef{}, false
 }
 
+type goalMove struct {
+	Text   string `json:"text"`   // 一句话：去做什么
+	Why    string `json:"why"`    // 为什么现在做这个（依据）
+	Cost   string `json:"cost"`   // 花多少（请求/时间）
+	Expect string `json:"expect"` // 成功长什么样
+	Fail   string `json:"fail"`   // 失败了怎么办
+}
+
 type goalFit struct {
-	Key     string   `json:"key"`
-	Label   string   `json:"label"`
-	Status  string   `json:"status"` // yes|one_step|no
-	Have    []string `json:"have"`   // 已经满足的能力（人话）
-	Missing []string `json:"missing"`
-	Level   string   `json:"level"`
-	Why     string   `json:"why"`
-	Risk    string   `json:"risk"`
-	Steps   []string `json:"steps"`  // 推荐路径（最多 3 条，一句话一步）
-	SayIt   string   `json:"say_it"` // 可直接复制的"该说什么"
+	Key    string `json:"key"`
+	Label  string `json:"label"`
+	Status string `json:"status"` // yes|one_step|no
+	// Applicable：这个站**看起来**支持不支持这个目标（与"有没有能力"是两件事）。
+	// 用户抱怨过："我让它拖库，可这站根本没数据库"——所以要先把"这站像不像有"说清楚。
+	Applicable    string     `json:"applicable"` // likely|unknown|unlikely
+	ApplicableWhy string     `json:"applicable_why"`
+	NextMoves     []goalMove `json:"next_moves,omitempty"`
+	// 三个口味：继续 / 换路线 / 收工（点了只填入，不发送）
+	SayContinue string   `json:"say_continue,omitempty"`
+	SayPivot    string   `json:"say_pivot,omitempty"`
+	SayStop     string   `json:"say_stop,omitempty"`
+	Have        []string `json:"have"` // 已经满足的能力（人话）
+	Missing     []string `json:"missing"`
+	Level       string   `json:"level"`
+	Why         string   `json:"why"`
+	Risk        string   `json:"risk"`
+	Steps       []string `json:"steps"`  // 推荐路径（最多 3 条，一句话一步）
+	SayIt       string   `json:"say_it"` // 可直接复制的"该说什么"
 }
 
 // fitForGoal 是纯函数：给定目标定义 + 能力计数 + 战果行，判"能不能达到"。
-func fitForGoal(def goalDef, st impact.Stats, rows []lootRow) goalFit {
+func fitForGoal(def goalDef, st impact.Stats, rows []lootRow, fs []lootFinding, blockers []blocker) goalFit {
 	done := map[string]bool{}
 	for _, r := range rows {
 		if r.Status == "done" {
@@ -150,6 +167,9 @@ func fitForGoal(def goalDef, st impact.Stats, rows []lootRow) goalFit {
 	steps = append(steps, "做完把证据登记（记录表名/字段/条数），等级才会涨")
 	out.Steps = steps
 	out.SayIt = goalSayIt(def.Key, out.Status, missing)
+	out.Applicable, out.ApplicableWhy = applyApplicability(def, fs, rows)
+	out.NextMoves = buildNextMoves(def, out, fs, blockers)
+	out.SayContinue, out.SayPivot, out.SayStop = buildSayVariants(def, out, blockers)
 	return out
 }
 
@@ -209,10 +229,10 @@ func missingKeyFor(goalKey string, missing []string) string {
 func lootRowLabelByLabel(label string) string { return label }
 
 // briefGoalFit 给 /brief 用：所有目标的状态 + 默认目标（按任务 goal 文本猜）。
-func (s *Server) briefGoalFit(st impact.Stats, rows []lootRow, goalText string) ([]goalFit, string) {
+func (s *Server) briefGoalFit(st impact.Stats, rows []lootRow, fs []lootFinding, goalText string, blockers []blocker) ([]goalFit, string) {
 	out := make([]goalFit, 0, len(goalDefs))
 	for _, d := range goalDefs {
-		out = append(out, fitForGoal(d, st, rows))
+		out = append(out, fitForGoal(d, st, rows, fs, blockers))
 	}
 	return out, guessGoalKey(goalText)
 }
@@ -250,7 +270,8 @@ func (s *Server) taskGoalFit(w http.ResponseWriter, r *http.Request) {
 	taskID, _ := strconv.ParseInt(t.ID, 10, 64)
 	st := s.impactStats(r.Context(), t, taskID)
 	rows := s.lootRowsForTask(r.Context(), t, s.lootFindings(t))
-	fits, guess := s.briefGoalFit(st, rows, t.Goal)
+	blockers := s.briefBlockers(r.Context(), taskID)
+	fits, guess := s.briefGoalFit(st, rows, s.lootFindings(t), t.Goal, blockers)
 	writeJSON(w, http.StatusOK, map[string]any{"fits": fits, "guess": guess})
 }
 
@@ -306,4 +327,146 @@ func (s *Server) briefBlockers(ctx context.Context, taskID int64) []blocker {
 		}
 	}
 	return out
+}
+
+// ── 自适应：这个站像不像支持这个目标（与"有没有能力"分开判）──────────
+//
+// 用户原话："我太傻了，他明明这个网站没有数据库，我让他去脱库，会怎么样呢？"
+// 所以要先用**站点迹象**回答"这站有没有这类东西"，再谈"我拿到了没有"。
+
+// signalSet 是判"站点迹象"用的关键词组（与目标一一对应）。
+var goalSignals = map[string][]string{
+	"data_dump":    {"sql", "注入", "数据库", "information_schema", "select", "mysql", "mssql", "postgres", "oracle", "连接串", "db_"},
+	"sample":       {"sql", "注入", "数据库", "越权", "idor", "未授权", "api", "数据"},
+	"admin_access": {"登录", "后台", "admin", "login", "管理", "console", "口令", "认证"},
+	"money":        {"订单", "支付", "余额", "提现", "审批", "金额", "钱包"},
+	"account":      {"登录", "后台", "admin", "管理", "注册"},
+	"deface":       {"上传", "upload", "写文件", "模板", "编辑器", "cms"},
+	"server":       {"rce", "命令执行", "代码执行", "反序列化", "shell", "模板注入", "ssti"},
+	"persist":      {"rce", "命令执行", "代码执行", "反序列化", "shell", "ssh"},
+}
+
+// applyApplicability 用"任务里已确认的漏洞文字 + 战果行是否存在"判这个目标的把握。
+func applyApplicability(def goalDef, fs []lootFinding, rows []lootRow) (string, string) {
+	// 战果行存在（哪怕 blank 也算出现过迹象）：说明站点这类东西是存在的
+	for _, r := range rows {
+		for _, need := range def.Need {
+			if r.Key == need {
+				return "likely", "已经看到「" + r.Label + "」这一类的迹象"
+			}
+		}
+	}
+	blob := strings.Builder{}
+	for _, f := range fs {
+		blob.WriteString(f.title + " " + f.text + " " + f.summary + " ")
+	}
+	text := strings.ToLower(blob.String())
+	kws := goalSignals[def.Key]
+	for _, kw := range kws {
+		if strings.Contains(text, strings.ToLower(kw)) {
+			return "likely", "已确认的漏洞里出现「" + kw + "」相关迹象"
+		}
+	}
+	if len(fs) == 0 {
+		return "unknown", "还没有任何已确认漏洞，先做侦察（①模板）再判断"
+	}
+	return "unlikely", "已确认的漏洞里没有任何与「" + def.Label + "」相关的迹象（没入口/没参数/没连接串）"
+}
+
+// buildNextMoves 给 Top3 建议：先排阻塞，再补最近的缺口，最后才是"换路线"。
+// 每条都带成本 / 成功长相 / 失败怎么办 —— 用户靠这三样做决定。
+func buildNextMoves(def goalDef, fit goalFit, fs []lootFinding, blockers []blocker) []goalMove {
+	out := []goalMove{}
+	// ① 有阻塞先解阻塞（最省钱的一步）
+	if len(blockers) > 0 {
+		b := blockers[0]
+		out = append(out, goalMove{
+			Text: "先把「" + b.Class + "」这个阻塞处理掉：" + b.Advice,
+			Why:  "最近 6 小时这类失败 " + strconv.Itoa(b.Count) + " 次，不解决后面都是白跑",
+			Cost: "1–3 次请求", Expect: "同样的请求不再被拦（状态码/响应长度正常）",
+			Fail: "连续两次还是被拦 → 换手法或收工出结论",
+		})
+	}
+	// ② 补最接近的缺口
+	for _, need := range def.Need {
+		if !containsStr(fit.Have, lootRowLabel(need)) {
+			out = append(out, goalMove{
+				Text: missingStep(need),
+				Why:  "这个目标是「" + def.Label + "」，缺这一环就做不到",
+				Cost: "1–5 次请求", Expect: successLooksLike(need),
+				Fail: "两次不成立 → 把这条标「不适用」，换下一个目标",
+			})
+			break
+		}
+	}
+	// ③ 能力齐了：做最小验证 + 留证
+	if fit.Status == "yes" {
+		out = append(out, goalMove{
+			Text: fit.SayIt, Why: "能力已经够了，先做最小验证并留证，再按你要的量做",
+			Cost: "1 次请求", Expect: "拿到 1 条可核对的数据/一次成功登录", Fail: "拿不到就说明能力是虚的，回退到上一个缺口",
+		})
+	}
+	// ④ 兜底：换路线（从已确认漏洞里挑一条最接近的）
+	if len(out) < 3 && len(fs) > 0 {
+		f := fs[0]
+		out = append(out, goalMove{
+			Text: "换一条线：从「" + f.title + "」往它的下一步推（去掉 payload 再发一遍做对照，确认差异）",
+			Why:  "这是当前最接近可用的一条已确认漏洞",
+			Cost: "1–2 次请求", Expect: "响应出现可对比差异", Fail: "没差异 → 标「试过未成」，换下一条",
+		})
+	}
+	if len(out) > 3 {
+		out = out[:3]
+	}
+	return out
+}
+
+func containsStr(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// successLooksLike 把"缺的能力"翻成"成功长什么样"（用户靠这个判断成没成）。
+func successLooksLike(need string) string {
+	switch need {
+	case "db":
+		return "注入点能回显数据库版本号，或连接串能连上"
+	case "data":
+		return "返回 1 条真实业务数据（订单号/用户名一类）"
+	case "admin":
+		return "后台首页能打开（有菜单/用户管理）"
+	case "filewrite":
+		return "上传的文件能通过 URL 访问到"
+	case "rce":
+		return "命令回显（id/whoami 有输出）"
+	}
+	return "对应能力出现可核对的证据"
+}
+
+// buildSayVariants 三个口味：继续 / 换路线 / 收工。全部由当前证据拼，不用固定模板。
+func buildSayVariants(def goalDef, fit goalFit, blockers []blocker) (string, string, string) {
+	goalWord := def.Label
+	cont := ""
+	switch fit.Status {
+	case "yes":
+		cont = "目标是「" + goalWord + "」，能力已经够了：" + fit.SayIt + "。先做最小验证并留证，别一上来就整表拉。"
+	case "one_step":
+		cont = "目标是「" + goalWord + "」，现在是差一步（缺：" + strings.Join(fit.Missing, "/") + "）。先去把它补上：" + fit.Steps[0]
+	default:
+		if fit.Applicable == "unlikely" {
+			cont = "目标是「" + goalWord + "」，但这站目前没看到相关迹象（" + fit.ApplicableWhy + "）。先花 5 分钟只读确认一遍再决定，别直接上量。"
+		} else {
+			cont = "目标是「" + goalWord + "」，现在什么都不具备。先按最便宜的一步试：" + fit.Steps[0]
+		}
+	}
+	pivot := "「" + goalWord + "」这条线先放一放，换两条更便宜的：① 先摸登录/上传面看有没有更直接的入口；② 把已确认的漏洞里最像能读数据的那条做一次对照验证。给我两条路各自的第一步。"
+	stop := "用现在已有的证据出报告并停：写清「进到哪一级、拿到了什么、还差什么」，别再试新的手法。"
+	if len(blockers) > 0 {
+		stop = "已经卡在「" + blockers[0].Class + "」上了，先出当前结论报告并停，别继续烧；要再试就明确换一个手法。"
+	}
+	return cont, pivot, stop
 }

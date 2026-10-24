@@ -343,6 +343,19 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                 {activeGoal.status === "yes" ? "现在就能做到" : activeGoal.status === "one_step" ? "差一步" : "现在还做不到"}
               </span>
               {activeGoal.status === "yes" && <CopyBtn text={activeGoal.say_it} label="就做这个" />}
+              {activeGoal.applicable === "unlikely" && (
+                <span
+                  className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300"
+                  title={activeGoal.applicable_why || ""}
+                >
+                  这站看不出有这类东西
+                </span>
+              )}
+              {activeGoal.applicable === "unknown" && (
+                <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-slate-300">
+                  还没探过，先侦察
+                </span>
+              )}
             </div>
             {activeGoal.status !== "yes" && activeGoal.missing.length > 0 && (
               <div className="mt-1 text-[11px]">
@@ -355,7 +368,35 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
             )}
             <div className="mt-0.5 text-[10px] text-muted-foreground">
               {activeGoal.why}
+              {activeGoal.applicable === "unlikely" && activeGoal.applicable_why
+                ? ` · ${activeGoal.applicable_why}`
+                : ""}
               {activeGoal.status === "yes" ? ` · 风险：${activeGoal.risk}` : ""}
+            </div>
+
+            {/* 往哪儿深究（Top3）：每条带 成本 / 成功长相 / 失败怎么办 */}
+            {(activeGoal.next_moves ?? []).length > 0 && (
+              <div className="mt-1 flex flex-col gap-0.5">
+                <span className="text-[10px] text-muted-foreground">往哪儿深究（按省时省钱的顺序）</span>
+                {(activeGoal.next_moves ?? []).map((mv, i) => (
+                  <div key={`${mv.text}-${i}`} className="flex flex-wrap items-baseline gap-1 text-[11px]">
+                    <b className="text-muted-foreground">{i + 1}.</b>
+                    <span>{mv.text}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      · 成本 {mv.cost} · 成功长相：{mv.expect} · 不成：{mv.fail}
+                    </span>
+                    <CopyBtn text={mv.text} label="照这句说" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 三个口味：不懂术语也能用（点了只填入不发送） */}
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              <span className="text-[10px] text-muted-foreground">可以对它说：</span>
+              {activeGoal.say_continue && <CopyBtn text={activeGoal.say_continue} label="继续" />}
+              {activeGoal.say_pivot && <CopyBtn text={activeGoal.say_pivot} label="换路线" />}
+              {activeGoal.say_stop && <CopyBtn text={activeGoal.say_stop} label="收工" />}
             </div>
           </section>
         )}

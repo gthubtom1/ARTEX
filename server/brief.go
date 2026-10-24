@@ -173,8 +173,8 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	s.closeActionsByEvidence(r.Context(), t, taskID)
 	out.Actions = s.briefActions(r.Context(), taskID, st)
 
-	out.GoalFits, out.GoalGuess = s.briefGoalFit(st, rows, t.Goal)
 	out.Blockers = s.briefBlockers(r.Context(), taskID)
+	out.GoalFits, out.GoalGuess = s.briefGoalFit(st, rows, fs, t.Goal, out.Blockers)
 	out.Inherited = s.briefInherited(r.Context(), taskID)
 
 	// 闸门2：多久没有新证据（只读判定，暂停动作由后台巡检做）。

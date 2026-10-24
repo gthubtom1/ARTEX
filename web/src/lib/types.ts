@@ -2181,10 +2181,26 @@ export interface TaskBrief {
   blockers?: { class: string; count: number; advice: string }[];
 }
 
+export interface GoalMove {
+  text: string;
+  why: string;
+  cost: string;
+  expect: string;
+  fail: string;
+}
+
 export interface GoalFit {
   key: string;
   label: string;
   status: "yes" | "one_step" | "no";
+  // 这个站像不像支持这个目标（与"有没有能力"分开判）：有迹象 likely / 没迹象 unlikely / 还没探 unknown
+  applicable?: "likely" | "unknown" | "unlikely";
+  applicable_why?: string;
+  next_moves?: GoalMove[];
+  // 三个口味：继续 / 换路线 / 收工（点了只填入，不发送）
+  say_continue?: string;
+  say_pivot?: string;
+  say_stop?: string;
   have: string[];
   missing: string[];
   level: string;
