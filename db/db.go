@@ -294,6 +294,10 @@ ON CONFLICT (name) DO NOTHING`,
 	if err := d.seedDefaultInterceptRules(); err != nil {
 		return fmt.Errorf("seed intercept rules: %w", err)
 	}
+	// 把历史版本写进库里的已知坏规则（只改仍为旧值的那些）换成修正版。
+	if err := d.fixBuiltinRulePatterns(); err != nil {
+		return fmt.Errorf("fix builtin intercept rules: %w", err)
+	}
 	if err := d.seedDefaultInterceptRulesV2(); err != nil {
 		return fmt.Errorf("seed intercept rules v2: %w", err)
 	}
@@ -407,7 +411,12 @@ func (d *DB) seedDefaultInterceptRules() error {
 			name:     "[内置] 删除系统关键目录",
 			target:   "tool_input",
 			typ:      "regex",
-			pattern:  `\brm\b[^"'\n]{0,60}["'\s](/|/etc|/bin|/usr|/boot|/var|/lib|/sys|/proc|/dev|/sbin|/root)`,
+			// 2026-10-24 修：原正则会跨过 `&&` 继续往右找 `/`，于是
+			//   `rm -f cj2.txt && curl -o /dev/null ...`
+			// 被判成“删除系统关键路径”——删的是自己工作目录里的临时 cookie，直接误拦任务。
+			// 新判据：窗口内**不许跨命令分隔符**（; & |），且只认系统根目录的下一段，
+			// 不认 /dev/null 这类设备节点。
+			pattern:  `(?i)\brm\b[^\n;&|]{0,80}["'\s]/(?:etc|bin|usr|boot|var|lib|sys|proc|sbin|root)\b`,
 			action:   "deny",
 			message:  "禁止删除系统关键路径",
 			priority: 100,
@@ -574,6 +583,36 @@ ON CONFLICT DO NOTHING`,
 // disable or delete them. The exfil rule ships DISABLED by default (its
 // curl/wget/nc pipe pattern mis-fires on legitimate CTF/pentest reverse-shell and
 // data-transfer pipes); enable it manually when exfil gating is actually wanted.
+// fixBuiltinRulePatterns 修掉历史版本写进库里的**已知坏**内置规则。
+//
+// 为什么需要：内置规则只在首次启动 seed 一次（另有 settings flag 防覆盖），
+// 所以只改代码不会更新已有安装 —— 线上那条误拦规则会一直生效。
+// 判据是“当前值仍等于旧值”才改：用户手工编辑过的不动（不覆盖人的判断）。
+func (d *DB) fixBuiltinRulePatterns() error {
+	type fix struct{ name, old, new string }
+	fixes := []fix{
+		{
+			name: "[内置] 删除系统关键目录",
+			old:  `\brm\b[^"'\n]{0,60}["'\s](/|/etc|/bin|/usr|/boot|/var|/lib|/sys|/proc|/dev|/sbin|/root)`,
+			new:  `(?i)\brm\b[^\n;&|]{0,80}["'\s]/(?:etc|bin|usr|boot|var|lib|sys|proc|sbin|root)\b`,
+		},
+		{
+			// 历史构建（10-23）种进库里的更宽变体：它的 `\s+/dev` 同样命中
+			// `rm -f x && curl -o /dev/null`，实测在 VM 上把合法命令误拦了。
+			name: "[内置] 删除系统关键目录",
+			old:  `\brm\b[^"'\n]{0,60}\s+/(?:etc|bin|sbin|usr|boot|lib|lib64|sys|proc|dev|var|root)(?:\b|/)`,
+			new:  `(?i)\brm\b[^\n;&|]{0,80}["'\s]/(?:etc|bin|usr|boot|var|lib|sys|proc|sbin|root)\b`,
+		},
+	}
+	for _, f := range fixes {
+		if _, err := d.Exec(`UPDATE intercept_rules SET pattern=$1 WHERE name=$2 AND pattern=$3`,
+			f.new, f.name, f.old); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (d *DB) seedDefaultInterceptRulesV2() error {
 	if v, _, _ := d.GetSetting("intercept_default_rules_v2"); v == "done" {
 		return nil
