@@ -29,7 +29,7 @@ import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
-import { api, impactapi, verdictapi } from "@/lib/api";
+import { api, chainapi, impactapi, verdictapi } from "@/lib/api";
 import type {
   AssetInterceptKind,
   AssetInterceptRule,
@@ -111,6 +111,8 @@ export function OverviewTab({ taskId }: { taskId: string }) {
   const [verdict, setVerdict] = React.useState<import("@/lib/types").TaskVerdict | null>(null);
   // 权限阶梯 + 下一步提案（越界动作要用户当场授权，见 internal/impact）
   const [impactView, setImpactView] = React.useState<import("@/lib/types").ImpactResponse | null>(null);
+  // 利用链：每条漏洞一条链（确认→授权→收益）
+  const [chains, setChains] = React.useState<import("@/lib/types").ChainView[]>([]);
 
   // 「值不值得打」与「现在到哪一步」：进页面拉一次，之后 20s 刷（都是纯规则计算，很便宜）。
   React.useEffect(() => {
@@ -123,6 +125,10 @@ export function OverviewTab({ taskId }: { taskId: string }) {
       impactapi
         .get(taskId)
         .then((v) => alive && setImpactView(v))
+        .catch(() => void 0);
+      chainapi
+        .get(taskId)
+        .then((v) => alive && setChains(v.chains ?? []))
         .catch(() => void 0);
     };
     load();
@@ -1077,6 +1083,58 @@ export function OverviewTab({ taskId }: { taskId: string }) {
                 仅显示前 20 条，点「全部重跑」处理剩余 {blocked.length - 20} 条。
               </p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 利用链：一条漏洞走到哪一步（确认→授权→收益） */}
+      {chains.length > 0 && (
+        <Card className="border-violet-500/40 bg-violet-500/5">
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-1.5 text-xs">
+              <ListChecksIcon className="size-3.5" />
+              利用链（串联漏洞才是渗透本质）
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-[11.5px]">
+            {chains.slice(0, 4).map((c) => (
+              <div key={c.key} className="rounded border bg-card px-2 py-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium">{c.title}</span>
+                  <span
+                    className={
+                      "rounded px-1.5 py-0.5 text-[10px] font-semibold " +
+                      (c.status === "done"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                        : c.status === "dead"
+                          ? "bg-slate-500/15 text-slate-600"
+                          : "bg-amber-500/15 text-amber-700 dark:text-amber-300")
+                    }
+                  >
+                    {c.status === "done" ? "已拿到收益" : c.status === "dead" ? "链路已放弃" : "进行中"}
+                  </span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {c.steps.map((st) => (
+                    <span
+                      key={st.Key}
+                      className={
+                        "rounded border px-1 py-0.5 text-[10px] " +
+                        (st.Status === "done"
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                          : st.Status === "failed"
+                            ? "border-slate-400/50 text-slate-500 line-through"
+                            : "border-amber-500/40 text-amber-700 dark:text-amber-300")
+                      }
+                      title={st.Title}
+                    >
+                      {st.Title.length > 22 ? st.Title.slice(0, 22) + "…" : st.Title}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-1 text-muted-foreground">下一步：{c.next}</div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

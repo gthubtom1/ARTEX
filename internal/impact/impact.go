@@ -43,6 +43,7 @@ func (l Level) String() string {
 type Stats struct {
 	Findings    int // 已确认漏洞
 	Creds       int // 凭据库条数
+	AppControl  int // 登录后台/越权成功的证据条数
 	Shells      int // 拿到了命令执行证据（webshell/反弹shell）
 	DataSamples int // 读到的业务数据样本组数
 	OwnedHosts  int // 持有台账里的主机数（含 root/admin）
@@ -58,6 +59,8 @@ func Compute(s Stats) (Level, string) {
 		return E4, "已经拿到业务数据样本"
 	case s.Shells > 0:
 		return E3, "已经拿到命令执行证据"
+	case s.AppControl > 0:
+		return E2, "已经登录进后台 / 越权访问成功"
 	case s.Creds > 0:
 		return E1, "凭据库里已有账号/哈希，但还没验证能登录"
 	case s.Findings > 0:

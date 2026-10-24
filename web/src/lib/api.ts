@@ -1897,6 +1897,14 @@ export interface LootResponse {
   rows: LootRow[];
 }
 
+export const chainapi = {
+  // 利用链：一条漏洞从确认 → 授权 → 收益的完整路径（派生 + 落库，可跨会话累计）
+  get: (taskId: string) =>
+    get<{ chains: import("@/lib/types").ChainView[]; count: number }>(
+      `/tasks/${encodeURIComponent(taskId)}/chains`,
+    ),
+};
+
 export const impactapi = {
   // 现在到哪一级 + 下一步能做什么（含风险）+ 已授权类别
   get: (taskId: string) =>

@@ -196,7 +196,7 @@ func (s *Server) taskGrants(ctx context.Context, taskID int64) []grantView {
 }
 
 // impactStats 从既有表算等级需要的计数，**不新增采集**（避免两套真相）。
-func (s *Server) impactStats(ctx context.Context, t *Task, taskID int64) impact.Stats {
+func (s *Server) impactStats(ctx context.Context, _ *Task, taskID int64) impact.Stats {
 	var st impact.Stats
 	if s.m == nil || s.m.pg == nil {
 		return st
@@ -233,6 +233,13 @@ func (s *Server) impactStats(ctx context.Context, t *Task, taskID int64) impact.
 			}
 		}
 	}
+	// E2：登录后台成功属于"应用控制"，此前没有信号源，任务会一直卡在 E0/E1。
+	// 判据：facts 里同时出现"登录/后台"和"成功/已进入/能访问"，取事实条数。
+	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM exploration_nodes n
+		JOIN tasks t ON t.exploration_id=n.exploration_id
+		WHERE t.id=$1 AND n.kind='fact'
+		  AND (coalesce(n.payload->>'summary','') ~ '(登录|后台).*(成功|已进入|通过|可访问|进去了)'
+		       OR coalesce(n.payload->>'text','') ~ '(登录|后台).*(成功|已进入|通过|可访问|进去了)')`, taskID).Scan(&st.AppControl)
 	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM creds_vault WHERE task_id=$1`, taskID).Scan(&st.Creds)
 	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM assets_owned WHERE first_task_id=$1`, taskID).Scan(&st.OwnedHosts)
 	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM assets_owned WHERE first_task_id=$1

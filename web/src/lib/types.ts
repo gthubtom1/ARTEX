@@ -2091,3 +2091,21 @@ export interface ImpactResponse {
   steps: ImpactStep[];
   grants: ImpactGrant[];
 }
+
+// ── 利用链：一条漏洞从确认→授权→收益 ───────────────────────
+export interface ChainStep {
+  Key: string;
+  Seq: number;
+  Kind: "entry" | "authorize" | "gain";
+  Title: string;
+  Status: "done" | "pending" | "failed";
+  RefID: number;
+}
+
+export interface ChainView {
+  key: string;
+  title: string;
+  status: "open" | "done" | "dead";
+  steps: ChainStep[];
+  next: string;
+}

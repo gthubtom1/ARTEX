@@ -210,6 +210,14 @@ func RuleBased(s *Snapshot) Verdict {
 	if len(s.Findings) > 0 && len(s.Owned) == 0 {
 		fmt.Fprintf(&b, "\n注意：已经有 %d 个漏洞，但还没有变成任何访问权（无凭据、无立足点）。下一步优先把其中一个变成登录/命令执行/数据样本，而不是继续找新洞。", len(s.Findings))
 	}
+	// g2：拿到命令执行但没登记 → 权限等级不会涨（用户会看到“明明拿到 shell 却还是 E0”）。
+	if hasShellEvidence(s.Findings) && len(s.Owned) == 0 {
+		fmt.Fprintln(&b, "", "已经拿到命令执行的证据，但还没登记立足点：立刻用 owned_register 登记这台机器（含权限级别），否则「权限阶梯」不会上升，后续提权/横移也没有起点。")
+	}
+	// g3：后渗透标准清单（拿到命令执行后照着走，避免漏掉关键一步）。
+	if hasShellEvidence(s.Findings) {
+		fmt.Fprintln(&b, "", "拿到命令执行后的标准动作清单：① 读配置找数据库连接 → ② 只读数据样本证明可读 → ③ 检查提权路径（sudo -l / SUID / 内核版本）→ ④ 有内网才考虑横移 → ⑤ 全程把证据写回事实。")
+	}
 	if b.Len() < 40 {
 		b.WriteString("暂时没有明显走偏的迹象。")
 	}
@@ -292,4 +300,18 @@ func truncRunes(s string, n int) string {
 		return s
 	}
 	return string(r[:n]) + "…"
+}
+
+// hasShellEvidence 判断快照里是否已有"命令执行/代码执行"类漏洞证据。
+// 只看标题与证明文本里的关键词（规则判定，可复算），不猜。
+func hasShellEvidence(fs []FindingBrief) bool {
+	for _, f := range fs {
+		t := strings.ToLower(f.Title + " " + f.Proof)
+		for _, kw := range []string{"rce", "命令执行", "代码执行", "webshell", "反序列化", "远程代码"} {
+			if strings.Contains(t, kw) {
+				return true
+			}
+		}
+	}
+	return false
 }
