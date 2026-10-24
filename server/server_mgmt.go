@@ -183,6 +183,17 @@ func (s *Server) pgDeleteTask(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err.Error())
 		return
 	}
+	// 阶段门把阶段存在 settings（key=task.stage.<id>）。任务删掉后必须一并清掉，
+	// 否则设置表里会积累永远没有消费者、也永远不会被读到的孤儿键。
+	if s.settings != nil {
+		_, _ = s.m.PG().Exec(`DELETE FROM settings WHERE key=$1`, "task.stage."+id)
+	}
+	if n, err := strconv.ParseInt(id, 10, 64); err == nil {
+		stageCacheMu.Lock()
+		delete(stageCache, n)
+		stageCacheMu.Unlock()
+	}
+
 	// Manager has removed the task from the registry, so no new API operation can
 	// resolve it. Now stop and join every task-owned Engine goroutine and clear its
 	// lifecycle maps before releasing the delete barrier.
