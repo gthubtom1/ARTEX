@@ -329,6 +329,16 @@ F4 成本可见 / F5 零基础可走通），并给出**当前实测值**：
 导致"AI 说能换到"听起来像"我现在就能干"。修法是给每条洞加**确定性**三段式状态
 （`got` 已成立 / `one_step` 差一步 / `no_gain` 换不到），由证据关判定，AI 只写措辞。
 
+**① 三段式 standing 已上线（2026-10-24，0.11.15）**：`server/brief.go findingStanding()` +
+`findingRowHints` 映射表（docs/23 §二）+ `/brief` 的 `can[]` 新增 `standing/gap/rows`。
+前端按 got→one_step→no_gain 排序并加彩色标签，标题给三组计数
+（如「3 个已成立 · 0 个差一步 · 3 个换不到 · 0/6 AI 版」）。
+真机（Kali 0.11.15）：task 14 返回 `can_standing:{"got":1}`、`can_detail:[{id:298,standing:"got"}]`。
+测试 `TestFindingStanding`（SQL 已读库=got / 无战果=one_step 且指出缺口 / 目录列举=no_gain / na 不算缺口）PASS。
+
+施工蓝本：**`docs/25-成品方案-页面与组件.md`**（页面总图 / Tab 11→4+更多 / 会话页 / 战况页一屏一问 /
+战果面板 / 审查官卡片 / 状态机三闸门 / 按钮总账 / 7 步顺序 / 不做清单）。
+
 重排后的顺序：① 三段式 standing → ② 战况卡按三段式重排（**界面收敛见 `docs/24-界面收敛-一屏一问.md`**）
 → ③ AI 只写文案（一次点击刷新三处）→ ④ 模板重写（3 开局 + 三段式文本 + 放弃判据）
 → ⑤ 投入产出闸门 → ⑥ 审查官 P3 → ⑦ 通知。

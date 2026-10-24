@@ -137,8 +137,17 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
   }, [taskId]);
 
   const has: BriefItem[] = brief?.has ?? [];
-  const can = brief?.can ?? [];
+  const can = React.useMemo(() => {
+    const rank: Record<string, number> = { got: 0, one_step: 1, no_gain: 2 };
+    return [...(brief?.can ?? [])].sort(
+      (a, b) => (rank[a.standing ?? "one_step"] ?? 1) - (rank[b.standing ?? "one_step"] ?? 1),
+    );
+  }, [brief?.can]);
   const aiCount = can.filter((c) => c.source === "ai").length;
+  const gotCount = can.filter((c) => c.standing === "got").length;
+  const stepCount = can.filter((c) => c.standing === "one_step").length;
+  const noGainCount = can.filter((c) => c.standing === "no_gain").length;
+  const firstGap = can.find((c) => c.standing === "one_step")?.gap ?? "";
 
   const explainAI = React.useCallback(async () => {
     setAiBusy(true);
@@ -248,7 +257,9 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
             <CrosshairIcon className="size-3" /> 每个漏洞能换到什么
             {can.length > 0 && (
               <span className="font-normal opacity-80">
-                （{aiCount}/{can.length} 条 AI 版）
+                （{gotCount} 个已成立 · {stepCount} 个差一步
+                {stepCount > 0 && firstGap ? `（缺：${firstGap}）` : ""}
+                {noGainCount > 0 ? ` · ${noGainCount} 个换不到` : ""} · {aiCount}/{can.length} AI 版）
               </span>
             )}
             {can.length > 0 && (
@@ -271,6 +282,25 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                   key={`${c.finding_id}-${c.title}`}
                   className="flex items-start gap-1.5 rounded border bg-card px-2 py-1"
                 >
+                  <span
+                    className={cn(
+                      "mt-[1px] shrink-0 rounded px-1 text-[9.5px] font-bold",
+                      c.standing === "got"
+                        ? "bg-emerald-600 text-white"
+                        : c.standing === "no_gain"
+                          ? "bg-slate-500/25 text-slate-600 dark:text-slate-300"
+                          : "bg-amber-500/20 text-amber-700 dark:text-amber-300",
+                    )}
+                    title={
+                      c.standing === "got"
+                        ? "已成立：对应能力行已拿到，有证据"
+                        : c.standing === "no_gain"
+                          ? "换不到东西：这条洞没有通向任何能力行（不是误报，只是没到能用的程度）"
+                          : `差一步：还缺「${c.gap || "下一个能力"}」`
+                    }
+                  >
+                    {c.standing === "got" ? "已成立" : c.standing === "no_gain" ? "换不到" : "差一步"}
+                  </span>
                   <b className="shrink-0 font-medium">{c.title}</b>
                   <span className="flex min-w-0 items-start gap-1 text-muted-foreground">
                     {c.source === "ai" && (
@@ -315,9 +345,7 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                     <span
                       className={cn(
                         "rounded px-1 text-[9.5px] font-semibold",
-                        a.doable
-                          ? "bg-emerald-600 text-white"
-                          : "bg-slate-500/20 text-slate-600 dark:text-slate-300",
+                        a.doable ? "bg-emerald-600 text-white" : "bg-slate-500/20 text-slate-600 dark:text-slate-300",
                       )}
                     >
                       {a.doable ? "现在能做到" : "还做不到"}

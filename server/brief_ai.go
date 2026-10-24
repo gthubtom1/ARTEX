@@ -150,7 +150,7 @@ func (s *Server) taskBriefAI(w http.ResponseWriter, r *http.Request) {
 
 	if len(want) == 0 {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"can": s.briefCan(r.Context(), t, taskID), "asked": 0, "filled": 0, "model": "cache",
+			"can": s.briefCan(r.Context(), t, taskID, s.lootRowsForTask(r.Context(), t, fs)), "asked": 0, "filled": 0, "model": "cache",
 		})
 		return
 	}
@@ -177,7 +177,7 @@ func (s *Server) taskBriefAI(w http.ResponseWriter, r *http.Request) {
 	if lerr != nil {
 		log.Printf("[brief] ai ability failed (task=%d): %v", taskID, lerr)
 		writeJSON(w, http.StatusOK, map[string]any{
-			"can": s.briefCan(r.Context(), t, taskID), "asked": len(want), "filled": 0, "model": "rule",
+			"can": s.briefCan(r.Context(), t, taskID, s.lootRowsForTask(r.Context(), t, fs)), "asked": len(want), "filled": 0, "model": "rule",
 		})
 		return
 	}
@@ -197,7 +197,7 @@ func (s *Server) taskBriefAI(w http.ResponseWriter, r *http.Request) {
 		filled++
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"can": s.briefCan(r.Context(), t, taskID), "asked": len(want), "filled": filled, "model": "adviser",
+		"can": s.briefCan(r.Context(), t, taskID, s.lootRowsForTask(r.Context(), t, fs)), "asked": len(want), "filled": filled, "model": "adviser",
 	})
 }
 

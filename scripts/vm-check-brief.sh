@@ -30,6 +30,8 @@ api "$BASE/api/tasks/$TASK/brief" | jq -c '{
   level_label, basis,
   has:(.has|length), has_text:[.has[].text],
   can:(.can|length), can_src:[.can[].source]|group_by(.)|map({(.[0]):length})|add,
+  can_standing:[.can[].standing]|group_by(.)|map({(.[0]):length})|add,
+  can_detail:[.can[]|{id:.finding_id,standing,gap}],
   actions:(.actions|length), action_states:[.actions[].state]|unique,
   new_since:(if has("new_since") then .new_since else "字段不存在(旧二进制)" end),
   verdict_label, say_this

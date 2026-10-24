@@ -2127,6 +2127,10 @@ export interface BriefAbility {
   source: "rule" | "ai";
   // true = 命中缓存，没花 token
   cached?: boolean;
+  // 三段式（docs/23）：got 已成立 / one_step 差一步 / no_gain 换不到东西
+  standing?: "got" | "one_step" | "no_gain";
+  gap?: string;
+  rows?: string[];
 }
 
 export interface BriefAction {

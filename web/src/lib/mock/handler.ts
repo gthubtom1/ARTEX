@@ -1252,13 +1252,34 @@ function mockWarCard(
       const id = mockFindingNum(f.id);
       const name = fname(f);
       const ai = mockAIAbilities[task.id]?.[id];
+      // 三段式（与 server/brief.go findingStanding 同口径：映射表 → 战果行状态）
+      const t2 = `${f.vulnclass} ${name}`.toLowerCase();
+      const cands: string[] = [];
+      if (/sql|注入/.test(t2)) cands.push("db", "data");
+      if (/idor|越权|未授权/.test(t2)) cands.push("data");
+      if (/credential|jwt|默认口令|登录绕过|认证/.test(t2)) cands.push("admin");
+      if (/xss/.test(t2)) cands.push("admin");
+      if (/上传|写文件/.test(t2)) cands.push("filewrite");
+      if (/rce|命令执行|代码执行|反序列化/.test(t2)) cands.push("rce");
+      const uniq = [...new Set(cands)];
+      const got = uniq.find((k) => doneSet.has(k));
+      const gapLabel: Record<string, string> = {
+        admin: "管理员 / 后台登录",
+        db: "数据库查询",
+        data: "数据拉取（用户/订单/卡密）",
+        filewrite: "写文件 / 上传",
+        rce: "服务器命令执行",
+      };
       return {
         finding_id: id,
         title: name,
         grants: ai ?? mockAbilityText(name),
-        doable: true,
+        doable: Boolean(got),
         source: ai ? "ai" : "rule",
         cached: Boolean(ai),
+        standing: got ? "got" : uniq.length > 0 ? "one_step" : "no_gain",
+        gap: !got && uniq.length > 0 ? (gapLabel[uniq[0]] ?? "") : "",
+        rows: uniq,
       };
     }),
     // P2 演示：data_export 已被"对话即授权"登记、account_read 已完成并留了证据
@@ -1898,19 +1919,8 @@ function route(m: string, path: string, seg: string[], q: URLSearchParams, b: Re
       store[id] = mockAIGrants(f.name || f.vulnclass);
       filled++;
     }
-    const can = own.slice(0, 6).map((f) => {
-      const id = mockFindingNum(f.id);
-      const name = f.name || f.vulnclass;
-      const ai = store[id];
-      return {
-        finding_id: id,
-        title: name,
-        grants: ai ?? mockAbilityText(name),
-        doable: true,
-        source: ai ? "ai" : "rule",
-        cached: Boolean(ai),
-      };
-    });
+    // 生成完直接复用 brief 的 can（同一套三段式 + 同一份缓存），避免前端收到第二种形状
+    const can = mockWarCard(task, own).brief.can;
     return { can, asked: filled === 0 ? 0 : filled, filled, model: "demo" };
   }
   // 权限阶梯 / 越界动作（P4：演示"不做按钮、只显示未授权/已授权"）

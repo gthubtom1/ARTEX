@@ -24,6 +24,15 @@ type briefAbility struct {
 	Doable    bool   `json:"doable"`
 	Source    string `json:"source"` // rule|ai
 	Cached    bool   `json:"cached"` // true = 命中缓存（没花 token）
+
+	// P0-d 三段式（docs/23）：漏洞存在 ≠ 能换到现实后果。
+	// Standing 由证据关判定（与 loot 行同源映射），AI 不参与：
+	//   got      已经成立（对应战果行 done，有证据）
+	//   one_step 差一步（洞确认了，但对应战果行还没拿到）
+	//   no_gain  换不到东西（映射不到任何战果行）
+	Standing string   `json:"standing"`
+	Gap      string   `json:"gap,omitempty"`  // one_step 时：缺哪个能力（战果行中文名）
+	Rows     []string `json:"rows,omitempty"` // 命中的战果行 key（可核对）
 }
 
 type briefAction struct {
@@ -66,7 +75,7 @@ func (s *Server) registerBriefRoutes(mux *http.ServeMux) {
 // briefCan 组装「每个漏洞能换到什么」。
 // 优先用 AI 缓存（source=ai / cached=true），否则用规则模板 abilityText（source=rule）。
 // 缓存命中要求 evidence_hash 与当前证据一致：证据改了就不再拿旧解释充数。
-func (s *Server) briefCan(ctx context.Context, t *Task, taskID int64) []briefAbility {
+func (s *Server) briefCan(ctx context.Context, t *Task, taskID int64, rows []lootRow) []briefAbility {
 	out := []briefAbility{}
 	cache := s.briefAbilityCache(ctx, taskID)
 	byID := map[int64]lootFinding{}
@@ -78,6 +87,11 @@ func (s *Server) briefCan(ctx context.Context, t *Task, taskID int64) []briefAbi
 	for _, f := range s.chainFindings(ctx, taskID) {
 		item := briefAbility{FindingID: f.ID, Title: f.Title, Grants: abilityText(f.Title), Doable: true, Source: "rule"}
 		if lf, ok := byID[f.ID]; ok {
+			// 三段式：先算"这个洞到底换到没换到"，再谈文案。
+			st := findingStanding(lf, rows)
+			item.Standing = st.Standing
+			item.Gap = st.Gap
+			item.Rows = st.Rows
 			if c, hit := cache[f.ID]; hit && c.Hash == briefAbilityHash(lf) && strings.TrimSpace(c.Text) != "" {
 				item.Grants = c.Text
 				item.Source = "ai"
@@ -123,13 +137,15 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 		out.Has = append(out.Has, briefItem{Kind: "cred", Text: "凭据（账号/哈希，未验证登录）"})
 	}
 
-	// 每个漏洞能换到什么（先 AI 缓存；没有就用规则模板，见 brief_ai.go）
-	out.Can = s.briefCan(r.Context(), t, taskID)
+	// 战果行算一次、到处用（未读 / 三段式 / 动作 doable 都读同一份，避免两套口径）。
+	fs := s.lootFindings(t)
+	rows := s.lootRowsForTask(r.Context(), t, fs)
+
+	// 每个漏洞能换到什么（先 AI 缓存；没有就用规则模板，见 brief_ai.go）+ 三段式判定
+	out.Can = s.briefCan(r.Context(), t, taskID, rows)
 
 	// 未读战果（胶囊红点）：done 行的证据 id 越过 loot_seen 游标 => 算新。
 	// 读不到游标/没库时 lootSeenFindingID 返回 0，此时全部算新（首屏就该提示）。
-	fs := s.lootFindings(t)
-	rows := s.lootRowsForTask(r.Context(), t, fs)
 	out.NewSince = countUnreadLoot(rows, s.lootSeenFindingID(r.Context(), taskID))
 
 	// 业务动作（P2）：列表来自 actionDefs（唯一事实源），state 恒为 idle（永不自动执行），
@@ -206,4 +222,94 @@ func briefFold(s string, subs ...string) bool {
 		}
 	}
 	return false
+}
+
+// standingInfo 是"这个洞换到没换到东西"的判定结果（纯规则）。
+type standingInfo struct {
+	Standing string
+	Gap      string
+	Rows     []string
+}
+
+// findingRowHints 是 docs/23 §二 那张映射表：漏洞类型 → 它**可能**换来哪几行能力。
+// 与 loot.go 的关键词表分开：loot 表判断"这行拿到没有"，这张表判断"这个洞通向哪"。
+// 分开的理由：XSS 不该把"后台登录"标成已拿到，但它确实通向后台（差一步）。
+var findingRowHints = []struct {
+	kws  []string
+	rows []string
+}{
+	{[]string{"sql", "注入"}, []string{"db", "data"}},
+	{[]string{"idor", "越权", "未授权"}, []string{"data"}},
+	{[]string{"登录绕过", "jwt", "默认口令", "弱口令", "认证", "credential"}, []string{"admin"}},
+	{[]string{"xss"}, []string{"admin"}},
+	{[]string{"上传", "写文件"}, []string{"filewrite"}},
+	{[]string{"rce", "命令执行", "代码执行", "反序列化"}, []string{"rce"}},
+	{[]string{"文件读取", "路径穿越", "目录穿越", "lfi"}, []string{"fileread"}},
+	{[]string{"凭据", "哈希", "hash"}, []string{"cred"}},
+}
+
+// findingStanding 把一条 finding 映射到战果行，判三段式（docs/23 §二）：
+//
+//	got      任一映射行 status=done（有证据）→ 已成立
+//	one_step 有映射行但都还没拿到 → 差一步（Gap 写缺哪个）
+//	no_gain  一条映射行都没有 → 换不到东西（"洞多但换不到"就是这种）
+func findingStanding(f lootFinding, rows []lootRow) standingInfo {
+	byKey := map[string]lootRow{}
+	label := map[string]string{}
+	for _, def := range lootRows {
+		label[def.key] = def.label
+	}
+	for _, r := range rows {
+		byKey[r.Key] = r
+	}
+
+	// 1) 先用 docs/23 的映射表决定"这个洞通向哪几行"。
+	cands := []string{}
+	seen := map[string]bool{}
+	for _, h := range findingRowHints {
+		if !containsAnyFold(f.text, h.kws...) {
+			continue
+		}
+		for _, k := range h.rows {
+			if !seen[k] {
+				seen[k] = true
+				cands = append(cands, k)
+			}
+		}
+	}
+	// 2) 映射表没命中时，退回 loot 关键词表（例如"内网横向"这种）。
+	if len(cands) == 0 {
+		for _, def := range lootRows {
+			if containsAnyFold(f.text, def.kws...) && !seen[def.key] {
+				seen[def.key] = true
+				cands = append(cands, def.key)
+			}
+		}
+	}
+
+	info := standingInfo{Standing: "no_gain", Rows: cands}
+	if len(cands) == 0 {
+		return info
+	}
+	gap := ""
+	for _, k := range cands {
+		row, ok := byKey[k]
+		if !ok {
+			row = lootRow{Key: k, Label: label[k], Status: "blank"}
+		}
+		if row.Status == "done" {
+			info.Standing = "got"
+			info.Gap = ""
+			return info
+		}
+		if row.Status != "na" && gap == "" {
+			gap = row.Label
+			if gap == "" {
+				gap = label[k]
+			}
+		}
+	}
+	info.Standing = "one_step"
+	info.Gap = gap
+	return info
 }
