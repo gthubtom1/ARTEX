@@ -1860,6 +1860,61 @@ function route(m: string, path: string, seg: string[], q: URLSearchParams, b: Re
     });
     return { can, asked: filled === 0 ? 0 : filled, filled, model: "demo" };
   }
+  // P1：动态快捷短语（demo 按 findings/战果行现算，口径同 server/phrases.go）
+  if (seg[0] === "tasks" && seg[2] === "phrases" && seg.length === 3 && m === "GET") {
+    const task = mockTasks.find((item) => item.id === seg[1]);
+    if (!task) throw new Error("任务不存在");
+    const own = mockFindings.filter((item) => item.task_id === task.id);
+    const war = mockWarCard(task, own);
+    const lootRows = (war.loot.rows ?? []) as { key: string; status: string }[];
+    const done = new Set(lootRows.filter((r) => r.status === "done").map((r) => r.key));
+    const blob = own.map((f) => `${f.vulnclass} ${f.name ?? ""}`).join(" ").toLowerCase();
+    const has = (w: string) => blob.includes(w);
+    const phrases: { key: string; text: string; why: string }[] = [];
+    if (done.has("rce")) {
+      phrases.push(
+        {
+          key: "rce_config",
+          text: "在服务器上读一下数据库连接串、.env 和后台配置，看还有哪些库和账号能用",
+          why: "已经有命令执行：配置里的凭据能直接把权限扩到数据库和内网",
+        },
+        { key: "rce_proof", text: "把现在的命令执行证据补完整：命令、回显、机器名一起留档", why: "命令执行要能复现才算数" },
+      );
+    }
+    if (done.has("admin")) {
+      phrases.push({
+        key: "admin_data",
+        text: "进后台把用户列表和订单各截一屏，够证明能读到真实数据就行",
+        why: "已进后台：先取证，别急着改数据",
+      });
+    }
+    if (done.has("db") || done.has("data")) {
+      phrases.push({
+        key: "db_sample",
+        text: "把订单表按时间倒序取前 20 条，字段名和条数一起给我",
+        why: "已能读库：样本量 + 字段名一起给，才算读到业务数据",
+      });
+    }
+    if (done.has("cred") || has("credential") || blob.includes("口令")) {
+      phrases.push({ key: "cred_verify", text: "用这条凭据登录一次，把登录成功的页面和账号权限范围记下来", why: "凭据没验证过就不算战果" });
+    }
+    if (done.has("session_hijack") || has("xss")) {
+      phrases.push({ key: "xss_hook", text: "找管理员一定会打开的页面，把会话接管的路径走完一次", why: "XSS 只有拿到会话才算收益" });
+    }
+    if (phrases.length === 0 && own.length > 0) {
+      phrases.push({ key: "push_gain", text: "别停在报错回显：这个洞能不能读回真实数据？给一个能证明的最小动作", why: "已确认漏洞但还没有任何实际收益" });
+    }
+    const generics = [
+      { key: "summary3", text: "把现在的结论写成三句话：拿到了什么、还差什么、下一步最值得做什么", why: "随时可问，用来对齐进度" },
+      { key: "next_step", text: "下一步你建议我先做哪一件事？只说一件，并给判据", why: "避免一次派太多活" },
+      { key: "evidence", text: "把这条结论的原始请求和响应贴出来，我要能自己复现", why: "结论必须可复现" },
+    ];
+    for (const g of generics) {
+      if (phrases.length >= 5) break;
+      phrases.push(g);
+    }
+    return { phrases: phrases.slice(0, 5), source: "rule", has: [...done] };
+  }
   // 战果已读游标：打开面板就推到当前（demo 内存态，刷新页面后红点自然消失）
   if (seg[0] === "tasks" && seg[3] === "seen" && seg[2] === "loot" && m === "POST") {
     const own = mockFindings.filter((item) => item.task_id === seg[1]);

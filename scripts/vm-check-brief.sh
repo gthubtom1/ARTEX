@@ -49,6 +49,10 @@ echo "== [P0-c] 再取一次 /brief（应命中缓存：source=ai + cached=true�
 api "$BASE/api/tasks/$TASK/brief" | jq -c '[.can[]|{id:.finding_id,source,cached}]'
 
 echo
+echo "== [P1] GET /api/tasks/$TASK/phrases（期望 3–5 条，纯规则）"
+api "$BASE/api/tasks/$TASK/phrases" | jq -c '{n:(.phrases|length), source, has, keys:[.phrases[].key], first:.phrases[0].text}'
+
+echo
 echo "== 数据库侧"
 echo kali | sudo -S -u artex psql -d artex -tAc "select version from schema_migrations order by version desc limit 2" | sed 's/^/迁移: /'
 for t in loot_seen finding_abilities; do

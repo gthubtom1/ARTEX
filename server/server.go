@@ -752,6 +752,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerImpactRoutes(mux)     // 权限阶梯 + 下一步提案 + 即时授权（E0–E5 / task_grants）
 	s.registerChainRoutes(mux)      // 利用链：一条漏洞从确认→授权→收益（chains / chain_steps）
 	s.registerBriefRoutes(mux)      // 战况卡（P0）：我在哪/我有什么/能换到什么/能做什么
+	s.registerPhraseRoutes(mux)     // 动态快捷短语（P1）：按当前战果生成 3–5 条（只填入不发送）
 	s.registerReviewRoutes(mux)     // 复盘官：结构化快照 + 评审结论 + 采纳回执（CARD-C01）
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)

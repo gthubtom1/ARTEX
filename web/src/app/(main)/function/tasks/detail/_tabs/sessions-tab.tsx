@@ -82,6 +82,7 @@ import type {
 import { cn } from "@/lib/utils";
 
 import { LootCapsule, LootPanel } from "./loot-panel";
+import { TaskPhrases } from "./task-phrases";
 import { ReviewCapsule, ReviewPanel, useReviewEnabled } from "./review-panel";
 
 // resolutionLabel names the LLM a session runs on. The badge shows this alone and
@@ -2144,6 +2145,8 @@ export function SessionsTab({
                   className="hidden"
                   onChange={(e) => void pickFiles(e.target.files)}
                 />
+                {/* 动态快捷短语（P1）：按当前战果生成，点一下只填入不发送 */}
+                <TaskPhrases taskId={taskId} onPick={pickPhraseIntoMain} disabled={sending || mainBusy} />
                 <InputGroup ref={mainComposerRef} className="min-h-9 has-disabled:opacity-100">
                   <MentionTextarea
                     inputGroup

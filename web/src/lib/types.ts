@@ -2152,3 +2152,17 @@ export interface TaskBrief {
   // 上次看战果之后新拿到的行数（胶囊红点）
   new_since: number;
 }
+
+// ── 动态快捷短语（P1）：GET /api/tasks/{id}/phrases ──────────
+// 纯规则生成，点一下只填进输入框（不自动发送）。
+export interface TaskPhrase {
+  key: string;
+  text: string;
+  why: string;
+}
+
+export interface TaskPhrasesResponse {
+  phrases: TaskPhrase[];
+  source: "rule";
+  has: string[];
+}

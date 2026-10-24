@@ -1943,6 +1943,12 @@ export const briefapi = {
     }>(`/tasks/${encodeURIComponent(taskId)}/brief/ai`, opts ?? {}),
 };
 
+// 动态快捷短语（P1）：按当前战果生成 3–5 条，点一下只填入（不发送）。
+export const phrasesapi = {
+  get: (taskId: string) =>
+    get<import("@/lib/types").TaskPhrasesResponse>(`/tasks/${encodeURIComponent(taskId)}/phrases`),
+};
+
 export const lootapi = {
   get: (taskId: string) => get<LootResponse>(`/tasks/${encodeURIComponent(taskId)}/loot`),
   // L1：单行「用 AI 说清楚」（按证据 hash 缓存）
