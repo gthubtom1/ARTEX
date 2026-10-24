@@ -118,20 +118,6 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
     };
   }, [taskId]);
 
-  // 用户当场拍板：允许/拒绝某类越界动作（写库 → 立即回读）
-  const decide = React.useCallback(
-    async (cls: string, granted: boolean) => {
-      try {
-        await impactapi.grant(taskId, cls, granted);
-        setImpact(await impactapi.get(taskId));
-        toast.success(granted ? "已授权，它会照这个方向继续" : "已拒绝，它不会动这一步");
-      } catch (e) {
-        toast.error(String(e));
-      }
-    },
-    [taskId],
-  );
-
   const refresh = React.useCallback(async () => {
     setBusy(true);
     try {
@@ -412,11 +398,12 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
           </section>
         )}
 
-        {/* 越界动作：允许/拒绝收成一行（P4 的收敛方向，这里先做到"一行一件事"） */}
+        {/* 越界动作（P4）：不再放"允许/拒绝"按钮 —— 授权只剩一条路：在对话里说。
+            这里只显示"它建议往哪走 + 你现在允许到哪一步"，按钮消失，说明保留一行。 */}
         {steps.length > 0 && (
           <section>
             <h5 className="mb-1 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-muted-foreground">
-              <ShieldAlertIcon className="size-3" /> 越界动作（要你当场点头，我才做）
+              <ShieldAlertIcon className="size-3" /> 越界动作（默认不做；要做就在对话里说「帮我…」）
             </h5>
             <div className="flex flex-col gap-1">
               {steps.map((st) => {
@@ -425,39 +412,30 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                   <div
                     key={st.class}
                     className="flex flex-wrap items-center gap-1 rounded border bg-card px-2 py-1"
-                    title={`为什么能做：${st.why}\n我会做什么：${st.plan}\n风险：${st.risk}`}
+                    title={`为什么能做：${st.why}
+我会做什么：${st.plan}
+风险：${st.risk}`}
                   >
                     <span className="font-medium">{st.title}</span>
                     <span className="text-muted-foreground">→ 做成升到 E{st.next}</span>
                     {g?.granted ? (
                       <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-emerald-700 dark:text-emerald-300">
-                        已允许（{g.decided_at}）
+                        已在对话里授权（{g.decided_at}）
                       </span>
                     ) : g ? (
                       <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-slate-600">
-                        已拒绝（{g.decided_at}）
+                        已明确拒绝（{g.decided_at}）
                       </span>
-                    ) : null}
-                    <span className="ml-auto flex items-center gap-1">
-                      <button
-                        type="button"
-                        className="rounded border border-emerald-600/50 bg-emerald-600 px-1.5 py-0.5 text-[10.5px] font-medium text-white hover:bg-emerald-700"
-                        onClick={() => void decide(st.class, true)}
-                      >
-                        允许
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded border px-1.5 py-0.5 text-[10.5px] hover:bg-accent"
-                        onClick={() => void decide(st.class, false)}
-                      >
-                        拒绝
-                      </button>
-                    </span>
+                    ) : (
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10.5px] text-muted-foreground">未授权</span>
+                    )}
                   </div>
                 );
               })}
             </div>
+            <p className="mt-1 text-[10.5px] text-muted-foreground">
+              这里不放"允许/拒绝"按钮：说一句就是授权（「帮我挂个 webshell」），否定句（「不要…」）自动不算。
+            </p>
           </section>
         )}
 

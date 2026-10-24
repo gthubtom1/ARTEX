@@ -219,6 +219,10 @@ function TaskDetailInner() {
   React.useEffect(() => {
     if (TABS.some((item) => item.value === requestedTab)) setTab(requestedTab);
   }, [requestedTab]);
+  // P4：地址里没有 ?id= 不是"任务已被删除"，直接回任务列表（那是个误报）。
+  React.useEffect(() => {
+    if (!id) router.replace("/function/tasks");
+  }, [id, router]);
   const [interceptPendingCount, setInterceptPendingCount] = React.useState(0);
   const [profiles, setProfiles] = React.useState<LLMProfile[]>([]);
   const [archiving, setArchiving] = React.useState(false);
@@ -312,7 +316,9 @@ function TaskDetailInner() {
   if (!task) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
-        <p className="text-muted-foreground">{loaded ? `任务 ${id} 已被删除、归档或不存在` : "加载中…"}</p>
+        <p className="text-muted-foreground">
+          {!id ? "正在返回任务列表…" : loaded ? `任务 ${id} 已被删除、归档或不存在` : "加载中…"}
+        </p>
         {loaded && (
           <Button asChild variant="outline">
             <Link href="/function/tasks">

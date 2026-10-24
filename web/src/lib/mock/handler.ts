@@ -1899,6 +1899,39 @@ function route(m: string, path: string, seg: string[], q: URLSearchParams, b: Re
     });
     return { can, asked: filled === 0 ? 0 : filled, filled, model: "demo" };
   }
+  // 权限阶梯 / 越界动作（P4：演示"不做按钮、只显示未授权/已授权"）
+  if (seg[0] === "tasks" && seg[2] === "impact" && seg.length === 3 && m === "GET") {
+    const task = mockTasks.find((item) => item.id === seg[1]);
+    const own = mockFindings.filter((item) => item.task_id === seg[1]);
+    const hasSql = own.some((f) => /sql|注入/i.test(`${f.vulnclass} ${f.name ?? ""}`));
+    return {
+      level: 2,
+      level_label: "E2 应用控制",
+      basis: `已确认 ${own.length} 个漏洞`,
+      stats: { findings: own.length },
+      steps: hasSql
+        ? [
+            {
+              class: "data_dump",
+              title: "把订单表整表拉下来（超过样本量）",
+              why: "注入点已确认能回显",
+              plan: "只跑 SELECT，先 count 再取样",
+              risk: "目标可能有审计，会留下访问记录",
+              next: 4,
+            },
+            {
+              class: "file_write",
+              title: "上传一个 webshell 落文件",
+              why: "后台有上传功能",
+              plan: "先传一个只回显 id 的最小文件",
+              risk: "可能被杀软删掉，目标会留痕",
+              next: 3,
+            },
+          ]
+        : [],
+      grants: [],
+    };
+  }
   // P2：业务动作工单（demo 内存态；真后端是 action_runs 表）
   if (seg[0] === "tasks" && seg[2] === "actions" && m === "GET" && seg.length === 3) {
     return { runs: (mockActionRuns[seg[1]] ?? []).slice().reverse() };
