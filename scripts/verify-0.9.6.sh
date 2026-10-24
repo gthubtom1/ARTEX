@@ -59,7 +59,9 @@ fi
 
 REP=$(curl -s -m 15 "$A/report${TID:+?task=$TID}" -H "$H")
 RLEN=$(printf '%s' "$REP" | wc -c)
-if [ "$RLEN" -gt 200 ]; then
+if [ -z "$TID" ]; then
+  skip "报告" "库里还没有任务（新装机器正常）"
+elif [ "$RLEN" -gt 200 ]; then
   if printf '%s' "$REP" | grep -q '详细报告'; then ok "报告含详细正文" "${RLEN} 字节，含「详细报告」"; else skip "报告含详细正文" "${RLEN} 字节（该任务还没有详细正文，属正常）"; fi
 else bad "报告" "只有 ${RLEN} 字节"; fi
 
@@ -76,6 +78,20 @@ if grep -q '^tables=' /tmp/_h; then ok "命中率带原因" "$(cat /tmp/_h)"; el
 
 if command -v psql >/dev/null 2>&1; then
   DSN=$(sed -n 's/^ARTEX_PG_DSN=//p' "$ARTEX_DIR/artex.env" 2>/dev/null | tr -d '\r')
+  # 原生安装没有 artex.env，用 config.json 的 database 段拼一条 DSN（不打印密码）
+  if [ -z "$DSN" ] && [ -f "$ARTEX_DIR/config.json" ]; then
+    DSN=$(python3 -c '
+import json,sys
+try:
+    d=json.load(open(sys.argv[1]))["database"]
+except Exception:
+    sys.exit(0)
+if d.get("dsn"):
+    print(d["dsn"]); sys.exit(0)
+print("postgres://%s:%s@%s:%s/%s?sslmode=%s" % (d.get("user",""), d.get("password",""),
+      d.get("host","127.0.0.1"), d.get("port",5432), d.get("dbname",""), d.get("sslmode","disable")))
+' "$ARTEX_DIR/config.json" 2>/dev/null)
+  fi
   if [ -n "$DSN" ]; then
     psql "$DSN" -At -F ' | ' -c "select name, coalesce(stage,''), timeout_min from task_templates order by id" > /tmp/_t 2>/dev/null
     if [ -s /tmp/_t ]; then

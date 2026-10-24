@@ -204,6 +204,33 @@ proxychains4 只是**出口包装器**（侦察时常用），不是横移 —�
 **仍未验证（外部条件）**：真机 `bootstrap.sh`（docker 可选路线）、StageGate/GrantGate 首条真机拦截记录、
 五个条件机制（立足点 / ≥2 漏洞 / 流量捕获）。
 
+
+### 无 Docker 安装路线 + 真机验收（2026-10-24，替代"必须干净机器"那条）
+
+用户判定：「按理说应该不需要 Docker」。核对结论：**ARTEX 本体确实不需要 Docker**，
+docker 只用于两件事：① 新机器一条命令装好（pg+artex 起容器）；② 资产测绘 ScopeSentry
+（Mongo+Redis+扫描节点要 host 网络，上游只发镜像）。
+
+新增 `scripts/install-native.sh`（无 Docker 一键装：apt 依赖 → 本机 PostgreSQL 建库 →
+二进制（`--binary` 或本地编译）→ config.json → systemd 单元 → health 自检 → 前端口径检查）。
+支持 `--prefix/--port/--db/--unit/--dry-run`，幂等，不覆盖已有密码。
+
+**真机验收（就在用户的 Kali VM 上做，不碰现有服务）**：
+```
+sudo bash scripts/install-native.sh --prefix /opt/artex-t2 --port 18788      --db artex_t2 --unit artex-t2 --binary /opt/artex/artex
+[+] 数据库就绪：artex_t2
+[+] 二进制就位：/opt/artex-t2/artex
+[+] 配置就绪：/opt/artex-t2/config.json
+[+] health OK：{"ok":true,"service":"artex","version":"0.11.1-p9"}
+[+] 前端已内嵌（/ → 200）
+```
+再用判据脚本打这套全新实例：`ARTEX_DIR=/opt/artex-t2 ARTEX_PORT=18788 bash scripts/verify-0.9.6.sh`
+→ 版本/模板/命中率全部 PASS，`VERIFY_RESULT PASS`（无任务时"报告/值不值得打"按设计跳过）。
+验证后已清理（停单元、删目录、drop 库），原 `/opt/artex` 服务仍 active。
+
+**因此阶段 D 那条"真机 bootstrap（docker 路线）"降级为"可选、未验收"**，
+不再阻塞：用户实际使用的原生路线已在真机验收通过。
+
 ## 配置建议（**不是待办**，你随时改）
 
 模型选择是你的决定，不是代码缺陷，不阻塞任何功能（不绑也能用，只是全用同一个模型）。
