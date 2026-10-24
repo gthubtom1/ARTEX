@@ -125,6 +125,8 @@ func classCN(c string) string {
 		return "留可控账号/计划任务"
 	case "lateral":
 		return "向其它主机发起连接"
+	case "destructive":
+		return "做破坏性操作（删库/删文件/清日志）"
 	}
 	return c
 }

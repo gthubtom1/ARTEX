@@ -28,6 +28,9 @@ func (s *Server) maybeGrantFromChat(ctx context.Context, t *Task, msg string) {
 	}
 	cls := ""
 	switch {
+	case strings.Contains(text, "删库") || strings.Contains(text, "删表") || strings.Contains(text, "drop") ||
+		strings.Contains(text, "清日志") || strings.Contains(text, "删文件") || strings.Contains(text, "格式化"):
+		cls = "destructive"
 	case strings.Contains(text, "webshell") || strings.Contains(text, "木马") || strings.Contains(text, "上传") ||
 		strings.Contains(text, "挂马") || strings.Contains(text, "改页面") || strings.Contains(text, "劫持"):
 		cls = "file_write"

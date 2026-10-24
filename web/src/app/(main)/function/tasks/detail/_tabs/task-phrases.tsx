@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { RefreshCwIcon, SparklesIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import { phrasesapi } from "@/lib/api";
 import type { TaskPhrase } from "@/lib/types";
@@ -31,22 +32,42 @@ export function TaskPhrases({
   const [busy, setBusy] = React.useState(false);
 
   // 按**当前**战果重算（随时可点）：拿到新东西后说法就变了，不能只算一次。
-  const reload = React.useCallback(async () => {
-    setBusy(true);
-    try {
-      const r = await phrasesapi.get(taskId);
-      setItems(r.phrases ?? []);
-      setHas(r.has ?? []);
-    } catch {
-      void 0;
-    } finally {
-      setBusy(false);
-    }
-  }, [taskId]);
+  const [stamp, setStamp] = React.useState("");
+  // manual=true：人点的「重算」，要给出反馈（否则点了没变化，看着像没生效）
+  const reload = React.useCallback(
+    async (manual = false) => {
+      setBusy(true);
+      try {
+        const r = await phrasesapi.get(taskId);
+        const next = r.phrases ?? [];
+        const nextHas = r.has ?? [];
+        const changed = JSON.stringify(next.map((p) => p.text)) !== JSON.stringify(items.map((p) => p.text));
+        setItems(next);
+        setHas(nextHas);
+        const n = new Date();
+        const hhmm = `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
+        setStamp(hhmm);
+        if (manual) {
+          toast.success(
+            changed
+              ? `已按当前战果重算：${next.length} 条（内容变了，说明战果刚更新过）`
+              : `已按当前战果重算：还是这 ${next.length} 条（先拿到新东西它才会变）`,
+          );
+        }
+      } catch {
+        if (manual) toast.error("重算失败（后端不可达），稍后再点一次");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [taskId, items],
+  );
 
   React.useEffect(() => {
     void reload();
-  }, [reload]);
+    // 只在任务切换时自动拉一次；重算由人点（items 变化不重新触发，避免循环）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId]);
 
   if (items.length === 0) return null;
 
@@ -60,13 +81,14 @@ export function TaskPhrases({
       <button
         type="button"
         className="inline-flex items-center gap-0.5 rounded border px-1 py-0.5 text-[10px] text-muted-foreground hover:bg-accent disabled:opacity-50"
-        onClick={() => void reload()}
+        onClick={() => void reload(true)}
         disabled={disabled || busy}
         title="按当前已拿到的战果重新算这几句话（随时可点）"
       >
         <RefreshCwIcon className={busy ? "size-3 animate-spin" : "size-3"} />
         重算
       </button>
+      {stamp && <span className="text-[9.5px] text-muted-foreground">更新于 {stamp}</span>}
       {items.map((p) => (
         <button
           key={p.key}

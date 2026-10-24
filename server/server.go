@@ -4580,6 +4580,11 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		return int(lv), lv.String()
 	}
 
+	// 人的话是最高级别：本任务里人刚亲口说过这一类事 → 工具审批不再问，直接放行留档。
+	if s.m.interceptor != nil {
+		s.m.interceptor.SetHumanGrant(s.humanAuthorizedForTool)
+	}
+
 	guard.ActionGate = func(c context.Context, class string) bool {
 		id := agent.RunInfoFrom(c).TaskID
 		if id <= 0 {

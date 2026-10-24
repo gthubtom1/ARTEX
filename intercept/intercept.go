@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -129,6 +130,25 @@ type Interceptor struct {
 	enabledTools map[string]bool // nil means not loaded yet
 	pending      *pendingManager
 	reviewer     Reviewer // nil = LLM fallback judge not wired
+
+	// humanGrant：人的话优先。non-nil 且返回 true 时，这次审批**不再问人**，
+	// 直接记成 allowed（decision_source 里写明"按对话授权自动放行"）。
+	// 用途：用户在主对话里已经说了「帮我挂个 webshell」，工具层不该再弹一次。
+	humanGrant func(ctx context.Context, toolName string, input []byte) (bool, string)
+}
+
+// SetHumanGrant installs the "human already said it" hook（人的话最高级）。
+// 传 nil 表示关闭（默认：所有 ask 规则都照常问人）。
+func (i *Interceptor) humanGrantFn() func(ctx context.Context, toolName string, input []byte) (bool, string) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.humanGrant
+}
+
+func (i *Interceptor) SetHumanGrant(fn func(ctx context.Context, toolName string, input []byte) (bool, string)) {
+	i.mu.Lock()
+	i.humanGrant = fn
+	i.mu.Unlock()
 }
 
 // SetReviewer installs the LLM fallback judge callback. Passing nil disables it.
@@ -622,6 +642,16 @@ func (i *Interceptor) HandleAsk(ctx context.Context, convID int64, dec Decision,
 	ruleID := dec.RuleID
 	taskID, agentName := taskInfoFromCtx(ctx)
 	taskEmit := taskEmitFromCtx(ctx)
+
+	// 人的话优先：本任务里人已经明确要求过这一类动作 → 不再问，直接放行并留档。
+	if hg := i.humanGrantFn(); hg != nil {
+		if ok, why := hg(ctx, toolName, input); ok {
+			log.Printf("[intercept] 按对话授权自动放行 tool=%s task=%s（%s）", toolName, taskID, why)
+			dec.Message = dec.Message + "（按你在对话里的授权自动放行：" + why + "）"
+			i.Log(ctx, convID, dec, toolName, input, "allowed")
+			return true
+		}
+	}
 
 	audit := auditFor(ctx, dec, input, "pending")
 	pendingID, err := i.db.CreateInterceptPending(ruleID, convID, taskID, agentName, toolName, input, dec.Message, audit)
