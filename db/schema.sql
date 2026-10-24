@@ -631,6 +631,9 @@ ALTER TABLE task_templates ADD COLUMN IF NOT EXISTS intercept_rules JSONB NOT NU
 -- 但真正生效的是任务表单「高级设置」的 timeout_min —— 文本里那句没有任何作用，
 -- 零基础用户照着点还是不限时/默认时长。这里把它做成可预填的字段。
 ALTER TABLE task_templates ADD COLUMN IF NOT EXISTS timeout_min INT NOT NULL DEFAULT 0;
+-- 2026-10-24 阶段 B：模板自带阶段（recon|surface|exploit|data|full）。recon 阶段
+-- 未产出"值不值得打"结论前，guard 会拦利用类命令（见 guard.StageGate）。
+ALTER TABLE task_templates ADD COLUMN IF NOT EXISTS stage TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_task_templates_updated ON task_templates(updated_at DESC, id DESC);
 DROP TRIGGER IF EXISTS trg_task_templates_upd ON task_templates;
 CREATE TRIGGER trg_task_templates_upd BEFORE UPDATE ON task_templates

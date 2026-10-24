@@ -3115,6 +3115,8 @@ function CreateTaskSheet({
   const [llmProfileIDs, setLLMProfileIDs] = React.useState<string[]>([]);
   const [creating, setCreating] = React.useState(false);
   const [timeoutMin, setTimeoutMin] = React.useState(""); // 任务级超时(分钟);空/0 = 不限时
+  // 模板阶段：只在选了带阶段的模板时非空（阶段门用）。
+  const [templateStage, setTemplateStage] = React.useState("");
   const [heartbeatMin, setHeartbeatMin] = React.useState("10"); // planner 心跳(分钟);默认10,下限10(与后端一致)
   const [seedFirstIntent, setSeedFirstIntent] = React.useState(false); // 创建时下发种子意图,worker 免等首轮 planner 直接开跑;默认关闭,走标准先规划再执行
   const [coverageEnabled, setCoverageEnabled] = React.useState(true); // 资产覆盖度功能;默认开。关闭=不计算/展示覆盖度、不累积范围、隐藏范围类工具(company 关联不受影响)
@@ -3201,6 +3203,7 @@ function CreateTaskSheet({
         interceptRules: interceptRules
           .map((r) => ({ ...r, pattern: r.pattern.trim() }))
           .filter((r) => r.pattern !== ""),
+        stage: templateStage,
       });
       toast.success("任务已创建");
       setName("");
@@ -3275,6 +3278,8 @@ function CreateTaskSheet({
                 if (typeof template.timeout_min === "number" && template.timeout_min > 0) {
                   setTimeoutMin(String(template.timeout_min));
                 }
+                // 阶段门：recon 阶段在产出结论前禁用利用类命令（服务端 guard 执行）
+                setTemplateStage(template.stage ?? "");
                 setCategoryID(template.category_id ?? undefined);
                 setInterceptRules(template.intercept_rules ?? []);
                 setUploadCount(0);

@@ -365,12 +365,15 @@ export const api = {
     coverageEnabled?: boolean;
     interceptRules?: AssetInterceptRuleInput[];
     schedule?: ScheduleInput;
+    /** 模板阶段（recon|surface|exploit|data|full）；recon 未出结论前禁用利用类命令 */
+    stage?: string;
   }) =>
     post<Task>("/tasks", {
       name: input.name ?? "",
       category_id: input.categoryId ?? null,
       description: input.description,
       goal: input.goal,
+      stage: input.stage ?? "",
       llm_profile_ids: input.llmProfileIds ?? [],
       source_task_ids: input.sourceTaskIds ?? [],
       company_ids: input.companyIds ?? [],

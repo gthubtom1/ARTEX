@@ -15,6 +15,7 @@ type builtinTaskTemplate struct {
 	description string
 	goal        string
 	timeoutMin  int
+	stage       string // recon|surface|exploit|data|full（阶段门用）
 }
 
 // builtinTaskTemplates 是五个阶段模板：判断值不值得 → 摸入口 → 找漏洞 → 拿数据 → 出总报告。
@@ -23,6 +24,7 @@ var builtinTaskTemplates = []builtinTaskTemplate{
 		name:        "① 值不值得打（20 分钟）",
 		description: "只读侦察后给结论：这个站硬不硬、值不值得继续投入。零基础从这里开始。",
 		timeoutMin:  20,
+		stage:       "recon",
 		goal: `先判断这个站值不值得继续投入。只做只读侦察：域名与指纹（框架/中间件/CDN/WAF）、开放端口与服务、入口页与接口、是否全站要登录。
 
 必须产出结论（写成一条 finding 或最后一条 fact）：
@@ -36,6 +38,7 @@ var builtinTaskTemplates = []builtinTaskTemplate{
 		name:        "② 摸入口和攻击面（30 分钟）",
 		description: "把入口清单摸出来：URL / 方法 / 参数 / 表单字段 / 上传点 / 接口，每条带证据。",
 		timeoutMin:  30,
+		stage:       "surface",
 		goal: `把这个站的入口和攻击面摸清，产出一份清单。每个入口必须写：URL、请求方法、参数或表单字段（含隐藏字段）、是否需要登录、响应特征（状态码/长度/关键字）。
 
 覆盖范围：首页外链、所有表单、上传点、接口（/api/**、/rest/**、swagger/openapi）、管理入口、报错回显点、静态资源里的注释与路径。
@@ -46,6 +49,7 @@ var builtinTaskTemplates = []builtinTaskTemplate{
 		name:        "③ 找漏洞并取证（40 分钟）",
 		description: "在已摸清的入口上找可复现的漏洞，每条带完整请求与响应证据。",
 		timeoutMin:  40,
+		stage:       "exploit",
 		goal: `在已摸清的入口上找可复现的漏洞。每个漏洞必须带三样：完整请求（方法/URL/参数/必要 header）、响应里证明成功的片段（关键字或长度差异）、影响（能读到什么/能做什么）。
 
 优先顺序：未授权访问与越权 → 注入（SQL/命令/模板）→ XSS → 任意文件读取 → 上传 → 默认口令（只试默认口令，不爆破）。
@@ -56,6 +60,7 @@ var builtinTaskTemplates = []builtinTaskTemplate{
 		name:        "④ 能拿到什么数据（30 分钟）",
 		description: "证明哪些数据实际可读（用户/订单/卡密/配置），每类最多 3 条样本。",
 		timeoutMin:  30,
+		stage:       "data",
 		goal: `证明这个站的哪些数据实际可读：用户表、订单/支付/卡密、手机号与邮箱、配置文件与连接串。
 
 每条证据最多取 3 行样本，写清表名与字段名；不整表导出、不落盘大量数据。
@@ -68,6 +73,7 @@ var builtinTaskTemplates = []builtinTaskTemplate{
 		name:        "⑤ 全面评估出报告（60 分钟）",
 		description: "按阶段推进（侦察→入口→漏洞→数据），最后给一份能直接给人看的结论报告。",
 		timeoutMin:  60,
+		stage:       "full",
 		goal: `按阶段推进：侦察 → 入口 → 漏洞 → 数据影响，最后给一份结论。
 
 报告必须包含：
@@ -94,16 +100,24 @@ var legacyBuiltinTemplateGoals = map[string]string{
 // Gated by a settings flag so a user's later rename/edit/delete is never
 // resurrected on restart. ON CONFLICT (nkey) DO NOTHING is a second guard.
 func (d *DB) seedBuiltinTaskTemplates() error {
-	const flag = "task_templates_seed_v2"
+	const flag = "task_templates_seed_v3"
 	if v, _, _ := d.GetSetting(flag); v == "done" {
 		return nil
 	}
 	for _, t := range builtinTaskTemplates {
 		name := taskTemplateName(t.name)
 		if _, err := d.Exec(`
-INSERT INTO task_templates(name, nkey, description, goal, timeout_min)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (nkey) DO NOTHING`, name, taskTemplateNKey(name), t.description, t.goal, t.timeoutMin); err != nil {
+INSERT INTO task_templates(name, nkey, description, goal, timeout_min, stage)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (nkey) DO NOTHING`, name, taskTemplateNKey(name), t.description, t.goal, t.timeoutMin, t.stage); err != nil {
+			return err
+		}
+	}
+	// 回填 stage：老库里这批模板已经存在（ON CONFLICT DO NOTHING 不会更新），
+	// 只补 stage 仍为空的行 —— 用户自定义过的不动。
+	for _, t := range builtinTaskTemplates {
+		if _, err := d.Exec(`UPDATE task_templates SET stage=$1
+			WHERE nkey=$2 AND coalesce(stage,'')=''`, t.stage, taskTemplateNKey(t.name)); err != nil {
 			return err
 		}
 	}

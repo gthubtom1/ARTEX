@@ -1599,6 +1599,9 @@ type createTaskReq struct {
 	CoverageEnabled      *bool            `json:"coverage_enabled,omitempty"`  // 资产覆盖度功能;省略/null=默认开(true)。false=关闭覆盖度计算/展示/自动累积范围+隐藏 add_task_scope/list_untested_assets。company 关联不受影响。
 	// InterceptRules 任务级资产拦截/允许规则(创建时录入,存 task_intercept_rules,不进全局表)。
 	InterceptRules []taskInterceptRuleReq `json:"intercept_rules,omitempty"`
+	// Stage 是模板阶段（recon|surface|exploit|data|full）；阶段门据此限制利用类命令。
+	// 存 settings key task.stage.<id>，避免给 tasks 表加列再改一整套 scan。
+	Stage string `json:"stage,omitempty"`
 }
 
 func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
@@ -1660,6 +1663,16 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 		}
 		schedule = &input
 	}
+	// 失败显形（docs/20 §1 判据 3）：目标里没有可识别的网址/域名/IP 时**直接拒绝建任务**。
+	// 实测（2026-10-24 自检任务）：goal 里没写 URL 时 seed 只打一行日志就放行，
+	// agent 于是开始 ls 本地目录，白烧 15 分钟 token。零基础用户复制模板又忘了换网址是最常见的情况。
+	if len(sourceIDs) == 0 && len(req.CompanyIDs) == 0 {
+		if _, _, _, ok := parseTarget(req.Description + " " + req.Goal); !ok {
+			writeErr(w, 400, "任务目标里没有可识别的网址/域名/IP。请把目标写全（例如 https://example.com 或 203.0.113.10）。")
+			return
+		}
+	}
+
 	t, err := s.m.CreateTaskWithOptions(req.Description, req.Goal, db.TaskCreateOptions{
 		Schedule: schedule,
 		Name:     strings.TrimSpace(req.Name), CategoryID: req.CategoryID,
@@ -1681,6 +1694,19 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("[task] 新建任务 #%s «%s» 目标: %s", t.ID, req.Description, req.Goal)
+	// 阶段门：把模板阶段落到 settings（recon 阶段未出结论前，guard 会拦利用类命令）。
+	if st := strings.TrimSpace(req.Stage); st != "" {
+		if tid, err := strconv.ParseInt(t.ID, 10, 64); err == nil && tid > 0 {
+			if s.settings != nil {
+				if err := s.settings.Set(r.Context(), "task.stage."+t.ID, st); err != nil {
+					log.Printf("[task] 写入阶段失败 task=%s stage=%s: %v", t.ID, st, err)
+				}
+			}
+			stageCacheMu.Lock()
+			delete(stageCache, tid) // 立刻生效，不等 45s 缓存
+			stageCacheMu.Unlock()
+		}
+	}
 	// 共享的建后流程(seed + 种子意图 + 后台目标分解 + engine.Run),与 spawn_task 复用同一段。
 	// launchTask 内部异步,不阻塞 UI —— 目标分解在后台可见地进行。
 	if schedule == nil || schedule.StartImmediately {
@@ -4517,6 +4543,16 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		}
 		return "", false
 	}
+	// 阶段门（阶段 B）：读本任务阶段；"已出结论"= 有 >=1 个漏洞 或 >=3 条否定结论。
+	// 带 45s 缓存，避免每次 Bash 调用都查库。
+	guard.StageGate = func(c context.Context) (string, bool) {
+		id := agent.RunInfoFrom(c).TaskID
+		if id <= 0 {
+			return "", false
+		}
+		return s.taskStageCached(id), s.taskConclusiveCached(id)
+	}
+
 	guard.ToolPresence = func(name string) (bool, string) {
 		v := s.tools.Load()
 		if v == nil {
@@ -4667,4 +4703,58 @@ func (s *Server) egressConfig() netguard.Config {
 		return s.settings.Set(ctx, netguard.BaselineSettingKey, ip)
 	}
 	return cfg
+}
+
+// ── 阶段门（阶段 B）：阶段与"是否已出结论" ──────────────────────────────
+//
+// 阶段存 settings（key=task.stage.<id>），不新增 tasks 列：判据只需服务端读，
+// 界面上的阶段语义已由模板名（①/②/…）表达。
+var (
+	stageCacheMu sync.Mutex
+	stageCache   = map[int64]stageCacheEntry{}
+)
+
+type stageCacheEntry struct {
+	stage      string
+	conclusive bool
+	at         time.Time
+}
+
+func (s *Server) taskStageCached(taskID int64) string {
+	st, _ := s.stageAndConclusive(taskID)
+	return st
+}
+
+func (s *Server) taskConclusiveCached(taskID int64) bool {
+	_, c := s.stageAndConclusive(taskID)
+	return c
+}
+
+func (s *Server) stageAndConclusive(taskID int64) (string, bool) {
+	stageCacheMu.Lock()
+	if e, ok := stageCache[taskID]; ok && time.Since(e.at) < 45*time.Second {
+		stageCacheMu.Unlock()
+		return e.stage, e.conclusive
+	}
+	stageCacheMu.Unlock()
+
+	stage := ""
+	if s.settings != nil {
+		stage = strings.TrimSpace(s.settings.String("task.stage."+strconv.FormatInt(taskID, 10), ""))
+	}
+	conclusive := false
+	if s.m != nil && s.m.pg != nil {
+		var findings, negs int
+		_ = s.m.pg.QueryRow(`SELECT
+			(SELECT count(*) FROM exploration_nodes n
+			   JOIN tasks t ON t.exploration_id = n.exploration_id
+			  WHERE t.id=$1 AND n.kind='finding'),
+			(SELECT count(*) FROM assumptions WHERE task_id=$1)`, taskID).Scan(&findings, &negs)
+		conclusive = findings >= 1 || negs >= 3
+	}
+
+	stageCacheMu.Lock()
+	stageCache[taskID] = stageCacheEntry{stage: stage, conclusive: conclusive, at: time.Now()}
+	stageCacheMu.Unlock()
+	return stage, conclusive
 }

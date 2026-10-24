@@ -49,6 +49,30 @@ var AutoDecide func(ctx context.Context, tool string, input json.RawMessage) (ac
 // 注意：它只影响"命令首词不存在"这一种情况，不做任何权限判断。
 var ToolPresence func(name string) (ok bool, hint string)
 
+// StageGate 由 server 注入：返回当前任务的阶段与"是否已出结论"。
+// stage 为空 = 不设门（旧任务/无模板）。
+//
+// 为什么门放在 guard 而不是工具列表：agent 的"工具"是 Bash，把结构化工具藏起来
+// 挡不住 `sqlmap`/`msfconsole`；只有在执行前判一次命令，阶段才算真的立起来。
+//
+// 放开条件由 server 决定（当前实现：已产出"值不值得打"的结论 → conclusive=true）。
+var StageGate func(ctx context.Context) (stage string, conclusive bool)
+
+// StageRecon 是「只读侦察」阶段的标识（与模板 ① 对应）。
+const StageRecon = "recon"
+
+// reconForbidden 是①「只读侦察」阶段禁止的**利用类**命令。
+// 保守清单：只拦明确的利用/爆破/写入类，不拦 nmap/httpx/nuclei/curl 这类侦察。
+var reconForbidden = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)\bsqlmap\b`),
+	regexp.MustCompile(`(?i)\b(?:msfconsole|msfvenom|metasploit)\b`),
+	regexp.MustCompile(`(?i)\b(?:hydra|medusa|ncrack|patator)\b`),
+	regexp.MustCompile(`(?i)--os-shell|--os-pwn|--sql-shell|--file-write`),
+	regexp.MustCompile(`(?i)\bxp_cmdshell\b`),
+	regexp.MustCompile(`(?i)\b(?:webshell|shell\.php|cmd\.jsp|c99\.php|b374k)\b`),
+	regexp.MustCompile(`(?i)\b(?:ms17-010|eternalblue)\b`),
+}
+
 // TaskIDOf 由 server 注入：从 ctx 里取当前任务 id（取不到返回 0）。
 // 只用于把错误归类落到 task_error_events，不参与任何判定。
 var TaskIDOf func(context.Context) int64
@@ -304,6 +328,21 @@ func (g *Guard) preToolUse(ctx context.Context, ev hook.Event) hook.Result {
 				}
 				errEvent(ctx, errev.ClassToolMissing, name, cmd)
 				return g.block(ev.ToolName, hint, cmd)
+			}
+		}
+	}
+	// 阶段门（阶段 B）：①「只读侦察」阶段、且还没有"值不值得打"的结论时，
+	// 禁止利用类命令。判据可查：task_error_events 里出现 class=policy_blocked + tool=StageGate。
+	if StageGate != nil && cmd != "" {
+		if stage, conclusive := StageGate(ctx); stage == StageRecon && !conclusive {
+			for _, re := range reconForbidden {
+				if !re.MatchString(cmd) {
+					continue
+				}
+				msg := "当前任务是「① 只读侦察」阶段：先把这个站摸清并产出「值不值得打」的结论，再做利用动作。" +
+					"现在改用只读手法（指纹/端口/入口/接口），或先把已发现的攻击面写回事实。"
+				errEvent(ctx, errev.ClassPolicyBlocked, "StageGate", cmd)
+				return g.block(ev.ToolName, msg, cmd)
 			}
 		}
 	}

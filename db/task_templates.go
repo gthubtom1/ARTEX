@@ -35,9 +35,12 @@ type TaskTemplate struct {
 	InterceptRules []TaskInterceptRuleInput `json:"intercept_rules"`
 	// TimeoutMin 是这个阶段该给多少分钟（0 = 不限）。应用模板时预填任务表单的
 	// 「高级设置 → 超时」，不再靠 goal 文本里的“建议时限”口头约定。
-	TimeoutMin int       `json:"timeout_min"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	TimeoutMin int `json:"timeout_min"`
+	// Stage 是模板阶段（recon|surface|exploit|data|full）：recon 阶段未出结论前，
+	// guard 会拦利用类命令（阶段 B 阶段门）。
+	Stage     string    `json:"stage"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // TaskTemplateInput is the create/update payload after normalization.
@@ -48,6 +51,7 @@ type TaskTemplateInput struct {
 	CategoryID     *int64
 	InterceptRules []TaskInterceptRuleInput
 	TimeoutMin     int
+	Stage          string
 }
 
 // TaskTemplatePatch changes only fields flagged as set. Name/Description/Goal use
@@ -62,14 +66,15 @@ type TaskTemplatePatch struct {
 	InterceptRules    []TaskInterceptRuleInput
 	SetInterceptRules bool
 	TimeoutMin        *int
+	Stage             *string
 }
 
-const taskTemplateCols = `id, name, nkey, description, goal, category_id, intercept_rules, timeout_min, created_at, updated_at`
+const taskTemplateCols = `id, name, nkey, description, goal, category_id, intercept_rules, timeout_min, stage, created_at, updated_at`
 
 func scanTaskTemplate(row interface{ Scan(...any) error }) (TaskTemplate, error) {
 	var t TaskTemplate
 	var rulesRaw []byte
-	if err := row.Scan(&t.ID, &t.Name, &t.NKey, &t.Description, &t.Goal, &t.CategoryID, &rulesRaw, &t.TimeoutMin, &t.CreatedAt, &t.UpdatedAt); err != nil {
+	if err := row.Scan(&t.ID, &t.Name, &t.NKey, &t.Description, &t.Goal, &t.CategoryID, &rulesRaw, &t.TimeoutMin, &t.Stage, &t.CreatedAt, &t.UpdatedAt); err != nil {
 		return t, err
 	}
 	t.InterceptRules = []TaskInterceptRuleInput{}
@@ -176,10 +181,10 @@ func (d *DB) CreateTaskTemplate(in TaskTemplateInput) (*TaskTemplate, error) {
 		return nil, err
 	}
 	t, err := scanTaskTemplate(d.QueryRow(`
-INSERT INTO task_templates(name, nkey, description, goal, category_id, intercept_rules, timeout_min)
-VALUES ($1,$2,$3,$4,$5,$6,$7)
+INSERT INTO task_templates(name, nkey, description, goal, category_id, intercept_rules, timeout_min, stage)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 ON CONFLICT (nkey) DO NOTHING
-RETURNING `+taskTemplateCols, in.Name, nkey, in.Description, in.Goal, in.CategoryID, rulesJSON, in.TimeoutMin))
+RETURNING `+taskTemplateCols, in.Name, nkey, in.Description, in.Goal, in.CategoryID, rulesJSON, in.TimeoutMin, in.Stage))
 	if err == sql.ErrNoRows {
 		return nil, ErrTaskTemplateNameConflict
 	}
@@ -249,7 +254,8 @@ SET name=CASE WHEN $2 THEN $3::text ELSE name END,
     goal=CASE WHEN $7 THEN $8::text ELSE goal END,
     category_id=CASE WHEN $9 THEN $10::bigint ELSE category_id END,
     intercept_rules=CASE WHEN $11 THEN $12::jsonb ELSE intercept_rules END,
-    timeout_min=CASE WHEN $13 THEN $14::int ELSE timeout_min END
+    timeout_min=CASE WHEN $13 THEN $14::int ELSE timeout_min END,
+    stage=CASE WHEN $15 THEN $16::text ELSE stage END
 WHERE id=$1
 RETURNING `+taskTemplateCols,
 		id,
@@ -259,6 +265,7 @@ RETURNING `+taskTemplateCols,
 		patch.SetCategoryID, patch.CategoryID,
 		patch.SetInterceptRules, rulesJSON,
 		patch.TimeoutMin != nil, patch.TimeoutMin,
+		patch.Stage != nil, patch.Stage,
 	))
 	if err == sql.ErrNoRows {
 		return nil, ErrTaskTemplateNotFound

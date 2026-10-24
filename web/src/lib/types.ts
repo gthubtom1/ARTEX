@@ -60,6 +60,8 @@ export interface TaskTemplate {
   intercept_rules?: AssetInterceptRuleInput[]; // 预设的任务级拦截/允许规则
   /** 模板自带的时长（0/缺省 = 不限）；应用模板时预填「高级设置 → 超时」 */
   timeout_min?: number;
+  /** 模板阶段（recon|surface|exploit|data|full） */
+  stage?: string;
   created_at: string;
   updated_at: string;
 }
