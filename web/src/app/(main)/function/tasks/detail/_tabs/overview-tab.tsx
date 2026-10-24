@@ -1088,7 +1088,7 @@ export function OverviewTab({ taskId }: { taskId: string }) {
       )}
 
       {/* 利用链：一条漏洞走到哪一步（确认→授权→收益） */}
-      {chains.length > 0 && (
+      {(chains ?? []).length > 0 && (
         <Card className="border-violet-500/40 bg-violet-500/5">
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1.5 text-xs">
@@ -1097,7 +1097,7 @@ export function OverviewTab({ taskId }: { taskId: string }) {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 text-[11.5px]">
-            {chains.slice(0, 4).map((c) => (
+            {(chains ?? []).slice(0, 4).map((c) => (
               <div key={c.key} className="rounded border bg-card px-2 py-1.5">
                 <div className="flex items-center gap-1.5">
                   <span className="font-medium">{c.title}</span>
@@ -1115,7 +1115,7 @@ export function OverviewTab({ taskId }: { taskId: string }) {
                   </span>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-1">
-                  {c.steps.map((st) => (
+                  {(c.steps ?? []).map((st) => (
                     <span
                       key={st.Key}
                       className={
@@ -1153,11 +1153,11 @@ export function OverviewTab({ taskId }: { taskId: string }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 text-[11.5px]">
-            {impactView.steps.length === 0 && (
+            {(impactView.steps ?? []).length === 0 && (
               <p className="text-muted-foreground">暂时没有可推进的下一步：先跑②模板把入口摸全，或等漏洞确认。</p>
             )}
-            {impactView.steps.map((st) => {
-              const g = impactView.grants.find((x) => x.class === st.class);
+            {(impactView.steps ?? []).map((st) => {
+              const g = (impactView.grants ?? []).find((x) => x.class === st.class);
               return (
                 <div key={st.class} className="rounded border bg-card px-2 py-1.5">
                   <div className="font-medium">{st.title}</div>
