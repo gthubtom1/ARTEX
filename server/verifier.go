@@ -159,9 +159,17 @@ func (s *Server) verifierPassNow(ctx context.Context, t *Task) int {
 		// 复核结论联动能力卡降档：rejected → P1，inferred → 不高于 P2。
 		downgraded := s.applyVerifierDowngrade(ctx, taskID, f, rev)
 		meta, _ := json.Marshal(rev)
+		// evidence_timeline.finding_id 的外键指向 **findings** 表，而复核遍历到的是
+		// **exploration_nodes**(kind=finding) 的节点 id —— 两个 id 空间不同。
+		// 直接写 f.ID 会触发 evidence_timeline_finding_id_fkey (SQLSTATE 23503)，
+		// 实测把复核结论整条丢掉（VM task 7 finding 200）。
+		// 这里按“这个 id 在哪张表里”分别落到 finding_id / node_id，两边都不丢。
 		_, ierr := s.p2.DB.ExecContext(ctx,
-			`INSERT INTO evidence_timeline (task_id, finding_id, ts, kind, content_ref, sha256, actor, meta)
-			 VALUES (NULLIF($1,0), NULLIF($2,0), now(), 'verifier', $3, '', 'verifier', $4::jsonb)
+			`INSERT INTO evidence_timeline (task_id, finding_id, node_id, ts, kind, content_ref, sha256, actor, meta)
+			 SELECT NULLIF($1,0),
+			        (SELECT id FROM findings WHERE id=$2),
+			        (SELECT id FROM exploration_nodes WHERE id=$2),
+			        now(), 'verifier', $3, '', 'verifier', $4::jsonb
 			 ON CONFLICT (COALESCE(task_id,0), kind, content_ref) WHERE content_ref <> '' DO NOTHING`,
 			taskID, f.ID, fmt.Sprintf("finding:%d", f.ID), string(meta))
 		if ierr != nil {
