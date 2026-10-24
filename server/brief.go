@@ -75,7 +75,7 @@ func (s *Server) registerBriefRoutes(mux *http.ServeMux) {
 // briefCan 组装「每个漏洞能换到什么」。
 // 优先用 AI 缓存（source=ai / cached=true），否则用规则模板 abilityText（source=rule）。
 // 缓存命中要求 evidence_hash 与当前证据一致：证据改了就不再拿旧解释充数。
-func (s *Server) briefCan(ctx context.Context, t *Task, taskID int64, rows []lootRow) []briefAbility {
+func (s *Server) briefCan(ctx context.Context, t *Task, taskID int64, rows []lootRow, stats impact.Stats) []briefAbility {
 	out := []briefAbility{}
 	cache := s.briefAbilityCache(ctx, taskID)
 	byID := map[int64]lootFinding{}
@@ -88,7 +88,7 @@ func (s *Server) briefCan(ctx context.Context, t *Task, taskID int64, rows []loo
 		item := briefAbility{FindingID: f.ID, Title: f.Title, Grants: abilityText(f.Title), Doable: true, Source: "rule"}
 		if lf, ok := byID[f.ID]; ok {
 			// 三段式：先算"这个洞到底换到没换到"，再谈文案。
-			st := findingStanding(lf, rows)
+			st := findingStanding(lf, rows, stats)
 			item.Standing = st.Standing
 			item.Gap = st.Gap
 			item.Rows = st.Rows
@@ -142,7 +142,7 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	rows := s.lootRowsForTask(r.Context(), t, fs)
 
 	// 每个漏洞能换到什么（先 AI 缓存；没有就用规则模板，见 brief_ai.go）+ 三段式判定
-	out.Can = s.briefCan(r.Context(), t, taskID, rows)
+	out.Can = s.briefCan(r.Context(), t, taskID, rows, st)
 
 	// 未读战果（胶囊红点）：done 行的证据 id 越过 loot_seen 游标 => 算新。
 	// 读不到游标/没库时 lootSeenFindingID 返回 0，此时全部算新（首屏就该提示）。
@@ -151,7 +151,7 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	// 业务动作（P2）：列表来自 actionDefs（唯一事实源），state 恒为 idle（永不自动执行），
 	// 真正"人要求过没有 / 有没有证据"看 run_state。先做一次证据收口再读工单。
 	s.closeActionsByEvidence(r.Context(), t, taskID)
-	out.Actions = s.briefActions(r.Context(), taskID, rows)
+	out.Actions = s.briefActions(r.Context(), taskID, st)
 
 	if len(out.Has) > 0 {
 		out.SayThis = "想做上面哪一步，直接在下面主对话里说，例如「" + out.Actions[0].SayIt + "」；我不会自己动手。"
@@ -253,7 +253,7 @@ var findingRowHints = []struct {
 //	got      任一映射行 status=done（有证据）→ 已成立
 //	one_step 有映射行但都还没拿到 → 差一步（Gap 写缺哪个）
 //	no_gain  一条映射行都没有 → 换不到东西（"洞多但换不到"就是这种）
-func findingStanding(f lootFinding, rows []lootRow) standingInfo {
+func findingStanding(f lootFinding, rows []lootRow, st impact.Stats) standingInfo {
 	byKey := map[string]lootRow{}
 	label := map[string]string{}
 	for _, def := range lootRows {
@@ -297,7 +297,11 @@ func findingStanding(f lootFinding, rows []lootRow) standingInfo {
 		if !ok {
 			row = lootRow{Key: k, Label: label[k], Status: "blank"}
 		}
-		if row.Status == "done" {
+		// 2026-10-24 修正（用户截图指出"E0 却显示能从后台看密码"）：
+		// 战果行 done 只代表"有证据说明这类东西存在"（漏洞摘要里出现"密码"就会中），
+		// 不代表"我真的拿到了"。所以"已成立"还要求**能力**成立（与等级同源），
+		// 否则一律降级成"差一步"，并把缺口写清楚。
+		if row.Status == "done" && rowCapability(k, st) {
 			info.Standing = "got"
 			info.Gap = ""
 			return info
@@ -312,4 +316,26 @@ func findingStanding(f lootFinding, rows []lootRow) standingInfo {
 	info.Standing = "one_step"
 	info.Gap = gap
 	return info
+}
+
+// rowCapability：这一行战果是否**真的有对应能力**（与 impactStats 同源）。
+// 单单"战果行 done"不算 —— 那只能说明证据里提到了这一类东西。
+func rowCapability(rowKey string, st impact.Stats) bool {
+	switch rowKey {
+	case "db", "data":
+		return st.DataSamples > 0
+	case "admin":
+		return st.OwnedApp > 0
+	case "rce":
+		return st.Shells > 0
+	case "cred":
+		return st.Creds > 0 || st.OwnedApp > 0
+	case "filewrite":
+		return st.Shells > 0 || st.OwnedApp > 0
+	case "fileread":
+		return st.DataSamples > 0 || st.Shells > 0
+	case "lateral":
+		return st.OwnedRoot > 0
+	}
+	return false
 }

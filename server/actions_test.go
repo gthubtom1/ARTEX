@@ -1,6 +1,10 @@
 package server
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Autumn-27/artex/internal/impact"
+)
 
 // P2 的三条硬约束，都钉在纯函数上：
 //  1. 对话解析：只有**明确要做这件事**的说法才登记工单，否定句和"看看"不算；
@@ -75,23 +79,36 @@ func TestActionDefsComplete(t *testing.T) {
 	}
 }
 
-// 战况卡要能"高亮现在真能做到的那几件"：doable 必须跟收口用同一套映射，
-// 不能出现"高亮了却收不了口"或"能收口却没高亮"。
-func TestActionDoable(t *testing.T) {
-	def, _ := actionDefByClass("data_export")
-	rows := []lootRow{
-		{Key: "admin", Label: "管理员 / 后台登录", Status: "done"},
-		{Key: "db", Label: "数据库查询", Status: "run"},
+// 「能做到」必须跟等级同源（impact.Stats），不能跟"战果行有证据"混：
+// 用户 2026-10-24 截图抓到 E0（无任何访问权）却高亮「看后台用户名/密码」——
+// 因为某个洞的摘要里有"密码"字样。这里钉住：没拿到权限，一个后果都不许点亮。
+func TestActionDoableFollowsCapability(t *testing.T) {
+	empty := impact.Stats{Findings: 3} // 只有洞，没有凭据/后台/命令/数据
+	for _, d := range actionDefs {
+		if actionDoable(d, empty) {
+			t.Fatalf("E0（无任何能力）时 %s 不该算能做到", d.Class)
+		}
 	}
-	if actionDoable(def, rows) {
-		t.Fatal("db 还在 run，data_export 不该算能做到")
+
+	withApp := impact.Stats{Findings: 3, OwnedApp: 1} // 进了后台
+	for _, cls := range []string{"account_read", "account_create", "money_adjust", "money_approve", "deface"} {
+		def, _ := actionDefByClass(cls)
+		if !actionDoable(def, withApp) {
+			t.Fatalf("进后台后 %s 应算能做到", cls)
+		}
 	}
-	rows[1].Status = "done"
-	if !actionDoable(def, rows) {
-		t.Fatal("db 已 done，data_export 应算能做到")
+	dataDef, _ := actionDefByClass("data_export")
+	if actionDoable(dataDef, withApp) {
+		t.Fatal("只进后台（还没读到数据）不该算能导出数据")
+	}
+	if !actionDoable(dataDef, impact.Stats{DataSamples: 1}) {
+		t.Fatal("读到数据样本后 data_export 应算能做到")
 	}
 	persistDef, _ := actionDefByClass("persist")
-	if actionDoable(persistDef, rows) {
-		t.Fatal("没有命令执行时 persist 不该算能做到")
+	if actionDoable(persistDef, withApp) {
+		t.Fatal("没命令执行不该算能持久化")
+	}
+	if !actionDoable(persistDef, impact.Stats{Shells: 1}) {
+		t.Fatal("有命令执行后 persist 应算能做到")
 	}
 }

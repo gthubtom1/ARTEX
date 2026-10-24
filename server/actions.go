@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/Autumn-27/artex/internal/impact"
 )
 
 // 业务动作执行通道（P2）。
@@ -398,14 +400,14 @@ func actionClassFromChat(msg string) string {
 
 // briefActions 给战况卡拼动作列表：定义来自 actionDefs，状态来自最新工单。
 // state 恒为 "idle"（永不自动执行），人要求过没有看 run_state。
-func (s *Server) briefActions(ctx context.Context, taskID int64, rows []lootRow) []briefAction {
+func (s *Server) briefActions(ctx context.Context, taskID int64, st impact.Stats) []briefAction {
 	runs := latestRunsByClass(s.getActionRuns(ctx, taskID))
 	out := make([]briefAction, 0, len(actionDefs))
 	for _, d := range actionDefs {
 		item := briefAction{
 			Class: d.Class, Title: d.Title, State: "idle",
 			Need: d.Need, SayIt: d.SayIt, EvidenceNeed: d.Evidence, RunState: "none",
-			Doable: actionDoable(d, rows),
+			Doable: actionDoable(d, st),
 		}
 		if r, ok := runs[d.Class]; ok {
 			item.RunState = r.State
@@ -418,18 +420,30 @@ func (s *Server) briefActions(ctx context.Context, taskID int64, rows []lootRow)
 	return out
 }
 
-// actionDoable：这件"现实后果"现在到底能不能做 —— 看它前置映射的战果行有没有拿到。
-// 判据与收口共用 actionDefs.Rows，所以"能高亮的"和"做完能自动收口的"永远是同一批。
-func actionDoable(def actionDef, rows []lootRow) bool {
-	for _, row := range rows {
-		if row.Status != "done" {
-			continue
-		}
-		for _, k := range def.Rows {
-			if row.Key == k {
-				return true
-			}
-		}
+// actionDoable：这件"现实后果"现在到底能不能做。
+//
+// 2026-10-24 修正（用户截图指出）：原来用战果行 status=done 判"能做到"，
+// 而战果行的 done 语义是"有证据说明这一类东西存在"（比如某个洞的摘要里出现了"密码"），
+// 不等于"我真的拿到了"。结果出现了自相矛盾：等级 E0（还没有任何访问权）、
+// 我有什么=空，却在"现在能做到"里高亮「看后台的用户名/密码或哈希」。
+//
+// 现在改成跟**等级**同源：用 impact.Stats（凭据库 / 台账 / 证据词）判能力，
+// 保证"能做"和"我在哪"永远一致 —— 拿不到权限就一个后果都不许点亮。
+// 战果行仍用于"自动收口"（新证据出现 = 这件事有进展），两个用途不混。
+func actionDoable(def actionDef, st impact.Stats) bool {
+	switch def.Class {
+	case "data_export": // 要真读到过数据
+		return st.DataSamples > 0
+	case "account_read": // 要能进后台，或库里有凭据
+		return st.OwnedApp > 0 || st.Creds > 0
+	case "account_create": // 要后台或命令执行
+		return st.OwnedApp > 0 || st.Shells > 0
+	case "money_adjust", "money_approve": // 要后台
+		return st.OwnedApp > 0
+	case "deface": // 要上传/写权限（后台或命令执行）
+		return st.OwnedApp > 0 || st.Shells > 0
+	case "persist": // 要命令执行
+		return st.Shells > 0
 	}
 	return false
 }

@@ -1285,16 +1285,23 @@ function mockWarCard(
     // P2 演示：data_export 已被"对话即授权"登记、account_read 已完成并留了证据
     actions: mockActions().map((a) => {
       // P2/P3：能高亮的和能收口用同一套映射（与 server/actions.go actionDefs 一致）
-      const map: Record<string, string[]> = {
-        data_export: ["db", "data"],
-        account_read: ["admin", "cred"],
-        account_create: ["admin"],
-        money_adjust: ["admin", "db"],
-        money_approve: ["admin"],
-        deface: ["filewrite"],
-        persist: ["rce"],
+      // 与 server/actions.go actionDoable 同源：看**能力**（不看在不在漏洞摘要里）。
+      // admin=进过后台 / rce=命令执行 / db+data=读到数据
+      const cap = {
+        app: doneSet.has("admin"),
+        shell: doneSet.has("rce"),
+        data: doneSet.has("db") && doneSet.has("data"),
       };
-      const doable = (map[a.class] ?? []).some((k) => doneSet.has(k));
+      const doable =
+        a.class === "data_export"
+          ? cap.data
+          : a.class === "account_read"
+            ? cap.app
+            : a.class === "persist"
+              ? cap.shell
+              : a.class === "account_create" || a.class === "deface"
+                ? cap.app || cap.shell
+                : cap.app; // money_adjust / money_approve
       if (a.class === "data_export") {
         return {
           ...a,
