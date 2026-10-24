@@ -1735,6 +1735,10 @@ function route(m: string, path: string, seg: string[], q: URLSearchParams, b: Re
     if (index >= 0) mockTaskTemplates.splice(index, 1);
     return { deleted: id };
   }
+  // ⑦ 未读：demo 给两个任务各挂一点（战果/审查官合计）
+  if (path === "/tasks/unread" && m === "GET") {
+    return { total: 5, by_task: { "t-acme-web": 5, "t-acme-api": 0, "t-shop-pay": 0 } };
+  }
   if (seg[0] === "tasks" && seg.length === 2 && m === "GET") {
     const task = mockTasks.find((item) => item.id === seg[1]);
     if (!task) throw new Error("任务不存在");

@@ -512,8 +512,8 @@ export function TaskTemplateControls({
           </ComboboxContent>
         </Combobox>
         <FieldDescription>
-          前 3 个是**开局**（判断值不值得打 / 打穿并取证 / 全面出报告），零基础直接选第一个；带
-          「补充」的是打到一半才用的打法。选择后会复制模板的描述、目标、分类与任务级规则，不与模板保持关联。
+          前 3 个是「开局」（判断值不值得打 / 打穿并取证 / 全面出报告），零基础直接选第一个；
+          带「补充」的是打到一半才用的打法。选择后会复制模板的描述、目标、分类与任务级规则，不与模板保持关联。
         </FieldDescription>
       </Field>
 

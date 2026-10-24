@@ -121,7 +121,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { api, type ScheduleInput } from "@/lib/api";
+import { api, unreadapi, type ScheduleInput } from "@/lib/api";
 import { getLocalStorageValue, setLocalStorageValue } from "@/lib/local-storage.client";
 import { type SortDirection, useStoredSortPreference } from "@/lib/sort-preference";
 import type {
@@ -308,6 +308,36 @@ function compareTasks(left: Task, right: Task, field: TaskSortField, direction: 
 export default function TasksPage() {
   const [activeTab, setActiveTab] = React.useState("current");
   const [tasks, setTasks] = React.useState<Task[]>([]);
+  // 未读（⑦）：任务列表红点 + 浏览器标题数字；桌面通知只在用户授权过一次后使用。
+  const [unread, setUnread] = React.useState<Record<string, number>>({});
+  // 未读轮询（20s）：只在"总数变多"且已获通知权限时弹一次桌面通知。
+  React.useEffect(() => {
+    let alive = true;
+    let lastTotal = -1;
+    const tick = () =>
+      unreadapi
+        .get()
+        .then((r) => {
+          if (!alive) return;
+          setUnread(r.by_task ?? {});
+          const total = r.total ?? 0;
+          document.title = total > 0 ? `(${total}) ARTEX` : "ARTEX — 自主渗透测试控制台";
+          if (lastTotal >= 0 && total > lastTotal && typeof window !== "undefined") {
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification("ARTEX：有新东西", { body: `共 ${total} 条未读（战果/审查官），打开任务看` });
+            }
+          }
+          lastTotal = total;
+        })
+        .catch(() => void 0);
+    void tick();
+    const t = setInterval(tick, 20000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+      document.title = "ARTEX — 自主渗透测试控制台";
+    };
+  }, []);
   const [categories, setCategories] = React.useState<TaskCategory[]>([]);
   const [categoriesLoaded, setCategoriesLoaded] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -1008,6 +1038,7 @@ export default function TasksPage() {
                       onArchive={queueTaskArchive}
                       selected={selectedIds.has(task.id)}
                       onSelectedChange={toggleSelected}
+                      unread={unread[task.id] ?? 0}
                     />
                   ))}
                 </TableBody>
@@ -1184,9 +1215,11 @@ const TaskRow = React.memo(function TaskRow({
   onArchive,
   selected,
   onSelectedChange,
+  unread,
 }: {
   task: Task;
   nowSec: number;
+  unread: number;
   onDelete: (id: string, options: DeleteTaskOptions) => Promise<void>;
   onControl: (id: string, action: "pause" | "resume") => Promise<void>;
   onRename: (task: Task, name: string) => Promise<void>;
@@ -1210,7 +1243,7 @@ const TaskRow = React.memo(function TaskRow({
       </TableCell>
       <TableCell className="font-medium">
         <div className="flex max-w-xs items-center gap-2">
-          <TaskNameEditor task={task} onRename={onRename} />
+          <TaskNameEditor task={task} onRename={onRename} unread={unread} />
           {task.active && <StarIcon className="size-4 shrink-0 fill-amber-400 text-amber-400" />}
           {taskIsPinned(task) && <PinIcon className="text-primary size-4 shrink-0" aria-label="已置顶" />}
         </div>
@@ -1328,7 +1361,16 @@ const TaskRow = React.memo(function TaskRow({
   );
 });
 
-function TaskNameEditor({ task, onRename }: { task: Task; onRename: (task: Task, name: string) => Promise<void> }) {
+function TaskNameEditor({
+  task,
+  onRename,
+  unread = 0,
+}: {
+  task: Task;
+  onRename: (task: Task, name: string) => Promise<void>;
+  /** 未读数（战果/审查官）：>0 时名字后面挂红点（⑦） */
+  unread?: number;
+}) {
   const [editing, setEditing] = React.useState(false);
   const [name, setName] = React.useState(task.name ?? "");
   const [saving, setSaving] = React.useState(false);
@@ -1402,8 +1444,23 @@ function TaskNameEditor({ task, onRename }: { task: Task; onRename: (task: Task,
         className="min-w-0 truncate rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         title={task.name?.trim() ? task.name : task.description}
       >
-        {task.name?.trim() ? task.name : <span className="text-muted-foreground">未命名</span>}
+        {task.name?.trim() ? (
+          task.name
+        ) : task.description?.trim() ? (
+          // 没起名字时用描述兜底：列表里"未命名 ×4"等于没有信息（审查发现）
+          task.description
+        ) : (
+          <span className="text-muted-foreground">未命名</span>
+        )}
       </Link>
+      {unread > 0 && (
+        <span
+          className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold leading-none text-white"
+          title={`有 ${unread} 条新东西（战果/审查官）：打开任务就能看到`}
+        >
+          {unread > 99 ? "99+" : unread}
+        </span>
+      )}
       <Button
         type="button"
         variant="ghost"
@@ -1720,6 +1777,7 @@ function TaskArchivesPanel({ onChanged }: { onChanged: () => void }) {
       setLoading(false);
     }
   }, [onChanged, page, pageSize, query, stateFilter]);
+
 
   React.useEffect(() => {
     void load();

@@ -1949,6 +1949,11 @@ export const phrasesapi = {
     get<import("@/lib/types").TaskPhrasesResponse>(`/tasks/${encodeURIComponent(taskId)}/phrases`),
 };
 
+// 未读通知（⑦）：任务列表红点 / 浏览器标题数字（战果新证据 + 审查官未读）
+export const unreadapi = {
+  get: () => get<{ total: number; by_task: Record<string, number> }>("/tasks/unread"),
+};
+
 export const lootapi = {
   get: (taskId: string) => get<LootResponse>(`/tasks/${encodeURIComponent(taskId)}/loot`),
   // L1：单行「用 AI 说清楚」（按证据 hash 缓存）

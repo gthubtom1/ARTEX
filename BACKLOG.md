@@ -370,6 +370,16 @@ data_export←读到数据；account_read←进过后台或库里有凭据；per
 task 14（E4）→ 6 件 doable、standing got。测试 `TestActionDoableFollowsCapability` /
 `TestFindingStandingNeedsCapability` PASS。
 
+**⑦ 通知 + ⑧ 终局审查第一轮（2026-10-24，0.11.30）**：
+- ⑦ 未读通知：`GET /api/tasks/unread`（一条聚合 SQL：findings id > `loot_seen` 游标 + `review_runs` 未读），
+  任务列表行上红点 `+N`、浏览器标题 `(N) ARTEX`、桌面通知（仅已授权时，且只在总数变多时弹一次）。
+  真机（0.11.29）：`{"total":25,"by_task":{"14":2,"17":3,…}}`，与库里 `review_unseen`/新 findings 逐项对得上。
+- ⑧ 终局审查第一轮：`docs/26-终局审查报告.md`（四维：视觉/交互/逻辑/产品，7 条已修 + 7 条待修按优先级排）。
+  本轮修：列表"未命名"用描述兜底、mock 未读路由顺序、新建表单里的字面量 `**开局**`、
+  战果胶囊 `+N` 去歧义。截图 `screenshots/audit-{1,2,3}-*.png`。
+  待修（下轮）：总览管理类卡片折叠、会话/战况"下一步"去重、发现页三段式、任务列表 15 列收 6 列、
+  通知授权入口、战况空态、报告头战况快照。
+
 **⑥ 审查官 P3 已上线（2026-10-24，0.11.28）**：
 - **读战况**：`Snapshot.War`（`internal/review/snapshot.go`）由 `server/review_war.go` 填 ——
   等级/依据/已拿到/三段式计数/真能做的 doable/是否停摆/在办的业务工单数，口径与 `/brief` 同源；

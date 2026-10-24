@@ -84,7 +84,7 @@ export function LootCapsule({
       {fresh > 0 && (
         <span className="inline-flex items-center gap-0.5 rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white">
           <span className="size-1 rounded-full bg-white/90" />
-          {fresh > 9 ? "9+" : fresh}
+          {fresh > 9 ? "+9" : `+${fresh}`}
         </span>
       )}
     </button>
