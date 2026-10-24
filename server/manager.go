@@ -1074,6 +1074,15 @@ func (m *Manager) LoadExisting() []*Task {
 	if len(loaded) > 0 {
 		log.Printf("[manager] reloaded %d task(s) from PG", len(loaded))
 	}
+	// 新进程里不可能有“正在跑”的复核轮次：上次退出/重启时被打断的会永远停在
+	// running（实测 task 7 run 13 自 05:30 起一直 running，界面显示“分析中”不动）。
+	// 启动时统一收尾，状态机保持一致。
+	if m.pg != nil {
+		if _, err := m.pg.Exec(`UPDATE review_runs SET status='superseded'
+			WHERE status IN ('queued','running')`); err != nil {
+			log.Printf("[manager] 清理残留 review_runs 失败: %v", err)
+		}
+	}
 	return loaded
 }
 
