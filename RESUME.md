@@ -11,6 +11,20 @@
 
 > 换会话/换模型/上下文压缩后用这一页续接。**不需要旧对话 ID**——进度全在磁盘上。
 
+## 0.9.6 版新增（阶段 A/B/C，全部带判据）
+
+- **值不值得打**：`GET /api/tasks/{id}/verdict`，任务首页结论卡（值得/不值得/偏硬/还没探够 + 3 条带 id 理由 + 攻击面）。
+  判据：`curl -H "Authorization: Bearer <token>" .../verdict` 返回 `verdict` 非空且 reasons 带 id。
+- **五个阶段模板 + 真实时长**：①20m recon ②30m surface ③40m exploit ④30m data ⑤60m full；
+  应用模板自动预填「高级设置 → 超时」。判据：`select name,stage,timeout_min from task_templates`。
+- **阶段门**：recon 且未出结论（findings=0 且否定结论<3）时，guard 拦 sqlmap/msf/hydra/xp_cmdshell/webshell 等；
+  判据：`select count(*) from task_error_events where tool='StageGate'`（出现即证明生效）。
+- **审查官可信度**：cites 必须真实存在（不存在剔除），空则 `confidence=low` + 前缀「（无依据·仅供参考）」+ 不写笔记；
+  每次看完写一条 `activity(worker='adviser')`。
+- **报告可交付**：`GET /api/report?task=N` 含「详细报告」小节（`findings.report` 正文）。
+- **失败显形**：goal 里没有可识别网址/IP → 建任务直接 400（不再放行后乱跑）。
+- **命中率页**：`/api/system/hitrate` 带 `needs`（0 行的原因），页面直接显示，不再是假 0。
+
 ## 2026-10-23 卡片线（B01/C01/D01/E01）—— 最新一页
 
 > 这一页比下面的 P8 状态新。**接手先看这里，再看 P8。**
