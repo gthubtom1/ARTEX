@@ -32,6 +32,27 @@ type DeferredInfo struct {
 // DeferredInfo describing how those MCP tools are deferred/gated. The server wires
 // it to the PG agent_visibility table. cleanup releases any spawned MCP clients.
 //
+// unlockLocalDeferred 把 agent **自带的** deferred 工具加进会话解锁集。
+//
+// 为什么必须显式加（2026-10-24 实测）：
+// norma 的语义是「DeferredTools 只藏 schema，名字照常列出，默认可调用」，但它只在
+// Options.UnlockSet == nil 时用 DeferredTools 播种解锁集：
+//
+//	s.unlock = opts.UnlockSet
+//	if s.unlock == nil { s.unlock = tool.NewUnlockSet(opts.DeferredTools...) }
+//
+// 宿主（server/assembly.go）为了 MCP 的 skill 门控总是传一个非 nil 的 UnlockSet，
+// 于是 agent 自己的 deferred 工具（get_worker_output / get_worker_trace / list_facts /
+// nmap_scan / httpx_probe / nuclei_scan …）就被锁死：模型能看见名字、调用时却收到
+// 「is not unlocked in this session — load the skill that provides it first」，
+// 然后反复重试白烧 token（planner 实测连续 3 次）。
+func unlockLocalDeferred(def DeferredInfo, names []string) {
+	if def.Unlock == nil || len(names) == 0 {
+		return
+	}
+	def.Unlock.Add(names...)
+}
+
 // When nil, agents run with only their built-in tools — behavior is unchanged
 // until a user assigns a skill/MCP to the agent in the UI.
 var ToolAugment func(ctx context.Context, agentKey string) (extra []actool.CoreTool, def DeferredInfo, cleanup func())

@@ -395,6 +395,9 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 		names := deferredToolNames(dt)
 		def.Deferred = append(def.Deferred, names...)
 		def.GlobalNames = append(def.GlobalNames, names...)
+		// 见 unlockLocalDeferred 注释：宿主传了非 nil 的 UnlockSet 时，
+		// SDK 不会用 DeferredTools 播种 → 必须自己解锁，否则这些工具调不通。
+		unlockLocalDeferred(def, names)
 	}
 	defer cleanup()
 

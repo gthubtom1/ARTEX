@@ -397,6 +397,9 @@ func (p *Planner) Plan(ctx context.Context, taskID int64, as *db.AssetStore, ts 
 		names := deferredToolNames(dt)
 		def.Deferred = append(def.Deferred, names...)
 		def.GlobalNames = append(def.GlobalNames, names...)
+		// 见 unlockLocalDeferred 注释：宿主传了非 nil 的 UnlockSet 时，
+		// SDK 不会用 DeferredTools 播种 → 必须自己解锁，否则这些工具调不通。
+		unlockLocalDeferred(def, names)
 	}
 	defer cleanup()
 	// 关键态势（刚完成的意图 + 预取的完整图）改放【本轮 user 输入】(见下方 input)，system
