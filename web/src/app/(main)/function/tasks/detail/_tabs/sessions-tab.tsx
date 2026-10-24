@@ -2446,37 +2446,31 @@ function GrantInline({ taskId }: { taskId: string }) {
 
   if (steps.length === 0) return null;
 
-  const decide = async (cls: string, ok: boolean) => {
-    setBusy(true);
-    try {
-      await impactapi.grant(taskId, cls, ok);
-      setSteps((prev) => prev.filter((s) => s.cls !== cls));
-    } catch {
-      void 0;
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  // P4 之后这里不再有「允许/拒绝」：授权只剩一条路 —— 在对话里说一句。
+  // 这条横条只负责"告诉你它下一步想做什么"，点一下把话说复制走。
   return (
-    <div className="flex min-w-0 items-center gap-1.5 rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-[11px]">
-      <span className="truncate font-medium text-amber-700 dark:text-amber-300">
-        待你授权：{steps[0].title}
+    <div className="flex min-w-0 items-center gap-1.5 rounded border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-[11px]">
+      <span className="truncate text-sky-800 dark:text-sky-200">
+        它下一步想做：<b className="font-medium">{steps[0].title}</b>
         {steps.length > 1 ? `（还有 ${steps.length - 1} 个）` : ""}
+        <span className="ml-1 opacity-70">· 要做就在下面说一句，不用找按钮</span>
       </span>
-      <button
-        className="shrink-0 rounded border border-emerald-600/50 bg-emerald-600 px-1.5 py-0.5 text-[10.5px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-        disabled={busy}
-        onClick={() => void decide(steps[0].cls, true)}
-      >
-        允许
-      </button>
       <button
         className="shrink-0 rounded border px-1.5 py-0.5 text-[10.5px] hover:bg-accent disabled:opacity-50"
         disabled={busy}
-        onClick={() => void decide(steps[0].cls, false)}
+        title="把这句话复制走，粘到输入框里改一改再发（不自动发送）"
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await navigator.clipboard.writeText(`帮我${steps[0].title}，做完把证据留档`);
+          } catch {
+            void 0;
+          } finally {
+            setBusy(false);
+          }
+        }}
       >
-        拒绝
+        复制一句
       </button>
     </div>
   );

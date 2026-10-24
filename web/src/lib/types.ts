@@ -2145,6 +2145,8 @@ export interface BriefAction {
   run_say_it?: string;
   // 做完该留下什么证据
   evidence_need?: string;
+  // 现在就能做到（前置对应的战果行已拿到）——做不到的灰着
+  doable?: boolean;
 }
 
 export interface TaskBrief {

@@ -38,6 +38,8 @@ type briefAction struct {
 	RunEvidence  string `json:"run_evidence,omitempty"`
 	RunSayIt     string `json:"run_say_it,omitempty"` // 人当时的原话（授权凭据）
 	EvidenceNeed string `json:"evidence_need"`        // 做完该留下什么证据
+	// Doable：**现在**就能做到（前置对应的战果行已拿到）。做不到的灰着，别骗人。
+	Doable bool `json:"doable"`
 }
 
 type brief struct {
@@ -133,7 +135,7 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	// 业务动作（P2）：列表来自 actionDefs（唯一事实源），state 恒为 idle（永不自动执行），
 	// 真正"人要求过没有 / 有没有证据"看 run_state。先做一次证据收口再读工单。
 	s.closeActionsByEvidence(r.Context(), t, taskID)
-	out.Actions = s.briefActions(r.Context(), taskID)
+	out.Actions = s.briefActions(r.Context(), taskID, rows)
 
 	if len(out.Has) > 0 {
 		out.SayThis = "想做上面哪一步，直接在下面主对话里说，例如「" + out.Actions[0].SayIt + "」；我不会自己动手。"

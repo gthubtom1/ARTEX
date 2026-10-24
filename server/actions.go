@@ -398,13 +398,14 @@ func actionClassFromChat(msg string) string {
 
 // briefActions 给战况卡拼动作列表：定义来自 actionDefs，状态来自最新工单。
 // state 恒为 "idle"（永不自动执行），人要求过没有看 run_state。
-func (s *Server) briefActions(ctx context.Context, taskID int64) []briefAction {
+func (s *Server) briefActions(ctx context.Context, taskID int64, rows []lootRow) []briefAction {
 	runs := latestRunsByClass(s.getActionRuns(ctx, taskID))
 	out := make([]briefAction, 0, len(actionDefs))
 	for _, d := range actionDefs {
 		item := briefAction{
 			Class: d.Class, Title: d.Title, State: "idle",
 			Need: d.Need, SayIt: d.SayIt, EvidenceNeed: d.Evidence, RunState: "none",
+			Doable: actionDoable(d, rows),
 		}
 		if r, ok := runs[d.Class]; ok {
 			item.RunState = r.State
@@ -415,4 +416,20 @@ func (s *Server) briefActions(ctx context.Context, taskID int64) []briefAction {
 		out = append(out, item)
 	}
 	return out
+}
+
+// actionDoable：这件"现实后果"现在到底能不能做 —— 看它前置映射的战果行有没有拿到。
+// 判据与收口共用 actionDefs.Rows，所以"能高亮的"和"做完能自动收口的"永远是同一批。
+func actionDoable(def actionDef, rows []lootRow) bool {
+	for _, row := range rows {
+		if row.Status != "done" {
+			continue
+		}
+		for _, k := range def.Rows {
+			if row.Key == k {
+				return true
+			}
+		}
+	}
+	return false
 }

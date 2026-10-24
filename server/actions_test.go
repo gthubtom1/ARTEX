@@ -74,3 +74,24 @@ func TestActionDefsComplete(t *testing.T) {
 		seen[d.Class] = true
 	}
 }
+
+// 战况卡要能"高亮现在真能做到的那几件"：doable 必须跟收口用同一套映射，
+// 不能出现"高亮了却收不了口"或"能收口却没高亮"。
+func TestActionDoable(t *testing.T) {
+	def, _ := actionDefByClass("data_export")
+	rows := []lootRow{
+		{Key: "admin", Label: "管理员 / 后台登录", Status: "done"},
+		{Key: "db", Label: "数据库查询", Status: "run"},
+	}
+	if actionDoable(def, rows) {
+		t.Fatal("db 还在 run，data_export 不该算能做到")
+	}
+	rows[1].Status = "done"
+	if !actionDoable(def, rows) {
+		t.Fatal("db 已 done，data_export 应算能做到")
+	}
+	persistDef, _ := actionDefByClass("persist")
+	if actionDoable(persistDef, rows) {
+		t.Fatal("没有命令执行时 persist 不该算能做到")
+	}
+}

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { SparklesIcon } from "lucide-react";
+import { RefreshCwIcon, SparklesIcon } from "lucide-react";
 
 import { phrasesapi } from "@/lib/api";
 import type { TaskPhrase } from "@/lib/types";
@@ -28,22 +28,25 @@ export function TaskPhrases({
 }) {
   const [items, setItems] = React.useState<TaskPhrase[]>([]);
   const [has, setHas] = React.useState<string[]>([]);
+  const [busy, setBusy] = React.useState(false);
 
-  // 进页面拉一次；任务切换再拉。战果变化由用户自己刷新页面（短语变化不值 20s 一次轮询）。
-  React.useEffect(() => {
-    let alive = true;
-    phrasesapi
-      .get(taskId)
-      .then((r) => {
-        if (!alive) return;
-        setItems(r.phrases ?? []);
-        setHas(r.has ?? []);
-      })
-      .catch(() => void 0);
-    return () => {
-      alive = false;
-    };
+  // 按**当前**战果重算（随时可点）：拿到新东西后说法就变了，不能只算一次。
+  const reload = React.useCallback(async () => {
+    setBusy(true);
+    try {
+      const r = await phrasesapi.get(taskId);
+      setItems(r.phrases ?? []);
+      setHas(r.has ?? []);
+    } catch {
+      void 0;
+    } finally {
+      setBusy(false);
+    }
   }, [taskId]);
+
+  React.useEffect(() => {
+    void reload();
+  }, [reload]);
 
   if (items.length === 0) return null;
 
@@ -54,6 +57,16 @@ export function TaskPhrases({
         这个站现在能说
         {has.length > 0 && <span className="opacity-70">（已有：{has.join("/")}）</span>}
       </span>
+      <button
+        type="button"
+        className="inline-flex items-center gap-0.5 rounded border px-1 py-0.5 text-[10px] text-muted-foreground hover:bg-accent disabled:opacity-50"
+        onClick={() => void reload()}
+        disabled={disabled || busy}
+        title="按当前已拿到的战果重新算这几句话（随时可点）"
+      >
+        <RefreshCwIcon className={busy ? "size-3 animate-spin" : "size-3"} />
+        重算
+      </button>
       {items.map((p) => (
         <button
           key={p.key}

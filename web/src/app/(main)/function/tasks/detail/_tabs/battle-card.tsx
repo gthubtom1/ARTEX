@@ -299,15 +299,29 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
           </h5>
           <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
             {shownActions.map((a) => {
-              const reachable = has.length > 0;
               return (
                 <div
                   key={a.class}
-                  className={cn("rounded border bg-card px-2 py-1", !reachable && "opacity-60")}
-                  title={`前置条件：${a.need}`}
+                  className={cn(
+                    "rounded border px-2 py-1",
+                    a.doable
+                      ? "border-emerald-500/50 bg-emerald-500/[0.07]"
+                      : "border-border bg-card opacity-55 grayscale-[0.3]",
+                  )}
+                  title={a.doable ? "前置已满足：现在说一句就能做" : `还做不到，前置：${a.need}`}
                 >
                   <div className="flex items-center gap-1">
                     <span className="font-medium">{a.title}</span>
+                    <span
+                      className={cn(
+                        "rounded px-1 text-[9.5px] font-semibold",
+                        a.doable
+                          ? "bg-emerald-600 text-white"
+                          : "bg-slate-500/20 text-slate-600 dark:text-slate-300",
+                      )}
+                    >
+                      {a.doable ? "现在能做到" : "还做不到"}
+                    </span>
                     <span className="rounded bg-amber-500/15 px-1 text-[9.5px] font-semibold text-amber-700 dark:text-amber-300">
                       不自动执行
                     </span>

@@ -1212,6 +1212,7 @@ function mockWarCard(
   }
 
   const done = rows.filter((r) => r.status === "done");
+  const doneSet = new Set(done.map((r) => r.key));
   const maxEv = (r: MockWarRow) => Math.max(0, ...(r.evidence ?? []).map((e) => e.id));
   const seen = mockLootSeen[task.id] ?? 0;
   const newSince = done.filter((r) => maxEv(r) > seen).length;
@@ -1262,9 +1263,21 @@ function mockWarCard(
     }),
     // P2 演示：data_export 已被"对话即授权"登记、account_read 已完成并留了证据
     actions: mockActions().map((a) => {
+      // P2/P3：能高亮的和能收口用同一套映射（与 server/actions.go actionDefs 一致）
+      const map: Record<string, string[]> = {
+        data_export: ["db", "data"],
+        account_read: ["admin", "cred"],
+        account_create: ["admin"],
+        money_adjust: ["admin", "db"],
+        money_approve: ["admin"],
+        deface: ["filewrite"],
+        persist: ["rce"],
+      };
+      const doable = (map[a.class] ?? []).some((k) => doneSet.has(k));
       if (a.class === "data_export") {
         return {
           ...a,
+          doable,
           run_state: "requested",
           run_id: 101,
           run_say_it: "帮我把它数据库里的订单表数据拉出来，先各取几条看看",
@@ -1274,6 +1287,7 @@ function mockWarCard(
       if (a.class === "account_read") {
         return {
           ...a,
+          doable,
           run_state: "done",
           run_id: 100,
           run_say_it: "把后台的用户列表和密码（或哈希）给我看看",
@@ -1281,7 +1295,7 @@ function mockWarCard(
           evidence_need: "脱敏后的账号列表",
         };
       }
-      return { ...a, run_state: "none" };
+      return { ...a, doable, run_state: "none" };
     }),
     say_this:
       has.length > 0
