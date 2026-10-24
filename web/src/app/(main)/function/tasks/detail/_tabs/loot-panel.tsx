@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 // 上下两区：上=清单表（可滚），下=详情（默认不渲染，点行升起，分隔条可拖）。
 const ST: Record<LootRow["status"], { label: string; cls: string }> = {
   done: { label: "✓ 已拿到", cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
-  run: { label: "正在试", cls: "bg-blue-500/15 text-blue-600 dark:text-blue-400" },
+  run: { label: "正在试", cls: "bg-sky-500/15 text-sky-700 dark:text-sky-300" },
   tried: { label: "试过未成", cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
   // todo = 你标的「还没试」；na = 你标的「不适用」（不计入分母）
   todo: { label: "还没试", cls: "bg-slate-500/10 text-slate-600" },
@@ -369,7 +369,7 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                     key={r.key}
                     className={cn(
                       "cursor-pointer border-b align-top transition-colors",
-                      on ? "bg-blue-500/[0.06] shadow-[inset_3px_0_0_#3b82f6]" : "hover:bg-accent/40",
+                      on ? "bg-sky-500/[0.06] shadow-[inset_3px_0_0_#0284c7]" : "hover:bg-accent/40",
                     )}
                     onClick={() => pick(r)}
                   >
@@ -410,7 +410,7 @@ export function LootPanel({ taskId, onClose }: { taskId: string; onClose: () => 
         >
           {/* 可拖拽分隔条 */}
           <div
-            className="h-1.5 shrink-0 cursor-ns-resize border-y bg-muted-foreground/20 transition-colors hover:bg-blue-500/40 active:bg-blue-500/60"
+            className="h-1.5 shrink-0 cursor-ns-resize border-y bg-muted-foreground/20 transition-colors hover:bg-sky-500/40 active:bg-sky-500/60"
             onPointerDown={onGripPointerDown}
             role="separator"
             aria-orientation="horizontal"

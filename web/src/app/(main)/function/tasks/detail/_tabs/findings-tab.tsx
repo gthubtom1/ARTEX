@@ -321,7 +321,12 @@ export function FindingsTab({ taskId }: { taskId: string }) {
               />
             ))}
             {items.length === 0 && (
-              <p className="px-4 py-8 text-center text-sm text-muted-foreground">本任务及直接关联任务暂无确认发现。</p>
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                <p>本任务及直接关联任务还没有确认的漏洞。</p>
+                <p className="mt-1 text-xs">
+                  下一步：回到「战况」看它在往哪打，或者在会话里说「先花 20 分钟只读摸入口，把能打的点列出来」。
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>

@@ -99,7 +99,8 @@ export function ReportTab({ taskId }: { taskId: string }) {
     content = (
       <div className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed py-16 text-muted-foreground text-sm">
         <FileTextIcon className="size-8 opacity-40" />
-        暂无报告
+        <p>还没有生成报告。</p>
+        <p className="text-xs">下一步：在会话里说「用现在的证据出一份报告」；拿到数据/权限后这里也会自动有内容。</p>
       </div>
     );
   }

@@ -83,16 +83,6 @@ export function FindingCaseMemberRow({
       {onSelect && !f.inherited ? (
         <Checkbox checked={selected} onCheckedChange={(v) => onSelect(id, v === true)} aria-label={`选择上报 #${id}`} />
       ) : null}
-      <StatusBadge domain="severity" value={f.severity} />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <Link
-          className="truncate font-medium hover:underline"
-          href={`/function/findings/detail?id=${id}${contextTask ? `&context_task=${contextTask}` : ""}`}
-        >
-          #{id} {[f.name, f.vulnclass].find((v) => v?.trim()) ?? "未分类"}
-        </Link>
-        <span className="truncate text-muted-foreground text-xs">{f.summary}</span>
-      </div>
       {standing ? (
         <span
           className={cn(
@@ -114,6 +104,16 @@ export function FindingCaseMemberRow({
           {standing.standing === "got" ? "已成立" : standing.standing === "no_gain" ? "换不到" : "差一步"}
         </span>
       ) : null}
+      <StatusBadge domain="severity" value={f.severity} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <Link
+          className="truncate font-medium hover:underline"
+          href={`/function/findings/detail?id=${id}${contextTask ? `&context_task=${contextTask}` : ""}`}
+        >
+          #{id} {[f.name, f.vulnclass].find((v) => v?.trim()) ?? "未分类"}
+        </Link>
+        <span className="truncate text-muted-foreground text-xs">{f.summary}</span>
+      </div>
       {!matched ? <Badge variant="outline">未命中当前筛选</Badge> : null}
       {f.inherited ? <Badge variant="outline">继承 · 只读</Badge> : null}
       <StatusBadge domain="finding" value={f.status} />
