@@ -24,9 +24,14 @@ type Input struct {
 	// 页面侧早就用 db.DistinctFindingStats 统计，报告侧曾是原始条数——
 	// 同一份数据两个数字，用户拿报告交付会被问住。
 	Distinct *db.FindingDistinctStats
+	// Reports 是「报告 Agent 写出的详细报告」正文，键是探索节点 id（findings.node_id）。
+	// 为什么要有：过去报告页只渲染 name/summary/PoC，而 agent 写的 9k 字正文存在
+	// findings.report 里、页面上看不到 —— 用户拿不到可交付的报告（A3）。
+	Reports map[int64]string
 }
 
 type findingView struct {
+	ID        int64
 	VulnClass string
 	Name      string
 	Severity  string
@@ -45,7 +50,7 @@ func parseFinding(n *db.Node) findingView {
 		} `json:"evidence"`
 	}
 	_ = json.Unmarshal(n.Payload, &p)
-	return findingView{p.VulnClass, p.Name, p.Severity, p.Summary, p.Evidence.PoC}
+	return findingView{ID: n.ID, VulnClass: p.VulnClass, Name: p.Name, Severity: p.Severity, Summary: p.Summary, PoC: p.Evidence.PoC}
 }
 
 var sevRank = map[string]int{"critical": 0, "high": 1, "medium": 2, "low": 3, "": 4}
@@ -93,6 +98,9 @@ func Markdown(in Input) string {
 			fmt.Fprintf(&b, "%s\n\n", nz(f.Summary, ""))
 			if f.PoC != "" {
 				fmt.Fprintf(&b, "**PoC / 证据：**\n\n```\n%s\n```\n\n", f.PoC)
+			}
+			if rpt := strings.TrimSpace(in.Reports[f.ID]); rpt != "" {
+				fmt.Fprintf(&b, "**详细报告：**\n\n%s\n\n", rpt)
 			}
 		}
 	}

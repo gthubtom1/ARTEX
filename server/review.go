@@ -196,6 +196,18 @@ func (s *Server) reviewOnce(parent context.Context, taskIDStr string, taskID int
 		log.Printf("[review] llm failed (task=%d): %v", taskID, lerr)
 	}
 
+	// A2：引用校验 —— cites 里的 id 必须真的存在于本任务图里，不存在的剔除。
+	// 理由（docs/20 §1 失败显形）：结论如果引用了不存在的证据，比"没引证据"更糟——
+	// 用户会以为它查过。剔除后仍为空 → 显式降级为"低可信·仅供参考"，并且不写笔记。
+	v.Cites = s.validateReviewCites(ctx, taskID, v.Cites)
+	if len(v.Cites) == 0 {
+		v.Confidence = "low"
+		v.Notes = ""
+		if !strings.HasPrefix(v.Body, "（无依据") {
+			v.Body = "（无依据·仅供参考）" + v.Body
+		}
+	}
+
 	// ── 门：自检五问 + 分级 + 自动动作筛选 + 8 条防抖（internal/review/gate.go）──
 	tier := rs.Tier
 	if t := strings.TrimSpace(st.Tier); t != "" {
@@ -242,7 +254,11 @@ func (s *Server) reviewOnce(parent context.Context, taskIDStr string, taskID int
 	//
 	// 判据：审查官每看一次，就留一条可读记录（看了什么、引没引证据、有没有动作、
 	// 有没有被门挡下），这样"它有没有在干活"是可观测的，不用猜。
-	if s.engine != nil {
+	// 注意：这里**不能**用 `if s.engine != nil` 作为前置条件。
+	// 任务跑完后 engine 会被摘掉（实测 task 7 已 done → s.engine == nil），
+	// 于是"只读的诊断"一句都写不进去；而审查官恰恰常在任务收尾前后被触发。
+	// 改成：有 engine 走广播，没有就直接落库（AppendActivity 本身不依赖引擎）。
+	if task != nil && task.Store != nil {
 		citeN, actN := 0, 0
 		if v.Cites != nil {
 			citeN = len(v.Cites)
@@ -268,7 +284,19 @@ func (s *Server) reviewOnce(parent context.Context, taskIDStr string, taskID int
 		if txt := strings.TrimSpace(v.Body); txt != "" {
 			b.WriteString("。结论：" + clipLine(txt, 100))
 		}
-		s.engine.emitActivity(task, db.Activity{Worker: "adviser", Kind: "text", Summary: b.String()})
+		act := db.Activity{Worker: "adviser", Kind: "text", Summary: b.String()}
+		switch {
+		case s.engine != nil && task.Store != nil:
+			s.engine.emitActivity(task, act)
+		case task.Store != nil:
+			if _, err := task.Store.AppendActivity(act); err != nil {
+				log.Printf("[review] 写审查官活动失败(store): %v", err)
+			}
+		default:
+			// 任务已收尾时 Store 被释放（实测 task 7 done 后 task.Store == nil），
+			// 但用户正是这时候最需要看到"审查官最后说了什么"。直接落库。
+			s.appendReviewActivity(ctx, taskID, act.Summary)
+		}
 	}
 
 	// ack 窗口（docs/14 §4）：只有「还要人点头的动作」才开 90 秒倒计时。
@@ -714,4 +742,49 @@ func reviewModelLabel(model string) string {
 		return "规则版"
 	}
 	return "模型版"
+}
+
+// validateReviewCites 只保留真实存在的引用（本任务图里的节点 id）。
+// 图外的 id（模型编的、跨任务的、已删除的）一律剔除；去重。
+func (s *Server) validateReviewCites(ctx context.Context, taskID int64, cites []review.Cite) []review.Cite {
+	if len(cites) == 0 || s.m == nil || s.m.pg == nil {
+		return nil
+	}
+	out := make([]review.Cite, 0, len(cites))
+	seen := map[string]bool{}
+	for _, c := range cites {
+		if c.ID <= 0 {
+			continue
+		}
+		k := c.Kind + ":" + strconv.FormatInt(c.ID, 10)
+		if seen[k] {
+			continue
+		}
+		var exists bool
+		if err := s.m.pg.QueryRowContext(ctx, `SELECT EXISTS(
+			SELECT 1 FROM exploration_nodes n
+			WHERE n.id=$1 AND n.exploration_id=(SELECT exploration_id FROM tasks WHERE id=$2))`,
+			c.ID, taskID).Scan(&exists); err != nil || !exists {
+			continue
+		}
+		seen[k] = true
+		out = append(out, c)
+	}
+	return out
+}
+
+// appendReviewActivity 在 engine/Store 都不可用时直接落一条审查官活动。
+// conversation_id 从 tasks 取（该列为 NOT NULL，不能靠默认值）。
+func (s *Server) appendReviewActivity(ctx context.Context, taskID int64, summary string) {
+	if s.m == nil || s.m.pg == nil || taskID == 0 || strings.TrimSpace(summary) == "" {
+		return
+	}
+	// 注意表：任务会话左侧那串（Workers / 规划 / 系统审计）读的是 **activity**（按
+	// exploration_id 归属），不是 conversation_activities（那是聊天页的 agent 会话流）。
+	// 2026-10-24 实测：写进 conversation_activities 后会话页看不到任何审查官记录。
+	if _, err := s.m.pg.ExecContext(ctx, `INSERT INTO activity(exploration_id, worker, kind, summary)
+		SELECT exploration_id, 'adviser', 'text', $2 FROM tasks WHERE id=$1 AND exploration_id IS NOT NULL`,
+		taskID, summary); err != nil {
+		log.Printf("[review] 写审查官活动失败(pg): %v", err)
+	}
 }

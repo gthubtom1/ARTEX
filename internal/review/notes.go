@@ -220,6 +220,27 @@ func RuleBased(s *Snapshot) Verdict {
 		v.Actions = append(v.Actions, Action{Kind: "retry_intent", Intent: id, Why: "我方故障，没真正试过"})
 		v.Cites = append(v.Cites, Cite{Kind: "intent", ID: id})
 	}
+	// 2026-10-24：**cites 必须说清"这次判断看了什么"**。
+	// 实测（VM task 7）：没有死路/故障时 cites 为空 → 卡片只能显示"（它没给依据）"，
+	// 用户无法判断结论可不可信。这里补上"引用本次快照里最强的证据"：
+	// 先引用已确认漏洞（最强），再补最近的事实；都没有才算"无依据"。
+	if len(v.Cites) == 0 {
+		for i, f := range s.Findings {
+			if i >= 3 {
+				break
+			}
+			v.Cites = append(v.Cites, Cite{Kind: "finding", ID: f.ID})
+		}
+		for i := len(s.Facts) - 1; i >= 0 && len(v.Cites) < 5; i-- {
+			v.Cites = append(v.Cites, Cite{Kind: "fact", ID: s.Facts[i].ID})
+		}
+	}
+	if len(v.Cites) == 0 {
+		// 刚开局、真的什么都没有：明确降级，不要伪装成有依据的判断。
+		v.Confidence = "low"
+		v.Notes = ""
+	}
+
 	// E1：规则版给动作时同样必须给一句话可机检的预期；没有预期就不该有动作。
 	v.Expectation = expectationFor(s, v.Actions)
 	return v

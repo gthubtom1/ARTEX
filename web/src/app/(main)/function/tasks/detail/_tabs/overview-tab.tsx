@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { api } from "@/lib/api";
+import { api, verdictapi } from "@/lib/api";
 import type {
   AssetInterceptKind,
   AssetInterceptRule,
@@ -105,6 +105,8 @@ function StatCard({
 
 export function OverviewTab({ taskId }: { taskId: string }) {
   const [task, setTask] = React.useState<Task | null>(null);
+  // 「值不值得打」：纯规则判定，打开任务首页就能看到结论（A1）
+  const [verdict, setVerdict] = React.useState<import("@/lib/types").TaskVerdict | null>(null);
   const [stats, setStats] = React.useState<Stats | null>(null);
   const [intents, setIntents] = React.useState<TaskNode[]>([]);
   const [findings, setFindings] = React.useState<Finding[]>([]);
@@ -1036,6 +1038,70 @@ export function OverviewTab({ taskId }: { taskId: string }) {
                 仅显示前 20 条，点「全部重跑」处理剩余 {blocked.length - 20} 条。
               </p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 「值不值得打」结论卡：零基础打开任务就该看到的一句话结论 + 可点理由 */}
+      {verdict && (
+        <Card
+          className={
+            verdict.verdict === "worth"
+              ? "border-emerald-500/40 bg-emerald-500/5"
+              : verdict.verdict === "not_worth"
+                ? "border-rose-500/40 bg-rose-500/5"
+                : "border-amber-500/40 bg-amber-500/5"
+          }
+        >
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-1.5 text-xs">
+              <TargetIcon className="size-3.5" />
+              值不值得打（规则判定，不调模型）
+            </CardDescription>
+            <CardTitle className="text-base">
+              {verdict.label}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">{verdict.headline}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-[11.5px]">
+            {verdict.reasons.length > 0 && (
+              <ul className="flex flex-col gap-1">
+                {verdict.reasons.map((r, i) => (
+                  <li key={`${r.kind}-${r.id ?? i}`} className="flex items-start gap-1.5">
+                    <span className="mt-[2px] size-1.5 shrink-0 rounded-full bg-current opacity-40" />
+                    <span>
+                      {r.text}
+                      {r.id ? <span className="ml-1 font-mono text-[10px] text-muted-foreground">#{r.id}</span> : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {verdict.surface.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {verdict.surface.slice(0, 6).map((v) => (
+                  <span
+                    key={v.url}
+                    className={
+                      "rounded border px-1.5 py-0.5 font-mono text-[10px] " +
+                      (v.kind === "confirmed"
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                        : "border-border bg-muted text-muted-foreground")
+                    }
+                    title={v.note || "观测到的入口"}
+                  >
+                    {v.url.length > 48 ? v.url.slice(0, 48) + "…" : v.url}
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-muted-foreground">
+              下一步：{verdict.advice}
+              <span className="ml-2 opacity-60">
+                （依据 {verdict.counts.findings ?? 0} 个漏洞 / {verdict.counts.facts ?? 0} 条事实 /{" "}
+                {verdict.counts.assumptions ?? 0} 条否定结论）
+              </span>
+            </p>
           </CardContent>
         </Card>
       )}

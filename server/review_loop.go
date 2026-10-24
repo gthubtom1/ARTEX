@@ -287,7 +287,11 @@ func (s *Server) deliverReviewAdvice(ctx context.Context, t *Task, runID int64, 
 // finishReviewRun 把一次评审的最终形态写回 review_runs。
 func (s *Server) finishReviewRun(ctx context.Context, runID int64, v review.Verdict, model string,
 	g review.GateOut, ver, autoApplied int, ackStatus, ackReason string) {
-	citesJSON, _ := json.Marshal(v.Cites)
+	cites := v.Cites
+	if cites == nil {
+		cites = []review.Cite{} // 落 null 会让前端分不清“没引证据”和“字段缺失”
+	}
+	citesJSON, _ := json.Marshal(cites)
 	// 只落门后真正允许下发的动作；被剔除/降权的动作不该进入观察窗冲突判定。
 	actions := g.Actions
 	if actions == nil {

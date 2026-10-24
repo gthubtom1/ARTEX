@@ -747,6 +747,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerCaseRoutes(mux)       // 正负案例卡：任务图谱自动沉淀 + 列表
 	s.registerDataRoutes(mux)       // 数据定位：解析 DB 输出（不执行 SQL）
 	s.registerCandoRoutes(mux)      // “能做到什么”：战果地图 + 按需 AI 细化（CARD-B01）
+	s.registerVerdictRoutes(mux)    // 「值不值得打」结论卡（A1：零基础打开任务就要看到结论）
 	s.registerReviewRoutes(mux)     // 复盘官：结构化快照 + 评审结论 + 采纳回执（CARD-C01）
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)
@@ -4356,9 +4357,26 @@ func (s *Server) getReport(w http.ResponseWriter, r *http.Request) {
 			counts[ty] = len(ns)
 		}
 	}
+	// 详细报告正文（报告 Agent 写的）在 findings.report，按 node_id 关联图节点。
+	reports := map[int64]string{}
+	if s.m != nil && s.m.pg != nil {
+		if tid, err := strconv.ParseInt(t.ID, 10, 64); err == nil {
+			if rows, err := s.m.pg.Query(`SELECT node_id, report FROM findings
+				WHERE task_id=$1 AND length(coalesce(report,''))>0`, tid); err == nil {
+				for rows.Next() {
+					var nid int64
+					var rpt string
+					if rows.Scan(&nid, &rpt) == nil {
+						reports[nid] = rpt
+					}
+				}
+				rows.Close()
+			}
+		}
+	}
 	md := report.Markdown(report.Input{
 		Title: t.Description, Goal: t.Goal, GeneratedAt: time.Now(),
-		AssetCounts: counts, Findings: findings,
+		AssetCounts: counts, Findings: findings, Reports: reports,
 		// 独立漏洞计数（同一缺陷多次上报只算一个）。查失败时留 nil，
 		// report.Markdown 会回退到 len(findings)，不阻断报告生成。
 		Distinct: distinctStats(s, t.ID),

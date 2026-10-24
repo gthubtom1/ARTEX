@@ -2036,3 +2036,30 @@ export interface ReplayCompareResponse {
   delta: Record<string, number>;
   summary: string;
 }
+
+// ── 「值不值得打」结论卡（A1）────────────────────────────────
+// 纯规则判定，每条理由带 id 可回溯；不调模型，同类输入同样输出。
+export interface VerdictReason {
+  kind: "finding" | "fact" | "assumption";
+  id?: number;
+  text: string;
+}
+
+export interface VerdictSurface {
+  url: string;
+  note: string;
+  kind: "confirmed" | "observed";
+  ref?: number;
+}
+
+export interface TaskVerdict {
+  verdict: "worth" | "not_worth" | "unclear";
+  label: string;
+  headline: string;
+  reasons: VerdictReason[];
+  surface: VerdictSurface[];
+  counts: Record<string, number>;
+  advice: string;
+  /** 命中的判定规则（可复算/可解释） */
+  rule: string;
+}

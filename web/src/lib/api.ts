@@ -1892,6 +1892,12 @@ export interface LootResponse {
   rows: LootRow[];
 }
 
+export const verdictapi = {
+  // 「值不值得打」：值得 / 不值得 / 还没探够 + 最多 3 条理由 + 攻击面
+  get: (taskId: string) =>
+    get<import("@/lib/types").TaskVerdict>(`/tasks/${encodeURIComponent(taskId)}/verdict`),
+};
+
 export const lootapi = {
   get: (taskId: string) => get<LootResponse>(`/tasks/${encodeURIComponent(taskId)}/loot`),
   // L1：单行「用 AI 说清楚」（按证据 hash 缓存）
