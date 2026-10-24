@@ -751,6 +751,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerVerdictRoutes(mux)    // 「值不值得打」结论卡（A1：零基础打开任务就要看到结论）
 	s.registerImpactRoutes(mux)     // 权限阶梯 + 下一步提案 + 即时授权（E0–E5 / task_grants）
 	s.registerChainRoutes(mux)      // 利用链：一条漏洞从确认→授权→收益（chains / chain_steps）
+	s.registerBriefRoutes(mux)      // 战况卡（P0）：我在哪/我有什么/能换到什么/能做什么
 	s.registerReviewRoutes(mux)     // 复盘官：结构化快照 + 评审结论 + 采纳回执（CARD-C01）
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)
