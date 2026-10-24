@@ -1,112 +1,183 @@
 package db
 
-// builtinTaskTemplate is one of the task presets shipped with every fresh
-// install.
+// builtinTaskTemplate 是一个内置任务模板。
 //
-// 2026-10-24 重做（用户实测反馈）：
-//  1. 旧模板把“建议时限：20 分钟”写在 goal 文本里 —— 真正生效的是任务表单
-//     「高级设置 → 超时」，文本里那句话没有任何约束力，零基础用户照着点还是默认值。
-//     现在改成 TimeoutMin 字段，应用模板时直接预填表单。
-//  2. 旧模板太笼统（“摸清入口，输出清单”），没有交付物判据，AI 里外都容易糊过去。
-//     现在每个模板都写明：**必须产出什么**（结论/清单/证据/报告），以及边界。
-//  3. 按渗透阶段排序，一个零基础用户从上往下点就行。
+// 2026-10-24 重写（用户反馈：零基础不知道该选哪个、该写什么）：
+//  1. description 用一句话说清"这轮要拿到什么"，零基础直接选；
+//  2. goal 按老手的实际打法写成有序步骤（先做什么→看到什么→拿到什么算完成），
+//     不再是一句笼统的"摸清入口";
+//  3. timeoutMin 是真实时长（应用模板时预填「高级设置 → 超时」），不再写在文本里；
+//  4. stage 供阶段门使用（recon 阶段未出结论前禁利用类命令）。
+//  5. 越界动作一律写明"由平台向你请求授权"，不预设边界。
 type builtinTaskTemplate struct {
 	name        string
 	description string
 	goal        string
 	timeoutMin  int
-	stage       string // recon|surface|exploit|data|full（阶段门用）
+	stage       string
 }
 
-// builtinTaskTemplates 是五个阶段模板：判断值不值得 → 摸入口 → 找漏洞 → 拿数据 → 出总报告。
+// builtinTaskTemplates 按"一次渗透的真实顺序"排列，从上往下选即可。
 var builtinTaskTemplates = []builtinTaskTemplate{
 	{
 		name:        "① 值不值得打（20 分钟）",
-		description: "只读侦察后给结论：这个站硬不硬、值不值得继续投入。零基础从这里开始。",
+		description: "先花 20 分钟只读侦察，给出结论：这个站值不值得继续投入、硬在哪。零基础从这里开始。",
 		timeoutMin:  20,
 		stage:       "recon",
-		goal: `先判断这个站值不值得继续投入。只做只读侦察：域名与指纹（框架/中间件/CDN/WAF）、开放端口与服务、入口页与接口、是否全站要登录。
+		goal: `这一轮只做一件事：判断这个站值不值得继续投入。全程只读，任何利用动作都不要做。
+
+按这个顺序做：
+1. 解析：域名/IP、证书、CDN 或 WAF（有就别急着打，先记下来）。
+2. 端口与服务：只扫常见端口 + 全端口快速探活，记录开放端口与指纹。
+3. 入口页：首页、登录、注册、后台、上传、搜索、API 文档（swagger/actuator/openapi）、robots、sitemap。
+4. 快速判定攻击面：有没有未授权接口、有没有登录面、有没有明显旧版本特征。
 
 必须产出结论（写成一条 finding 或最后一条 fact）：
-1) 值得深入 / 不值得继续，一句话理由；
-2) 明显的攻击面有哪几个（带完整 URL）；
-3) 有没有已知漏洞特征（版本号、已知 CVE 迹象、默认页、敏感文件）。
+- 值得深入 / 不值得继续，一句话理由；
+- 攻击面清单（带完整 URL，按价值排序）；
+- 如果"不值得"，写清硬在哪（WAF / 全站登录 / 无动态参数 / 纯静态）。
 
-边界：只读。不做写操作、不爆破、不尝试绕过登录。`,
+边界：只读。不爆破、不尝试绕过登录、不写任何东西。`,
 	},
 	{
 		name:        "② 摸入口和攻击面（30 分钟）",
-		description: "把入口清单摸出来：URL / 方法 / 参数 / 表单字段 / 上传点 / 接口，每条带证据。",
+		description: "把入口摸全：URL、方法、参数、表单字段、上传点、接口，每条带响应特征。为下一步找洞做准备。",
 		timeoutMin:  30,
 		stage:       "surface",
-		goal: `把这个站的入口和攻击面摸清，产出一份清单。每个入口必须写：URL、请求方法、参数或表单字段（含隐藏字段）、是否需要登录、响应特征（状态码/长度/关键字）。
+		goal: `目标：把这个站的入口和攻击面摸全，产出一份可以直接拿去打的清单。
 
-覆盖范围：首页外链、所有表单、上传点、接口（/api/**、/rest/**、swagger/openapi）、管理入口、报错回显点、静态资源里的注释与路径。
+按这个顺序做：
+1. 爬一遍站内链接与目录（不爆破，只做常见路径 + 首页外链）。
+2. 每个页面提取：表单（action/method/全部字段含隐藏字段）、参数、上传点、富文本/编辑器。
+3. 接口面单独拉一遍：/api/**、/rest/**、/v1/**、graphql、swagger、actuator、.well-known。
+4. 记录响应特征：状态码、长度、类型、是否回显入参、是否有调试信息/堆栈。
+5. 标记"疑似未授权"（无 cookie 直接 200 且返回业务数据）与"疑似注入点"（参数进 SQL/命令/模板）。
 
-边界：只读。不要提交会改数据的表单（注册/下单/改密这类只看不提交）。`,
+必须产出：入口清单（每条：URL / 方法 / 参数或字段 / 是否需要登录 / 响应特征 / 风险标记）。
+
+边界：只读。不要提交会改数据的表单（注册、下单、改密这类只看不提交）。`,
 	},
 	{
 		name:        "③ 找漏洞并取证（40 分钟）",
-		description: "在已摸清的入口上找可复现的漏洞，每条带完整请求与响应证据。",
+		description: "在入口清单上找可复现漏洞，每条带完整请求+响应证据；并至少把一条往上推到命令执行或数据访问。",
 		timeoutMin:  40,
 		stage:       "exploit",
-		goal: `目标不是"列出漏洞"，而是**至少把一条漏洞变成实际的命令执行或数据访问**。
+		goal: `目标不是"列出漏洞"，而是至少把一条漏洞变成实际的命令执行或数据访问。
 
-每个漏洞必须带三样：完整请求（方法/URL/参数/必要 header）、响应里证明成功的片段、影响（能读到什么/能做什么）。
-然后挑最有希望的一条往上推一步：上传/写文件 → 验证命令回显 → 或直接读出数据样本（每类 ≤3 条）。
-做到就调用 owned_register / record_fact 把"拿到了什么权限"登记下来，等级会自动上升。
+第一段——找洞并取证（每条都必须带证据）：
+1. 未授权访问与越权（水平/垂直）优先，最容易直接拿到数据。
+2. 注入：SQL（报错/布尔/时间）、命令、模板、LDAP；每个注入点做一次对照（去掉 payload 再发一遍）。
+3. 文件读取 / 路径穿越 / 源码泄露（.git、.env、备份）。
+4. 上传点：类型/后缀/内容校验，先只测能不能传一个无害文件（不落 webshell）。
+5. XSS：优先能打管理员的存储型；反射型要证明能触达后台。
+6. 默认口令（只试出厂默认，不爆破）。
 
-优先顺序：未授权访问与越权 → 注入（SQL/命令/模板）→ 文件读取 → 上传 → XSS（用来拿会话）→ 默认口令（不爆破）。
+第二段——往上推一步（挑最有希望的一条）：
+- 有注入 → 读库表名 + 取 ≤3 条样本；或写文件拿命令回显；
+- 有上传 → 传最小验证文件，证明能执行命令后立刻删除；
+- 有后台 → 找上传/模板/插件入口，按上面同样方式验证；
+- 做到就把结果用 owned_register / record_fact 登记（等级才会涨）。
 
-边界：需要越界的动作（上传/写文件、批量取数据、留账号、横移）由平台向你请求授权，你按提示停下等人确认。`,
+边界：上传/写文件、批量取数据、留账号、横移这些动作，平台会向你请求授权，按提示停下来等人确认。`,
 	},
 	{
 		name:        "④ 能拿到什么数据（30 分钟）",
-		description: "证明哪些数据实际可读（用户/订单/卡密/配置），每类最多 3 条样本。",
+		description: "证明哪些数据实际可读：用户/订单/卡密/配置；每类最多 3 条样本，写清表名字段名。",
 		timeoutMin:  30,
 		stage:       "data",
-		goal: `证明这个站的哪些数据实际可读：用户表、订单/支付/卡密、手机号与邮箱、配置文件与连接串。
+		goal: `目标：证明这个站的真实数据能被读到，并写清"读到什么级别"。
 
-每条证据最多取 3 行样本，写清表名与字段名；不整表导出、不落盘大量数据。
-拿到样本后用 record_fact 写回"读到了哪张表哪些字段"，战果页会自动标成 ✓ 已拿到。
+按这个顺序做：
+1. 用已有入口定位数据库：读配置文件/环境变量/连接串，或直接从注入点读库结构。
+2. 列出能读到的表与关键字段（用户、订单、支付、卡密、手机号、邮箱、日志）。
+3. 每类最多取 3 行样本作为证据，写清表名与字段名；不整表导出、不落盘大量数据。
+4. 用 record_fact 写回"读到了哪张表哪些字段"，战果页会自动标成 ✓ 已拿到。
+5. 结论写：能拿到什么级别的后果（敏感信息泄露 / 账户接管 / 数据库访问 / 仅信息收集），以及"再往下一步需要什么"。
 
-结论必须写：能拿到什么级别的后果（敏感信息泄露 / 账户接管 / 数据库访问 / 仅信息收集），
-以及"再往下一步需要什么"（提权？横移？还是到此为止）。
-
-边界：只读。需要越界的动作（批量导出、写文件、留账号）由平台向你请求授权。`,
+边界：只读。批量导出、写文件、留账号由平台向你请求授权后再说。`,
 	},
 	{
 		name:        "⑤ 全面评估出报告（60 分钟）",
-		description: "按阶段推进（侦察→入口→漏洞→数据），最后给一份能直接给人看的结论报告。",
+		description: "按阶段推进（侦察→入口→漏洞→数据→权限），最后给一份能直接交给客户看的报告。",
 		timeoutMin:  60,
 		stage:       "full",
-		goal: `按阶段推进：侦察 → 入口 → 漏洞 → 数据影响，最后给一份结论。
+		goal: `目标：给出这个站的完整评估结论，并产出一份可交付报告。
 
-报告必须包含：
-1) 值得 / 不值得继续，以及硬在哪（WAF / 无攻击面 / 全站登录 / 无漏洞特征）；
-2) 已确认漏洞清单，每条带证据；
-3) 能拿到的数据与权限级别；
-4) 还差什么（哪些面没探到、需要什么前提才能继续）。
+按这个顺序做：
+1. 侦察与入口（可复用②的产出，没有就先快速补）。
+2. 漏洞：按价值排序，每条带完整请求 + 响应证据 + 影响。
+3. 权限：尝试把最有希望的一条推到登录/命令执行/数据样本；做到就登记。
+4. 报告必须包含：
+   - 值得 / 不值得继续，以及硬在哪；
+   - 已确认漏洞清单（每条带证据）；
+   - 能拿到的数据与权限级别；
+   - 还差什么（哪些面没探到、需要什么前提）。
 
 边界：只读为主；任何写操作先停下来问人。`,
 	},
-}
+	{
+		name:        "⑥ 后台接管（30 分钟）",
+		description: "专攻登录面：默认口令/注入/越权进后台，进去后立刻取证并找上传点。",
+		timeoutMin:  30,
+		stage:       "exploit",
+		goal: `目标：进后台，并证明进去以后能做什么。
 
-// 旧版内置模板的 goal/描述（用于“只更新未被用户改过的那几条”）。
-// 键是名字，值是当时的 goal 全文。
-var legacyBuiltinTemplateGoals = map[string]string{
-	"初步探测": "摸清这个站有哪些入口和攻击面，输出清单，不做任何写操作。\n\n力度：只读；建议时限：20 分钟。",
-	"漏洞检测": "列出可复现的漏洞，每条带证据；不许改目标数据。\n\n力度：只读；建议时限：30 分钟。",
-	"数据确认": "证明能读到哪些表/字段，每类取 3 条样本，不整表导出。\n\n力度：只读；建议时限：20 分钟。",
-	"权限验证": "确认后台能否登录、服务器能否执行命令；写文件/上传前必须先问。\n\n力度：正常；建议时限：30 分钟。",
-	"全面评估": "给出这个站的完整评估结论：有哪些洞、能拿到什么、还差什么。\n\n力度：正常；建议时限：60 分钟。",
+按这个顺序做：
+1. 找全部登录入口：/admin、/login、/manage、/console、/druid、/phpmyadmin、端口管理面（8080/8443/9000）。
+2. 逐条尝试（每条只验一次，不爆破）：
+   - 出厂默认口令（admin/admin、admin/123456、admin/admin888…）；
+   - 登录处 SQL 注入（' or 1=1--、admin'--）；
+   - 越权：改 role/userid 参数、去掉鉴权头、IDOR 换 id。
+3. 进后台后立刻取证：截图/请求响应、可见的菜单与数据列表、版本信息。
+4. 在后台找能落文件的地方：上传、模板编辑、插件安装、数据导入、备份恢复。
+5. 用 owned_register 登记（access_type=admin，写清是哪个后台、怎么进的）。
+
+必须产出：进入方式（可复现请求）+ 后台能做什么 + 是否能落文件。
+
+边界：能落文件的动作先只做"能不能传"的探测，真的要传由平台向你请求授权。`,
+	},
+	{
+		name:        "⑦ 命令执行与提权（40 分钟）",
+		description: "已经从漏洞拿到命令执行后，读配置、找库、查提权路径，把权限往上顶。",
+		timeoutMin:  40,
+		stage:       "exploit",
+		goal: `前提：已经有命令执行（webshell / 反弹 shell / RCE）。目标：把它变成"能控制这台机器"。
+
+按这个顺序做（一遍走完，别跳）：
+1. 确认身份与系统：id、whoami、uname -a、hostname、cat /etc/os-release。
+2. 读配置找连接串：.env、config.php、application.yml、wp-config.php、环境变量、~/.bash_history。
+3. 找数据库并用配置里的凭据只读连接，取 ≤3 条样本证明可读。
+4. 提权检查清单：sudo -l、SUID（find / -perm -4000）、定时任务、可写服务配置、内核版本对应 CVE。
+5. 有内网再考虑横移：ip a / route、内网可达段、代理工具。
+6. 每拿到一步就用 owned_register / record_fact 登记（等级才会涨）。
+
+必须产出：当前权限级别、可用凭据、提权路径（能成就做，不能成就写清卡在哪）。
+
+边界：提权、留账号、横移这些动作由平台向你请求授权，按提示停下等人确认；不要留后门。`,
+	},
+	{
+		name:        "⑧ 复测与收尾（20 分钟）",
+		description: "漏洞修没修？用原请求再打一遍，给出「已修复 / 仍可利用」的结论，并整理报告。",
+		timeoutMin:  20,
+		stage:       "surface",
+		goal: `目标：验证之前的漏洞现在还在不在，并给出复测结论。
+
+按这个顺序做：
+1. 取出每个已确认漏洞的原始请求（方法/URL/参数/header）。
+2. 原样重放一次；再做一次"去掉 payload"的对照。
+3. 判定：仍可利用 / 已修复 / 无法判断（说清为什么）。
+4. 仍可利用的，尝试是否还能扩大影响（读数据/执行命令），但不要重复利用。
+5. 产出复测结论表：漏洞 / 原请求 / 现在结果 / 结论。
+
+边界：只读；不要为了复测去改数据。`,
+	},
 }
 
 // 老版本 ③④ 的 goal 全文（用于"只升级未被用户改过的那两条"）。
 const (
 	oldGoalExploit = `在已摸清的入口上找可复现的漏洞。每个漏洞必须带三样：完整请求（方法/URL/参数/必要 header）、响应里证明成功的片段（关键字或长度差异）、影响（能读到什么/能做什么）。
 
-优先顺序：未授权访问与越权 → 注入（SQL/命令/模板）→ XSS → 任意文件读取 → 上传 → 默认口令（只试默认口令，不爆破）。
+优先顺序：未授权访问与越权 → 注入（SQL/命令/模板）→ 任意文件读取 → 上传 → 默认口令（只试默认口令，不爆破）。
 
 边界：只读验证。不删除、不改数据、不传 webshell；需要写入的动作先停下来问人。`
 
@@ -119,11 +190,16 @@ const (
 边界：只读。任何修改类操作都不做。`
 )
 
+// 旧版内置模板的名字（用于"未被用户改过就替换"）。
+var legacyBuiltinTemplateNames = []string{
+	"初步探测", "漏洞检测", "数据确认", "权限验证", "全面评估",
+}
+
 // seedBuiltinTaskTemplates inserts the shipped presets once per database.
 // Gated by a settings flag so a user's later rename/edit/delete is never
-// resurrected on restart. ON CONFLICT (nkey) DO NOTHING is a second guard.
+// resurrected on restart.
 func (d *DB) seedBuiltinTaskTemplates() error {
-	const flag = "task_templates_seed_v4"
+	const flag = "task_templates_seed_v5"
 	if v, _, _ := d.GetSetting(flag); v == "done" {
 		return nil
 	}
@@ -136,29 +212,22 @@ ON CONFLICT (nkey) DO NOTHING`, name, taskTemplateNKey(name), t.description, t.g
 			return err
 		}
 	}
-	// 回填 ③④ 的 goal（判据仍是"未被用户改过"）：这两条的含义从"列漏洞"变成"拿到权限/数据"。
-	// 老库不会因为 ON CONFLICT DO NOTHING 更新，所以单独做一次条件更新。
-	if len(builtinTaskTemplates) > 3 {
-		for i, oldGoal := range map[int]string{2: oldGoalExploit, 3: oldGoalData} {
-			t := builtinTaskTemplates[i]
-			if _, err := d.Exec(`UPDATE task_templates SET goal=$1, updated_at=now()
-				WHERE nkey=$2 AND goal=$3`, t.goal, taskTemplateNKey(t.name), oldGoal); err != nil {
-				return err
-			}
+	// 回填 ③④ 的 goal（仍是旧文本才改，用户改过的不动）。
+	for i, oldGoal := range map[int]string{2: oldGoalExploit, 3: oldGoalData} {
+		if i >= len(builtinTaskTemplates) {
+			continue
 		}
-	}
-	// 回填 stage：老库里这批模板已经存在（ON CONFLICT DO NOTHING 不会更新），
-	// 只补 stage 仍为空的行 —— 用户自定义过的不动。
-	for _, t := range builtinTaskTemplates {
-		if _, err := d.Exec(`UPDATE task_templates SET stage=$1
-			WHERE nkey=$2 AND coalesce(stage,'')=''`, t.stage, taskTemplateNKey(t.name)); err != nil {
+		t := builtinTaskTemplates[i]
+		if _, err := d.Exec(`UPDATE task_templates SET goal=$1, description=$2, updated_at=now()
+			WHERE nkey=$3 AND goal=$4`, t.goal, t.description, taskTemplateNKey(t.name), oldGoal); err != nil {
 			return err
 		}
 	}
-	// 删掉被新模板取代的旧版内置条目——判据是「goal 仍是旧文本」，
-	// 用户改过的一律保留（不覆盖人的判断）。
-	for name, oldGoal := range legacyBuiltinTemplateGoals {
-		if _, err := d.Exec(`DELETE FROM task_templates WHERE name=$1 AND goal=$2`, name, oldGoal); err != nil {
+	// 回填 stage / timeout：老库里这几条已存在，ON CONFLICT 不会更新。
+	for _, t := range builtinTaskTemplates {
+		if _, err := d.Exec(`UPDATE task_templates SET stage=COALESCE(NULLIF(stage,''), $1),
+			timeout_min=CASE WHEN timeout_min=0 THEN $2 ELSE timeout_min END
+			WHERE nkey=$3`, t.stage, t.timeoutMin, taskTemplateNKey(t.name)); err != nil {
 			return err
 		}
 	}

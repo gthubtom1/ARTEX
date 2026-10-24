@@ -60,7 +60,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSideQuestions } from "@/hooks/use-side-questions";
-import { api, openSSE } from "@/lib/api";
+import { api, impactapi, openSSE } from "@/lib/api";
 import { shouldSubmitOnKey, useChatSendMode } from "@/lib/chat-send-mode";
 import { MOCK } from "@/lib/mock/enabled";
 import { isBtwCommand } from "@/lib/side-questions";
@@ -1915,6 +1915,7 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
                   setLootOpen((v) => !v);
                 }}
               />
+              <GrantInline taskId={taskId} />
               {activeResolution && activeAgentKey && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -2393,5 +2394,75 @@ export function SessionsTab({ taskId, requestedSession = "" }: { taskId: string;
         </AlertDialog>
       </div>
     </TooltipProvider>
+  );
+}
+
+// GrantInline —— 会话页顶部「待授权」横条。
+//
+// 为什么在这里：授权卡片原来只放在「概览」tab，而人一直在「会话」里跟主 Agent 说话，
+// 根本看不到（用户实测："我没有看到下一步呀"）。待授权必须在会话页就看得见、点得到。
+function GrantInline({ taskId }: { taskId: string }) {
+  const [steps, setSteps] = React.useState<{ cls: string; title: string }[]>([]);
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    const load = () => {
+      impactapi
+        .get(taskId)
+        .then((d) => {
+          if (!alive) return;
+          const decided = new Set((d.grants ?? []).map((g) => g.class));
+          setSteps(
+            (d.steps ?? [])
+              .filter((s) => !decided.has(s.class))
+              .map((s) => ({ cls: s.class, title: s.title })),
+          );
+        })
+        .catch(() => void 0);
+    };
+    load();
+    const t = setInterval(load, 15000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [taskId]);
+
+  if (steps.length === 0) return null;
+
+  const decide = async (cls: string, ok: boolean) => {
+    setBusy(true);
+    try {
+      await impactapi.grant(taskId, cls, ok);
+      setSteps((prev) => prev.filter((s) => s.cls !== cls));
+    } catch {
+      void 0;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-[11px]">
+      <span className="truncate font-medium text-amber-700 dark:text-amber-300">
+        待你授权：{steps[0].title}
+        {steps.length > 1 ? `（还有 ${steps.length - 1} 个）` : ""}
+      </span>
+      <button
+        className="shrink-0 rounded border border-emerald-600/50 bg-emerald-600 px-1.5 py-0.5 text-[10.5px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+        disabled={busy}
+        onClick={() => void decide(steps[0].cls, true)}
+      >
+        允许
+      </button>
+      <button
+        className="shrink-0 rounded border px-1.5 py-0.5 text-[10.5px] hover:bg-accent disabled:opacity-50"
+        disabled={busy}
+        onClick={() => void decide(steps[0].cls, false)}
+      >
+        拒绝
+      </button>
+    </div>
   );
 }
