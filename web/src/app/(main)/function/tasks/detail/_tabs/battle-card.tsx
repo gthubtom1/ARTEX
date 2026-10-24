@@ -186,7 +186,6 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
         : "text-amber-700 dark:text-amber-300";
   const openChains = (chains ?? []).filter((c) => c.status !== "dead");
   const steps: ImpactStep[] = impact?.steps ?? [];
-  const readySteps = steps.filter((s) => s.ready !== false);
 
   return (
     <Card className="border-sky-500/40 bg-sky-500/[0.04]">
@@ -576,12 +575,8 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
             </Fold>
           )}
 
-          {readySteps.length > 0 && (
-            <p className="px-1 text-[10px] text-muted-foreground">
-              下一步最值得做：{readySteps[0].title}
-              {readySteps[0].precondition ? `（${readySteps[0].precondition}）` : ""}
-            </p>
-          )}
+          {/* 注：原来这里还有一行"下一步最值得做"，与会话页顶部的「它下一步想做」重复，
+              按 docs/26 审查结论去掉 —— 一句话只说一次。 */}
         </div>
       </CardContent>
     </Card>

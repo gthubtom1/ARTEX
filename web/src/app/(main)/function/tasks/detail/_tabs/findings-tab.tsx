@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { api } from "@/lib/api";
+import { api, briefapi } from "@/lib/api";
 import { useStoredSortPreference } from "@/lib/sort-preference";
 import { statusMeta } from "@/lib/status";
 import type { Finding, FindingStatus } from "@/lib/types";
@@ -45,10 +45,13 @@ function Row({
   f,
   contextTaskId,
   onStatus,
+  standing,
 }: {
   f: Finding;
   contextTaskId: string;
   onStatus: (f: Finding, next: FindingStatus) => void;
+  /** 三段式（docs/23）：已成立 / 差一步 / 换不到。来自 /brief，与战况卡同源。 */
+  standing?: { standing: "got" | "one_step" | "no_gain"; gap?: string };
 }) {
   const [open, setOpen] = React.useState(false);
   return (
@@ -66,6 +69,27 @@ function Row({
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate font-medium">{findingLabel(f)}</span>
+              {standing && (
+                <span
+                  className={cn(
+                    "shrink-0 rounded px-1 text-[9.5px] font-bold",
+                    standing.standing === "got"
+                      ? "bg-emerald-600 text-white"
+                      : standing.standing === "no_gain"
+                        ? "bg-slate-500/25 text-slate-600 dark:text-slate-300"
+                        : "bg-amber-500/20 text-amber-700 dark:text-amber-300",
+                  )}
+                  title={
+                    standing.standing === "got"
+                      ? "已成立：对应能力行已拿到，有证据"
+                      : standing.standing === "no_gain"
+                        ? "换不到东西：这条洞没有通向任何能力行"
+                        : `差一步：还缺「${standing.gap || "下一个能力"}」`
+                  }
+                >
+                  {standing.standing === "got" ? "已成立" : standing.standing === "no_gain" ? "换不到" : "差一步"}
+                </span>
+              )}
               {f.inherited && f.source_task_id && (
                 <Badge variant="outline" className="shrink-0">
                   来源 #{f.source_task_id} · 只读
@@ -140,6 +164,10 @@ function Row({
 
 export function FindingsTab({ taskId }: { taskId: string }) {
   const [findings, setFindings] = React.useState<Finding[]>([]);
+  // 三段式映射（id → got/one_step/no_gain）：一次拉 /brief，和战况卡同一口径。
+  const [standingByID, setStandingByID] = React.useState<
+    Record<number, { standing: "got" | "one_step" | "no_gain"; gap?: string }>
+  >({});
   const [sortPreference, setSortPreference] = useStoredSortPreference(
     FINDING_SORT_PREFERENCE_KEY,
     FINDING_SORT_FIELDS,
@@ -149,6 +177,18 @@ export function FindingsTab({ taskId }: { taskId: string }) {
 
   React.useEffect(() => {
     let active = true;
+    // 战况（三段式）——只拉一次，失败就退化成"没有标签"，不影响列表
+    briefapi
+      .get(taskId)
+      .then((b) => {
+        if (!active) return;
+        const map: Record<number, { standing: "got" | "one_step" | "no_gain"; gap?: string }> = {};
+        for (const c of b.can ?? []) {
+          map[c.finding_id] = { standing: c.standing ?? "one_step", gap: c.gap };
+        }
+        setStandingByID(map);
+      })
+      .catch(() => void 0);
     const load = () => {
       api
         .findings(taskId)
@@ -230,7 +270,13 @@ export function FindingsTab({ taskId }: { taskId: string }) {
               </button>
             </div>
             {items.map((f) => (
-              <Row key={f.id} f={f} contextTaskId={taskId} onStatus={onStatus} />
+              <Row
+                key={f.id}
+                f={f}
+                contextTaskId={taskId}
+                onStatus={onStatus}
+                standing={f.finding_id ? standingByID[Number(f.finding_id)] : undefined}
+              />
             ))}
             {items.length === 0 && (
               <p className="px-4 py-8 text-center text-sm text-muted-foreground">本任务及直接关联任务暂无确认发现。</p>

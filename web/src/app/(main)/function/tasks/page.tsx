@@ -35,6 +35,7 @@ import {
   PlusIcon,
   SaveIcon,
   SearchIcon,
+  BellIcon,
   SlidersHorizontalIcon,
   StarIcon,
   TagsIcon,
@@ -310,6 +311,10 @@ export default function TasksPage() {
   const [tasks, setTasks] = React.useState<Task[]>([]);
   // 未读（⑦）：任务列表红点 + 浏览器标题数字；桌面通知只在用户授权过一次后使用。
   const [unread, setUnread] = React.useState<Record<string, number>>({});
+  // 桌面通知权限（docs/26：没有入口用户永远收不到）+ 图标
+  const [notifyPermission, setNotifyPermission] = React.useState<NotificationPermission | "unsupported">(
+    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
+  );
   // 未读轮询（20s）：只在"总数变多"且已获通知权限时弹一次桌面通知。
   React.useEffect(() => {
     let alive = true;
@@ -823,6 +828,32 @@ export default function TasksPage() {
   );
 
   return (
+    <div className="flex flex-col gap-2">
+      {notifyPermission === "default" && (
+        <div className="mx-4 flex items-center gap-2 rounded border border-sky-500/30 bg-sky-500/[0.06] px-3 py-1.5 text-xs lg:mx-6">
+          <BellIcon className="size-3.5 text-sky-600" />
+          <span className="min-w-0 flex-1 text-muted-foreground">
+            想要桌面提醒？有新战果或新结论时会弹一条（只在你授权后才会，不会打扰你）
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              try {
+                const p = await Notification.requestPermission();
+                setNotifyPermission(p);
+                toast.success(
+                  p === "granted" ? "已开启桌面通知：有新战果/新结论时提醒你" : "没开也没关系，列表里仍有红点",
+                );
+              } catch {
+                toast.error("浏览器不允许通知，先用页面红点");
+              }
+            }}
+          >
+            开启
+          </Button>
+        </div>
+      )}
     <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
       <TabsList className="mx-4 lg:mx-6">
         <TabsTrigger value="current">当前任务</TabsTrigger>
@@ -1061,6 +1092,7 @@ export default function TasksPage() {
         <TaskArchivesPanel onChanged={load} />
       </TabsContent>
     </Tabs>
+    </div>
   );
 }
 
