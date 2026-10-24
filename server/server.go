@@ -758,6 +758,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerActionRoutes(mux)     // 业务动作工单（P2）：对话即授权 → 留证 → 证据驱动收口
 	s.registerUnreadRoutes(mux)     // 未读通知（⑦）：任务列表红点 / 标题数字（战果 + 审查官）
 	s.registerGoalFitRoutes(mux)    // 目标对齐：我的目标（拖库/后台/改钱）现在能不能做到、差什么
+	s.registerOnePagerRoutes(mux)   // 委托方一页纸：能进哪/拿到什么/影响多大/还差什么/怎么修
 	s.registerReviewRoutes(mux)     // 复盘官：结构化快照 + 评审结论 + 采纳回执（CARD-C01）
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)

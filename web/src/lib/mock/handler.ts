@@ -1797,6 +1797,48 @@ function route(m: string, path: string, seg: string[], q: URLSearchParams, b: Re
     if (index >= 0) mockTaskTemplates.splice(index, 1);
     return { deleted: id };
   }
+  // 委托方一页纸（demo）
+  if (seg[0] === "tasks" && seg[2] === "onepager" && seg.length === 3 && m === "GET") {
+    const task = mockTasks.find((item) => item.id === seg[1]);
+    if (!task) throw new Error("任务不存在");
+    const text = [
+      "【渗透测试结论（一页纸）】",
+      `对象：${task.name ?? task.description}`,
+      `目标：${task.goal}`,
+      "当前权限等级：E3 命令执行（已经拿到命令执行证据）",
+      "",
+      "1. 能进哪",
+      "  - 可以登录进入管理后台（管理员界面）",
+      "  - 可以在服务器上执行命令",
+      "",
+      "2. 拿到什么数据",
+      "  - orders（字段：id, amount, user_id）",
+      "",
+      "3. 影响多大",
+      "  - 最严重的一条：可以在服务器上执行命令，并且已经读到真实业务数据 —— 等于业务数据与服务器同时失守",
+      "",
+      "4. 还差什么",
+      "  - 存在阻塞：target_blocked（换手法或降低频率）",
+      "",
+      "5. 怎么修",
+      "  - 所有数据库查询改参数化/预编译；关闭生产环境报错回显",
+      "  - 上传白名单后缀 + 落地目录禁止执行",
+    ].join("\n");
+    return {
+      task_id: 1,
+      task_name: task.name ?? task.description,
+      goal: task.goal,
+      level: "E3 命令执行",
+      basis: "已经拿到命令执行证据",
+      access: ["可以登录进入管理后台（管理员界面）", "可以在服务器上执行命令"],
+      data_objects: [{ name: "orders", fields: "id, amount, user_id" }],
+      impact: "可以在服务器上执行命令，并且已经读到真实业务数据",
+      gaps: ["存在阻塞：target_blocked"],
+      fixes: ["所有数据库查询改参数化/预编译"],
+      text,
+    };
+  }
+
   // ⑦ 未读：demo 给两个任务各挂一点（战果/审查官合计）
   if (path === "/tasks/unread" && m === "GET") {
     return { total: 5, by_task: { "t-acme-web": 5, "t-acme-api": 0, "t-shop-pay": 0 } };

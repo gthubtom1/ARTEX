@@ -2223,3 +2223,19 @@ export interface TaskPhrasesResponse {
   source: "rule";
   has: string[];
 }
+
+// ── 委托方一页纸（拿到东西之后唯一能交出去的一页）────────────
+export interface OnePager {
+  task_id: number;
+  task_name: string;
+  goal: string;
+  level: string;
+  basis: string;
+  access: string[];
+  data_objects: { name: string; fields: string }[];
+  impact: string;
+  gaps: string[];
+  fixes: string[];
+  /** 可直接粘贴的纯文本（邮件/微信/文档） */
+  text: string;
+}

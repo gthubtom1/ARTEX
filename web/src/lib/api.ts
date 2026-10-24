@@ -1950,6 +1950,11 @@ export const phrasesapi = {
 };
 
 // 未读通知（⑦）：任务列表红点 / 浏览器标题数字（战果新证据 + 审查官未读）
+// 委托方一页纸：能进哪 / 拿到什么 / 影响多大 / 还差什么 / 怎么修
+export const onepagerapi = {
+  get: (taskId: string) => get<import("@/lib/types").OnePager>(`/tasks/${encodeURIComponent(taskId)}/onepager`),
+};
+
 export const unreadapi = {
   get: () => get<{ total: number; by_task: Record<string, number> }>("/tasks/unread"),
 };

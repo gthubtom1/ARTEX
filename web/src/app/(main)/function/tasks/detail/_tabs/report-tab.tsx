@@ -8,13 +8,15 @@ import { toast } from "sonner";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { api, briefapi } from "@/lib/api";
+import { api, briefapi, onepagerapi } from "@/lib/api";
 import { copyText } from "@/lib/utils";
 
 export function ReportTab({ taskId }: { taskId: string }) {
   const [report, setReport] = React.useState<string>("");
   const [loading, setLoading] = React.useState(true);
   const [copied, setCopied] = React.useState(false);
+  // 委托方一页纸：拿到东西之后唯一能交出去的那一页（能进哪/拿到什么/影响多大/还差什么/怎么修）
+  const [onePager, setOnePager] = React.useState<import("@/lib/types").OnePager | null>(null);
   // 战况快照（docs/26 P2）：报告头一行，保证"报告结论"和"战况卡"用的是同一套判定。
   const [war, setWar] = React.useState<{
     level: string;
@@ -28,6 +30,12 @@ export function ReportTab({ taskId }: { taskId: string }) {
 
   React.useEffect(() => {
     let active = true;
+    onepagerapi
+      .get(taskId)
+      .then((p) => {
+        if (active) setOnePager(p);
+      })
+      .catch(() => void 0);
     briefapi
       .get(taskId)
       .then((b) => {
@@ -124,6 +132,31 @@ export function ReportTab({ taskId }: { taskId: string }) {
               {war.noGain > 0 ? ` · ${war.noGain} 个换不到` : ""}
             </span>
             {war.stall && <span className="text-amber-700 dark:text-amber-300">{war.stall}</span>}
+          </div>
+        )}
+        {/* 委托方一页纸（放在技术报告上面：给零基础的人/给客户看的就是这一块） */}
+        {onePager && (
+          <div className="rounded-md border border-emerald-500/40 bg-emerald-500/[0.04]">
+            <div className="flex flex-wrap items-center gap-2 border-b border-emerald-500/30 px-3 py-1.5">
+              <b className="text-[12px]">委托方一页纸</b>
+              <span className="text-[10.5px] text-muted-foreground">
+                能进哪 / 拿到什么 / 影响多大 / 还差什么 / 怎么修 —— 可直接发给客户，无术语
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto"
+                onClick={async () => {
+                  const ok = await copyText(onePager.text);
+                  toast[ok ? "success" : "error"](ok ? "已复制一页纸纯文本" : "复制失败，请手动选择");
+                }}
+              >
+                <CopyIcon /> 复制纯文本
+              </Button>
+            </div>
+            <pre className="max-h-[40vh] overflow-auto px-3 py-2 text-[11.5px] leading-relaxed whitespace-pre-wrap">
+              {onePager.text}
+            </pre>
           </div>
         )}
         {content}
