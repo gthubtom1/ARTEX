@@ -753,6 +753,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerVerdictRoutes(mux)    // 「值不值得打」结论卡（A1：零基础打开任务就要看到结论）
 	s.registerImpactRoutes(mux)     // 权限阶梯 + 下一步提案 + 即时授权（E0–E5 / task_grants）
 	s.registerRoadmapRoutes(mux)    // 进展清单：做到哪一步、还剩什么没做（GET /api/roadmap）
+	s.registerTaskPrefsRoutes(mux)  // 任务偏好：用户选的目标 + token 上限（0018）
 	s.registerChainRoutes(mux)      // 利用链：一条漏洞从确认→授权→收益（chains / chain_steps）
 	s.registerBriefRoutes(mux)      // 战况卡（P0）：我在哪/我有什么/能换到什么/能做什么
 	s.registerPhraseRoutes(mux)     // 动态快捷短语（P1）：按当前战果生成 3–5 条（只填入不发送）

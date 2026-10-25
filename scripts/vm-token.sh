@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
+# 打印一个短期 token（给宿主侧手工用；判据脚本请改用 _token.sh 的 artex_token）。
 set -u
-echo kali | sudo -S cat /opt/artex/jwt.key 2>/dev/null | /usr/bin/python3 -c '
-import sys,hmac,hashlib,base64,json,time
-key=sys.stdin.read().strip().encode()
-b64=lambda b: base64.urlsafe_b64encode(b).rstrip(b"=")
-hdr=b64(json.dumps({"alg":"HS256","typ":"JWT"},separators=(",",":")).encode())
-now=int(time.time())
-pay=b64(json.dumps({"sub":"ARTEX","exp":now+1800,"iat":now},separators=(",",":")).encode())
-sig=b64(hmac.new(key,hdr+b"."+pay,hashlib.sha256).digest())
-sys.stdout.write((hdr+b"."+pay+b"."+sig).decode())
-'
+. "$(dirname "$0")/_token.sh"
+artex_token

@@ -1,5 +1,5 @@
 {
-  "version": "0.11.57",
+  "version": "0.11.60",
   "updated": "2026-10-25",
   "intro": "这张单子直接来自仓库里的 server/roadmap.json：每条都有状态、为什么没做、怎么算做完。改这张单子 = 改发布说明，不必翻文档。",
   "groups": [
@@ -81,9 +81,8 @@
         {
           "id": "truth-goal-persist",
           "title": "你在页面上选的“我的目标”能记住",
-          "status": "todo",
-          "why_not": "目标现在只存在浏览器内存里，刷新就回到默认值。",
-          "accept": "选“拖库”→ 刷新 → 仍是“拖库”；接口返回所选目标"
+          "status": "done",
+          "evidence": "0018 goal_selected 落库 + 战况卡读它当初值（刷新/换设备都在）"
         }
       ]
     },
@@ -150,10 +149,9 @@
         },
         {
           "id": "use-token",
-          "title": "页面上看得见“这个任务花了多少”+ 到上限自己停",
-          "status": "todo",
-          "why_not": "现在只有时间闸门（30/60/120 分钟），token 只在“任务管理”折叠里，且没有 token 上限。",
-          "accept": "战况卡底部显示“已花 X（缓存 Y）”；设 50k 上限造任务 → 到点暂停"
+          "title": "页面上看得见“花了多少”，并可按上限自动停",
+          "status": "done",
+          "evidence": "0018 token_budget + 战况卡“已花 X（缓存 Y）/ 上限 Z” + 5 分钟巡检到顶暂停（一次）"
         },
         {
           "id": "use-keys",
@@ -182,10 +180,9 @@
         },
         {
           "id": "ship-release",
-          "title": "发到 GitHub Release（打 tag + 上传两个包）",
-          "status": "blocked",
-          "why_not": "这是公开动作，会出现在别人面前，必须你点头；技术上都准备好了。",
-          "accept": "v0.11.57 tag 存在，Release 页面有 exe/linux/SHA256SUMS/RELEASE-0.11.57.md"
+          "title": "发到 GitHub Release（tag + 两个包 + 校验和）",
+          "status": "done",
+          "evidence": "v0.11.60：tag 已推，Release 含 artex.exe / artex-linux / SHA256SUMS / RELEASE-0.11.60.md"
         },
         {
           "id": "ship-mock",
@@ -196,10 +193,9 @@
         },
         {
           "id": "ship-vm-scripts",
-          "title": "判据脚本不再硬编码 sudo 口令",
-          "status": "todo",
-          "why_not": "scripts/vm-*.sh 里写着 echo kali | sudo -S，换台机器就跑不了。",
-          "accept": "脚本读 ARTEX_TOKEN 环境变量即可在任意机器复现"
+          "title": "判据脚本可移植（不再硬编码 sudo 口令）",
+          "status": "done",
+          "evidence": "scripts/_token.sh：ARTEX_TOKEN → ARTEX_JWT_KEY → 旧 sudo 兜底；8 个 vm-*.sh 全部改用它，真机复跑通过"
         }
       ]
     }

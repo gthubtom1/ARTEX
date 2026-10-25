@@ -126,6 +126,26 @@ func (s *Server) runStallGate(ctx context.Context) {
 		if err != nil || taskID <= 0 {
 			continue
 		}
+		// token 闸门（0018，用户原话「不要烧我太多 token」）：花到上限就停一次。
+		// 只停一次：resume 后由人决定（不再反复自动停），避免"想继续却一直被掐"。
+		if t.TokenBudget > 0 {
+			in, out, _ := s.taskSpent(ctx, t.ID)
+			if in+out >= t.TokenBudget {
+				key := "token_paused_" + t.ID
+				if v, _, _ := s.m.pg.GetSetting(key); v != "done" {
+					if _, err := s.applyTaskControl(t, "pause"); err != nil {
+						log.Printf("[budget] auto-pause task %s failed: %v", t.ID, err)
+						continue
+					}
+					_ = s.m.pg.SetSetting(key, "done")
+					s.appendReviewActivity(ctx, taskID,
+						"已经花到 "+fmtTokens(in+out)+"（你设的上限 "+fmtTokens(t.TokenBudget)+"），我按你的上限停下了。"+
+							"要继续就在会话里说一句「继续，上限调高到 …」，或者到任务页把上限改大。")
+					log.Printf("[budget] auto-paused task %s (spent %d >= budget %d)", t.ID, in+out, t.TokenBudget)
+					continue
+				}
+			}
+		}
 		lastP := s.taskLastProgress(ctx, taskID)
 		lastH := s.taskLastHuman(ctx, taskID)
 		if !shouldAutoPause(lastP, lastH, time.Now()) {
@@ -155,4 +175,16 @@ func taskIsRunning(status string) bool {
 		return true
 	}
 	return false
+}
+
+// fmtTokens 把 token 数写成"1.2M / 353k"这种人话（页面与活动流都用它）。
+func fmtTokens(n int64) string {
+	switch {
+	case n >= 1_000_000:
+		return strconv.FormatFloat(float64(n)/1_000_000, 'f', 1, 64) + "M"
+	case n >= 1_000:
+		return strconv.FormatInt(n/1_000, 10) + "k"
+	default:
+		return strconv.FormatInt(n, 10)
+	}
 }

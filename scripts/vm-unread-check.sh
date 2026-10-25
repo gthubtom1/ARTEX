@@ -2,16 +2,7 @@
 # 在 Kali VM 里跑：验证未读通知（⑦）—— 战果新证据 + 审查官未读的聚合口径。
 set -u
 BASE=http://127.0.0.1:8787
-TOKEN=$(echo kali | sudo -S cat /opt/artex/jwt.key 2>/dev/null | python3 -c '
-import sys,hmac,hashlib,base64,json,time
-key=sys.stdin.read().strip().encode()
-b64=lambda b: base64.urlsafe_b64encode(b).rstrip(b"=")
-hdr=b64(json.dumps({"alg":"HS256","typ":"JWT"},separators=(",",":")).encode())
-now=int(time.time())
-pay=b64(json.dumps({"sub":"ARTEX","exp":now+3600,"iat":now},separators=(",",":")).encode())
-sig=b64(hmac.new(key,hdr+b"."+pay,hashlib.sha256).digest())
-sys.stdout.write((hdr+b"."+pay+b"."+sig).decode())
-')
+TOKEN=$(. \"$(dirname \"$0\")/_token.sh\"; artex_token)
 echo "== GET /api/tasks/unread"
 curl -s -H "Authorization: Bearer $TOKEN" "$BASE/api/tasks/unread" | jq -c .
 echo "== 对照：库里 findings 与 review 未读"

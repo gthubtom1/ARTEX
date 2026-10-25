@@ -84,6 +84,15 @@ type brief struct {
 	// NewSince：上次打开战果面板之后新拿到的战果行数（胶囊红点）。
 	// 游标存在 loot_seen（0014），只看 done 行的证据 id 是否越过游标。
 	NewSince int64 `json:"new_since"`
+	// GoalSelected：用户自己在页面上选的业务目标（0018）。空 = 没选，前端用 GoalGuess。
+	GoalSelected string `json:"goal_selected"`
+	// Spent：这个任务已经花了多少 token（0018）。Budget=0 表示没设上限。
+	// 用户约束原话「不要烧我太多 token」→ 这四个数必须长在主视线上。
+	SpentIn     int64 `json:"spent_in"`
+	SpentOut    int64 `json:"spent_out"`
+	SpentCached int64 `json:"spent_cached"`
+	Budget      int64 `json:"token_budget"`
+	BudgetHit   bool  `json:"budget_hit"`
 }
 
 func (s *Server) registerBriefRoutes(mux *http.ServeMux) {
@@ -147,6 +156,7 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 		Level: int(lv), LevelLabel: lv.String(), Basis: basis,
 		Has: []briefItem{}, Can: []briefAbility{}, Actions: []briefAction{},
 		Verdict: v.Verdict, VerdictTag: v.Label,
+		GoalSelected: strings.TrimSpace(t.GoalSelected),
 	}
 
 	// 已拿到
@@ -178,6 +188,12 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	// 未读战果（胶囊红点）：done 行的证据 id 越过 loot_seen 游标 => 算新。
 	// 读不到游标/没库时 lootSeenFindingID 返回 0，此时全部算新（首屏就该提示）。
 	out.NewSince = countUnreadLoot(rows, s.lootSeenFindingID(r.Context(), taskID))
+	// 花钱要看得见（0018）：已花多少 / 上限多少 / 是否到顶。
+	out.SpentIn, out.SpentOut, out.SpentCached = s.taskSpent(r.Context(), t.ID)
+	out.Budget = t.TokenBudget
+	if out.Budget > 0 {
+		out.BudgetHit = out.SpentIn+out.SpentOut >= out.Budget
+	}
 
 	// 业务动作（P2）：列表来自 actionDefs（唯一事实源），state 恒为 idle（永不自动执行），
 	// 真正"人要求过没有 / 有没有证据"看 run_state。先做一次证据收口再读工单。

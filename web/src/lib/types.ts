@@ -2177,6 +2177,14 @@ export interface TaskBrief {
   // 目标对齐（拖库/后台/改钱…）：能不能做到、缺什么、该说什么
   goal_fits?: GoalFit[];
   goal_guess?: string;
+  // 用户在页面上选的目标（0018，写库。空 = 没选，用 goal_guess）
+  goal_selected?: string;
+  // 已花多少 / 上限多少（0018）：花钱要看得见
+  spent_in?: number;
+  spent_out?: number;
+  spent_cached?: number;
+  token_budget?: number;
+  budget_hit?: boolean;
   // 卡在哪（失败归因，确定性）
   blockers?: { class: string; count: number; advice: string }[];
 }

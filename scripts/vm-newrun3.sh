@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 # 0.11.53 回归：确认 kb_playbook 真被 worker 调用（P0-02 验收 #2）。
 set -u
-TOKEN=$(echo kali | sudo -S cat /opt/artex/jwt.key 2>/dev/null | python3 -c '
-import sys,hmac,hashlib,base64,json,time
-key=sys.stdin.read().strip().encode(); b64=lambda b: base64.urlsafe_b64encode(b).rstrip(b"=")
-now=int(time.time()); h=b64(json.dumps({"alg":"HS256","typ":"JWT"},separators=(",",":")).encode()); p=b64(json.dumps({"sub":"ARTEX","exp":now+7200,"iat":now},separators=(",",":")).encode())
-sys.stdout.write((h+b"."+p+b"."+b64(hmac.new(key,h+b"."+p,hashlib.sha256).digest())).decode())
-')
+TOKEN=$(. \"$(dirname \"$0\")/_token.sh\"; artex_token)
 curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{
   "name":"回归 · kb_playbook 接线（0.11.53）",
   "description":"验证 worker 拿到入口后会先查 kb_playbook 打法（P0-02）",

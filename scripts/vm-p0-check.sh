@@ -4,16 +4,7 @@
 set -u
 IDS="${*:-19 17 18}"
 PY=/usr/bin/python3
-T=$(echo kali | sudo -S cat /opt/artex/jwt.key 2>/dev/null | $PY -c '
-import sys,hmac,hashlib,base64,json,time
-key=sys.stdin.read().strip().encode()
-b64=lambda b: base64.urlsafe_b64encode(b).rstrip(b"=")
-hdr=b64(json.dumps({"alg":"HS256","typ":"JWT"},separators=(",",":")).encode())
-now=int(time.time())
-pay=b64(json.dumps({"sub":"ARTEX","exp":now+3600,"iat":now},separators=(",",":")).encode())
-sig=b64(hmac.new(key,hdr+b"."+pay,hashlib.sha256).digest())
-sys.stdout.write((hdr+b"."+pay+b"."+sig).decode())
-')
+T=$(. "$(dirname "$0")/_token.sh"; artex_token)
 [ -z "$T" ] && { echo "[!] token 取不到"; exit 1; }
 H="-H Authorization:Bearer${T}"
 for id in $IDS; do

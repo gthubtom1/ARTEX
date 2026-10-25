@@ -2009,3 +2009,12 @@ export type RoadmapResponse = {
 export const roadmapapi = {
   get: () => get<RoadmapResponse>("/roadmap"),
 };
+
+// 任务偏好（0018）：用户选的目标 + token 上限。写库，刷新/换设备都在。
+export const prefsapi = {
+  save: (taskId: string, patch: { goal_selected?: string; token_budget?: number }) =>
+    post<{ ok: boolean; goal_selected: string; token_budget: number }>(
+      `/tasks/${encodeURIComponent(taskId)}/prefs`,
+      patch,
+    ),
+};

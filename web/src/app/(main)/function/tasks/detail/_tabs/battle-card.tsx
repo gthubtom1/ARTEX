@@ -15,7 +15,7 @@ import {
 import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { briefapi, chainapi, impactapi, verdictapi } from "@/lib/api";
+import { briefapi, chainapi, impactapi, prefsapi, verdictapi } from "@/lib/api";
 import type {
   BriefAction,
   BriefItem,
@@ -143,6 +143,13 @@ function CopyBtn({ text, label = "复制" }: { text: string; label?: string }) {
   );
 }
 
+// fmtTok 把 token 数写成 1.2M / 353k（与后端 fmtTokens 同口径）。
+function fmtTok(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return String(n);
+}
+
 export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?: () => void }) {
   const [brief, setBrief] = React.useState<TaskBrief | null>(null);
   const [verdict, setVerdict] = React.useState<TaskVerdict | null>(null);
@@ -150,6 +157,7 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
   const [chains, setChains] = React.useState<ChainView[]>([]);
   const [aiBusy, setAiBusy] = React.useState(false);
   // 我的目标（零基础用户真正的入口）：默认按任务目标文本猜，用户可以换
+  // 我的目标：初值优先用"用户上次选的"（写库的 goal_selected），其次按任务文本猜。
   const [goalKey, setGoalKey] = React.useState<string>("");
   const [busy, setBusy] = React.useState(false);
 
@@ -160,7 +168,11 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
       impactapi.get(taskId).catch(() => null),
       chainapi.get(taskId).catch(() => null),
     ]);
-    if (b) setBrief(b);
+    if (b) {
+      setBrief(b);
+      // 只在用户还没手动挑过时，用库里记住的那个（避免每 20 秒轮询把用户的选择覆盖掉）
+      setGoalKey((prev) => prev || (b.goal_selected ?? ""));
+    }
     if (v) setVerdict(v);
     if (im) setImpact(im);
     if (ch) setChains(ch.chains ?? []);
@@ -308,6 +320,48 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
           <p className="mt-0.5 text-[10.5px] text-muted-foreground">{LEVEL_HINT[level] ?? ""}</p>
         </LabelRow>
 
+        {/* 花钱要看得见（0018）：已花多少 / 缓存命中多少 / 上限。用户原话「不要烧我太多 token」 */}
+        {typeof brief?.spent_in === "number" && (
+          <div className="flex flex-wrap items-center gap-2 text-[10.5px] text-muted-foreground">
+            <span>
+              已花 <b className="text-foreground">{fmtTok((brief?.spent_in ?? 0) + (brief?.spent_out ?? 0))}</b>
+              （其中缓存命中 {fmtTok(brief?.spent_cached ?? 0)}，缓存不花钱）
+            </span>
+            {(brief?.token_budget ?? 0) > 0 ? (
+              <span className={brief?.budget_hit ? "text-rose-600" : ""}>
+                · 上限 {fmtTok(brief?.token_budget ?? 0)}
+                {brief?.budget_hit ? " · 已到上限，已按你的上限停下" : ""}
+              </span>
+            ) : (
+              <span>· 未设上限（建议设一个，到了就自动停）</span>
+            )}
+            <span className="inline-flex items-center gap-1">
+              ·
+              <input
+                type="number"
+                min={0}
+                step={50000}
+                placeholder="设上限"
+                defaultValue={brief?.token_budget ? Math.round((brief.token_budget ?? 0) / 1000) : ""}
+                className="h-5 w-[86px] rounded border bg-card px-1 text-[10.5px]"
+                title="token 上限（按千计，如 500 = 50 万）。到上限我会自动停下并告诉你。"
+                onBlur={async (e) => {
+                  const k = Number(e.target.value);
+                  if (!Number.isFinite(k) || k < 0) return;
+                  try {
+                    await prefsapi.save(taskId, { token_budget: Math.round(k * 1000) });
+                    toast.success(k > 0 ? `上限设为 ${k}k：花到就停` : "已取消上限");
+                    await load();
+                  } catch {
+                    toast.error("上限没存上");
+                  }
+                }}
+              />
+              k
+            </span>
+          </div>
+        )}
+
         {/* 继承 ≠ 本任务已自证（真机跑 #18 时用户的疑问）：显式写清"我从谁那儿继承了啥" */}
         {(brief?.inherited ?? []).length > 0 && (
           <section className="rounded border border-sky-500/30 bg-sky-500/[0.05] px-2 py-1 text-[10.5px]">
@@ -360,7 +414,16 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                 <select
                   className="h-6 w-[240px] max-w-full rounded-[6px] border bg-card px-1.5 text-[11.5px]"
                   value={goalKey || brief?.goal_guess || activeGoal.key}
-                  onChange={(e) => setGoalKey(e.target.value)}
+                  onChange={async (e) => {
+                    const v = e.target.value;
+                    setGoalKey(v);
+                    // 写库（0018）：刷新/换设备都还在；失败不影响页面，下次打开再试
+                    try {
+                      await prefsapi.save(taskId, { goal_selected: v });
+                    } catch {
+                      toast.error("目标没存上（不影响现在看结果）");
+                    }
+                  }}
                   aria-label="选择我的目标"
                 >
                   {goalFits.map((g) => (

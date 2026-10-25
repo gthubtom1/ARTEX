@@ -59,3 +59,16 @@ func TestRoadmapRealFileIsHonest(t *testing.T) {
 		}
 	}
 }
+
+// 偏好接口的校验规则（不连库，只测纯判定）：goal 只能是已知目标，预算不能为负。
+func TestGoalKeyValidation(t *testing.T) {
+	if _, ok := goalDefByKey("data_dump"); !ok {
+		t.Fatal("data_dump 应是已知目标")
+	}
+	if _, ok := goalDefByKey("拖库"); ok {
+		t.Fatal("中文标签不是 key，不该通过")
+	}
+	if _, ok := goalDefByKey(""); ok {
+		t.Fatal("空字符串应视为「不选」，由调用方单独放行")
+	}
+}
