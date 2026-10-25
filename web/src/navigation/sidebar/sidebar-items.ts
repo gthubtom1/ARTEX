@@ -127,3 +127,30 @@ export const sidebarItems: NavGroup[] = [
     ],
   },
 ];
+
+/**
+ * 零基础默认可见的入口（2026-10-25，docs/PLANS 产品审查 P1-05）。
+ *
+ * 侧边栏有 38 项，新人第一次打开会迷路；先只露"我现在能做什么"要用的 8 个入口，
+ * 其余进「高级」折叠（一次点击可展开，选择记在 localStorage，不改变任何功能）。
+ * 这个白名单只影响导航可见性，不动路由、不动权限。
+ */
+export const beginnerNavIds: ReadonlySet<string> = new Set([
+  "tasks",
+  "progress",
+  "findings",
+  "report",
+  "chat",
+  "assets",
+  // 系统里新人会用到的最少两个 + 首次配置
+  "llm",
+  "onboard",
+]);
+
+/** filterNavForBeginner 按白名单裁剪导航（showAdvanced=false 时）。空分组会被丢掉。 */
+export function filterNavForBeginner(groups: NavGroup[], showAdvanced: boolean): NavGroup[] {
+  if (showAdvanced) return groups;
+  return groups
+    .map((g) => ({ ...g, items: g.items.filter((it) => beginnerNavIds.has(it.id)) }))
+    .filter((g) => g.items.length > 0);
+}
