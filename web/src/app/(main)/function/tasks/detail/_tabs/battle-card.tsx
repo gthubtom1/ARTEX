@@ -736,9 +736,28 @@ export function BattleCard({ taskId, onOpenLoot }: { taskId: string; onOpenLoot?
                           </span>
                         )}
                         {g?.granted ? (
-                          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] text-emerald-700 dark:text-emerald-300">
-                            已在对话里授权（{g.decided_at}）
-                          </span>
+                          <>
+                            <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] text-emerald-700 dark:text-emerald-300">
+                              已在对话里授权（{g.decided_at}）
+                            </span>
+                            {/* P0-05：授权必须能收回 —— 用户说"能做"是一时的话，不是永久合同 */}
+                            <button
+                              type="button"
+                              className="rounded border px-1.5 py-0.5 text-[10.5px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                              title="收回这一类授权：之后再遇到这类动作会重新问你"
+                              onClick={async () => {
+                                try {
+                                  await impactapi.grant(taskId, st.class, false);
+                                  toast.success("已收回授权：这类动作需要你重新点头");
+                                  await load();
+                                } catch {
+                                  toast.error("收回失败，稍后再试");
+                                }
+                              }}
+                            >
+                              收回
+                            </button>
+                          </>
                         ) : g ? (
                           <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10.5px] text-slate-600">
                             已明确拒绝（{g.decided_at}）

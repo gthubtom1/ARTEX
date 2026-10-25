@@ -89,7 +89,7 @@ func (s *Server) taskGrant(w http.ResponseWriter, r *http.Request) {
 	}
 	cls := strings.TrimSpace(body.Class)
 	if !validActionClass(cls) {
-		writeErr(w, http.StatusBadRequest, "class 只能是 file_write / data_dump / persist / lateral")
+		writeErr(w, http.StatusBadRequest, "class 只能是 file_write / data_dump / data_write / persist / lateral")
 		return
 	}
 	taskID, _ := strconv.ParseInt(t.ID, 10, 64)
@@ -114,7 +114,7 @@ func (s *Server) taskGrant(w http.ResponseWriter, r *http.Request) {
 
 func validActionClass(c string) bool {
 	switch impact.ActionClass(c) {
-	case impact.ClassFileWrite, impact.ClassDataDump, impact.ClassPersist, impact.ClassLateral:
+	case impact.ClassFileWrite, impact.ClassDataDump, impact.ClassPersist, impact.ClassLateral, impact.ClassDataWrite:
 		return true
 	}
 	return false
