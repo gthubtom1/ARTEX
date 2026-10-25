@@ -110,3 +110,39 @@ func TestEvidenceProofHandlesJSONEscapedText(t *testing.T) {
 		t.Fatalf("库里转义形态的证据也必须判成读到数据，得到 %+v", p)
 	}
 }
+
+// 真机 #20（2026-10-25，0.11.50 回归跑）的 finding 403 证据原文。
+// 它**真的**读到了 3 行交易记录，但当时只认"条样本"这个词，写成"表格样本"就被判成没数据（E1）。
+// 这条钉住：措辞变化不许把真结果判掉。
+const realEvidence20 = `{"by": "work#3", "poc": "GET /bank/transaction.jsp\nCookie: JSESSIONID=2F2C06C0BEEF9C701E36F4D99E4DEB3C; AltoroAccounts=\"ODAwMDAwfkNvcnBvcmF0ZX4t...\"\n-> HTTP/1.1 200, 页面标题 \"Recent Transactions\"，表格样本：\n24928 | 2026-10-24 19:20 | 800000 | Withdrawal | -$1.00\n24926 | 2026-10-24 19:12 | 800000 | Withdrawal | -$0.01\n24925 | 2026-10-24 19:11 | 800000 | Deposit | $0.01\n（会话由 POST /doLogin uid=admin\u0027--\u0026passw=x 获得，302 Location:/bank/main.jsp）"}`
+
+func TestEvidenceProofKeepsSecondRealRun(t *testing.T) {
+	p := parseEvidence(realEvidence20)
+	if !p.provesData() {
+		t.Fatalf("#20 真的读到 3 行交易记录，必须判成读到数据，得到 %+v", p)
+	}
+}
+
+// 判据只看证据，不看漏洞名（2026-10-25 #20）：名字叫「敏感数据暴露」，一个关键词都不在旧词表里，
+// 但证据里有 3 行真实交易记录 —— 必须算"读到数据"。
+func TestDataProofIgnoresVulnName(t *testing.T) {
+	// 模拟 impactScan 的判定：不再看 kind
+	proof := parseEvidence(realEvidence20)
+	if !proof.provesData() {
+		t.Fatalf("证据够就该算数据，与漏洞名无关：%+v", proof)
+	}
+}
+
+// 文件读取 ≠ 命令执行：/etc/passwd 的内容（root:x:0:0:）不许把等级抬到 E3。
+func TestFileReadIsNotCommandExecution(t *testing.T) {
+	ev := `GET /download?file=../../../../etc/passwd -> HTTP/1.1 200
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin`
+	if p := parseEvidence(ev); p.provesCommand() {
+		t.Fatalf("读文件不该被判成命令执行：%+v", p)
+	}
+	// 真的命令回显要认出来
+	if p := parseEvidence("POST /shell.jsp -> HTTP/1.1 200\nuid=0(root) gid=0(root) groups=0(root)"); !p.provesCommand() {
+		t.Fatalf("uid=0(root) 应判成命令执行：%+v", p)
+	}
+}

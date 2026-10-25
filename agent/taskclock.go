@@ -52,3 +52,27 @@ func clampMaxDuration(deadlineUnix int64, ownBudget time.Duration) (eff time.Dur
 	}
 	return eff, clamped
 }
+
+// clampIntentBudget 是"单条意图的墙钟预算"：最多吃掉任务剩余时间的 1/3。
+//
+// 背景（2026-10-25 外部审查 P0-01，docs/PLANS/2026-10-25-artex-找洞能力审查.md）：
+// 实测过"一条意图吃满整个任务窗口"—— 20 分钟的任务里，第一条意图跑 18 分钟没出结果，
+// 剩下的时间连第二条方向都来不及试。找洞靠的是"多方向快速试错"，不是"一条路跑到黑"。
+//
+// 规则：eff = min(自己的 run_seconds, 任务剩余时间/3, 但不能少于 90 秒)。
+// 90 秒地板是为了不把正常的一次验证打断（一次 sqlmap --batch 往往就要几十秒）。
+// 没有任务 deadline 时行为与以前完全一致。
+func clampIntentBudget(deadlineUnix int64, ownBudget time.Duration) (time.Duration, bool) {
+	eff, clamped := clampMaxDuration(deadlineUnix, ownBudget)
+	if deadlineUnix <= 0 {
+		return eff, clamped
+	}
+	share := time.Until(time.Unix(deadlineUnix, 0)) / 3
+	if share < 90*time.Second {
+		share = 90 * time.Second
+	}
+	if eff <= 0 || share < eff {
+		return share, true
+	}
+	return eff, clamped
+}

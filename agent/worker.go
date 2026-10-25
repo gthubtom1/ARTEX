@@ -449,7 +449,8 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 	system, boundary := deferredSystem(sysBody, def)
 	// 任务级 deadline(经 ctx 注入)夹逼本 run 的墙钟预算 + 决定收尾词(见 taskclock.go)。
 	tc := taskClockFrom(ctx)
-	maxDur, clamped := clampMaxDuration(tc.DeadlineUnix, w.runTimeout)
+	// 单条意图最多吃任务剩余时间的 1/3（2026-10-25 P0-01：别让一条路跑到黑）。
+	maxDur, clamped := clampIntentBudget(tc.DeadlineUnix, w.runTimeout)
 	settle := wrapupSettlement("worker", []string{"Bash"})
 	if tc.DeadlineUnix > 0 {
 		settle = wrapupSettlementForTask("worker", []string{"Bash"}, clamped)

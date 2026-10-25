@@ -12,29 +12,33 @@ import (
 // 会让"只是风险"的洞被算成"真的打通了"，用户拿这份结论去做商业判断。
 //
 // 现在改成三段**可解析**判据（纯字符串解析，同输入同输出，不调模型）：
-//  1. 有往返：请求行（GET/POST … ）与响应行（HTTP/1.x 2xx/3xx/4xx/5xx）都出现
-//  2. 有数据行：≥2 行"结构化记录"（`|` 分隔 ≥3 字段），且正文里出现数据类词
+//  1. 有往返：出现请求（HTTP 动词 + 路径/URL）且出现响应（HTTP/1.x + 状态码）
+//  2. 有数据行：≥2 行"结构化记录"（`|` 分隔多字段），且正文里出现数据类词
 //  3. 有命令回显：uid=0(... / root:x:0:0: / Microsoft Windows [Version / nt authority\system
 //
-// 校准依据是真机 #19 的证据（2026-10-24，E4 数据访问，evidence 1134 字节）：
-// 它含 `GET https://… 200`、`-> HTTP/1.1 302 Found`、`GET /bank/transaction.jsp… -> 200`，
-// 以及三行 `1) txid=24782 | … | -$7777.77` —— 三条判据都能过，所以收紧后不会误伤真结果。
+// 校准依据是真机跑出来的两份证据（都真的打通了）：
+//   - #19（2026-10-24，E4）：`GET https://… 200`、`-> HTTP/1.1 302`、3 行 `1) txid=24782 | …`；
+//   - #20（2026-10-25，E4）：`GET /bank/transaction.jsp` + `-> HTTP/1.1 200` + 3 行
+//     `24928 | 2026-10-24 19:20 | 800000 | …`，且写的是"表格样本"而不是"条样本"。
 //
-// 二次教训（2026-10-25，换装 0.11.47 后 #19 从 E4 掉到 E0 才发现）：
-// 证据在 jsonb 里取出来是**转义过的 JSON 文本**（换行是字面 `\n`），必须先还原再解析，
-// 否则"按行找请求行/记录行"全部落空 —— 真证据被判成没证据。见 normalizeEvidence。
+// 两次踩坑（都是真机才发现，读代码/mock 测不出来）：
+//   - jsonb 取出来的 evidence 是**转义文本**（换行是字面 `\n`），不还原就按行解析全落空 → normalizeEvidence；
+//   - 请求行常写在 `【攻击】` / `"poc": "` 这类前缀后面，不能只认行首 → 动词+路径/URL 匹配。
 
 var (
-	// 请求行：`GET /path HTTP/1.1` 或 `POST /doLogin  body: …`（真机 #19 里的写法）
-	evReqRe = regexp.MustCompile(`(?mi)^\s*(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+[\w./:?=&%#{}$\-@\[\]]+`)
-	// 响应行：`HTTP/1.1 302 Found`
+	// 请求：HTTP 动词 + 路径或 URL（不要求行首，能认 【攻击】POST /doLogin 这种写法）
+	evReqRe = regexp.MustCompile(`(?i)\b(?:GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(?:https?://|/)[\w./:?=&%#{}$\-@\[\]]*`)
+	// 响应：`HTTP/1.1 302 Found`
 	evRespRe = regexp.MustCompile(`(?i)HTTP/1\.[01]\s+[1-5]\d\d`)
 	// 命令回显特征
-	evCmdRe = regexp.MustCompile(`(?i)uid=\d+\(|^root:[^:]*:0:0:|microsoft windows \[version|nt authority\\system|volume serial number`)
-	// 结构化记录行：`1) txid=24782 | … | -$7777.77` / `id=3 | name=… | pass=…`
+	// 命令回显特征：只认"执行了命令"才会出现的东西。
+	// 注意不能把 /etc/passwd 的内容（root:x:0:0:）算进来 —— 那是文件读取，不是命令执行。
+	evCmdRe = regexp.MustCompile(`(?i)uid=\d+\(|microsoft windows \[version|nt authority\system|volume serial number`)
+	// 结构化记录行：`1) txid=24782 | … | -$7777.77` / `24928 | 2026-10-24 19:20 | 800000 | …`
 	evRecordRe = regexp.MustCompile(`(?i)(^\s*\d+[).]?\s+.*\|.*\|)|\b\w{2,12}=(?:[^|\s]{1,40})\s*\|\s*\w{2,14}=`)
-	// 数据类词（避免把"登录成功"当数据）
-	evDataWordRe = regexp.MustCompile(`(?i)条样本|条记录|条数据|行数据|记录数|rows? returned|sample rows|record count`)
+	// 数据类词。它只是三道判据之一，必须与"往返 + ≥2 行结构化记录"同时成立，
+	// 所以可以放宽到"样本/记录/流水/表格"这类常见说法（#20 写的是"表格样本"）。
+	evDataWordRe = regexp.MustCompile(`(?i)条样本|样本|条记录|记录数|记录|行数据|流水|表格|字段|rows? returned|sample rows|record count|transactions?`)
 )
 
 // evidenceProof 是一段证据文本的"可证明到什么"解析结果。

@@ -1260,6 +1260,13 @@ func (t *ToolSet) proveGoal() actool.CoreTool {
 			if err != nil || evidenceNode == nil || (evidenceNode.Kind != db.KindFact && evidenceNode.Kind != db.KindFinding) {
 				return actool.Errorf("evidence_id 必须是本任务或直接关联任务的事实/漏洞节点"), nil
 			}
+			// P0-04：如果这一步会让"所有目标都 met"（= 自动收官），先过等级闸。
+			// 只拦收官那一下：阶段性 prove_goal 不该被拦（否则用户想记中间成果都记不了）。
+			if t.wouldCompleteAllGoals(goal) {
+				if ok, why := t.finishGate(); !ok {
+					return actool.Errorf(why), nil
+				}
+			}
 			_ = t.ts.Link(ev, db.RelProves, goal)
 			_ = t.ts.SetNodeState(goal, "met")
 			// 每标记一个目标 met，就检查本任务是否【所有目标】都已 met；若是，自动判定
@@ -1291,12 +1298,8 @@ func (t *ToolSet) goalMet() actool.CoreTool {
 			// 确定性闸门（2026-10-24 实战验收发现）：planner 在"只登录进后台"时就调 goal_met，
 			// 把所有 worker 中断，任务停在 E2 再也不动 —— 这是"跑很久拿不到权限"的直接原因之一。
 			// 判据不看模型怎么说，只看权限阶梯：目标要求"命令执行/数据/权限"而当前 < E3 → 拒绝收官。
-			if ImpactLevelFor != nil && t.taskID > 0 && goalDemandsExploit(t.goal) {
-				if lv, label := ImpactLevelFor(t.taskID); lv < 3 {
-					return actool.Text("拒绝收官：当前只到「" + label +
-						"」。任务目标要求拿到命令执行或数据访问，请先把一条漏洞推进到 E3（命令执行）或 E4（数据样本）再调本工具；" +
-						"如果你判断推不动，就写一条否定结论说明卡在哪。"), nil
-				}
+			if ok, why := t.finishGate(); !ok {
+				return actool.Text(why), nil
 			}
 			t.GoalMet = true
 			t.Reason = a.Reason
@@ -2245,10 +2248,55 @@ func (t *ToolSet) directionStats(summary string, anchors []int64) (attempts, yie
 var ImpactLevelFor func(taskID int64) (int, string)
 
 // goalDemandsExploit 判断任务目标是否要求"拿到权限/数据"（而不是只要清单）。
+// finishGate 是"收官闸门"的唯一实现（prove_goal 与 goal_met 共用）。
+//
+// 背景（2026-10-25 外部审查 P0-04）：goal_met 有等级闸，但默认根本没绑给任何 agent
+// （toolcatalog.go：goal_met 默认不注册），真正收官走的是 prove_goal —— 而 prove_goal
+// 一条闸都没有。结果：目标写着"拿到业务数据"，模型用一条只登录进后台的证据把目标标 met，
+// 所有目标都 met → 任务自动 done。用户在"任务完成"的假象里拿不到任何东西。
+//
+// 判据不看模型怎么说，只看权限阶梯：目标要求命令执行/数据/权限，而当前 < E3 → 不许收官。
+func (t *ToolSet) finishGate() (bool, string) {
+	if ImpactLevelFor == nil || t.taskID <= 0 || !goalDemandsExploit(t.goal) {
+		return true, ""
+	}
+	lv, label := ImpactLevelFor(t.taskID)
+	if lv >= 3 {
+		return true, ""
+	}
+	return false, "拒绝收官：当前只到「" + label +
+		"」。任务目标要求拿到命令执行或数据访问，请先把一条漏洞推进到 E3（命令执行）或 E4（数据样本）再收官；" +
+		"如果你判断推不动，就写一条否定结论说明卡在哪，不要用「完成」糊过去。"
+}
+
+// wouldCompleteAllGoals 判断"把 goal 标 met 之后，本任务是不是所有目标都达成了"。
+// 读不到目标列表时保守返回 false（不拦），避免因为库抖动把正常收官挡死。
+func (t *ToolSet) wouldCompleteAllGoals(goal int64) bool {
+	if t.ts == nil {
+		return false
+	}
+	goals, err := t.ts.ListByKind(db.KindGoal, 1000)
+	if err != nil || len(goals) == 0 {
+		return false
+	}
+	for _, g := range goals {
+		if g.ID == goal {
+			continue
+		}
+		if g.State != "met" {
+			return false
+		}
+	}
+	return true
+}
+
 func goalDemandsExploit(goal string) bool {
 	g := strings.ToLower(goal)
 	for _, kw := range []string{"命令执行", "代码执行", "shell", "webshell", "getshell", "拿数据", "取数据",
-		"业务数据", "数据访问", "拿到权限", "提权", "横向", "横移"} {
+		"业务数据", "数据访问", "拿到权限", "提权", "横向", "横移",
+		// 2026-10-25 回归 #20：目标写"读取交易记录作为数据证据"，不在旧词表里 →
+		// 任务 2.5 分钟就以 E1 收工。凡是"要拿到具体数据/具体权限"的说法都必须拦。
+		"数据证据", "数据样本", "交易记录", "流水", "用户表", "订单", "拖库", "读到"} {
 		if strings.Contains(g, kw) {
 			return true
 		}

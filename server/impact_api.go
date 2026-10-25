@@ -248,16 +248,17 @@ func (s *Server) impactScan(ctx context.Context, _ *Task, taskID int64) impactSc
 			// 漏洞名说 RCE 但证据里没有命令回显 → 只算"有洞"，不点亮"能命令执行"。
 			proof := parseEvidence(ev)
 			local := impact.Stats{Findings: 1}
-			cmdVuln := strings.Contains(kind, "rce") || strings.Contains(kind, "命令执行") || strings.Contains(kind, "代码执行") ||
-				strings.Contains(kind, "webshell") || strings.Contains(kind, "反序列化")
-			if cmdVuln && proof.provesCommand() {
+			// 判据只看证据，不看漏洞名。
+			// 2026-10-25 回归 #20：那条洞的名字叫「认证绕过会话可只读访问账户交易记录（敏感数据暴露）」，
+			// 旧代码要求名字里出现 sql/注入/敏感信息/数据泄露 —— 一个都没中，于是**真读到的 3 行交易记录**
+			// 被判成"没拿到数据"（E1）。既然证据本身已经要求"请求+响应+≥2 行结构化记录+数据词"，
+			// 名字就不该再当门槛；kind 只用于展示，不参与判定。
+			_ = kind
+			if proof.provesCommand() {
 				st.Shells++
 				local.Shells = 1
 			}
-			dataVuln := strings.Contains(kind, "sql") || strings.Contains(kind, "注入") ||
-				strings.Contains(kind, "敏感信息") || strings.Contains(kind, "数据泄露") || strings.Contains(kind, "越权") ||
-				strings.Contains(kind, "idor")
-			if dataVuln && proof.provesData() {
+			if proof.provesData() {
 				st.DataSamples++
 				local.DataSamples = 1
 			}
