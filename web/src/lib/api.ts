@@ -1977,3 +1977,35 @@ export const lootapi = {
       { row_key: rowKey, state },
     ),
 };
+
+// ── 进展清单（GET /api/roadmap）─────────────────────────────────────────
+// 做到哪一步、还剩什么没做 —— 直接显示在页面上，不用翻仓库文档。
+export type RoadmapItem = {
+  id: string;
+  title: string;
+  status: "done" | "doing" | "todo" | "blocked" | string;
+  why_not?: string;
+  accept?: string;
+  evidence?: string;
+};
+export type RoadmapGroup = {
+  id: string;
+  title: string;
+  why: string;
+  items: RoadmapItem[];
+};
+export type RoadmapResponse = {
+  version: string;
+  updated: string;
+  intro: string;
+  groups: RoadmapGroup[];
+  done: number;
+  todo: number;
+  blocked: number;
+  total: number;
+  headline: string;
+};
+
+export const roadmapapi = {
+  get: () => get<RoadmapResponse>("/roadmap"),
+};

@@ -1,0 +1,207 @@
+{
+  "version": "0.11.57",
+  "updated": "2026-10-25",
+  "intro": "这张单子直接来自仓库里的 server/roadmap.json：每条都有状态、为什么没做、怎么算做完。改这张单子 = 改发布说明，不必翻文档。",
+  "groups": [
+    {
+      "id": "find",
+      "title": "能不能找到洞",
+      "why": "找不到洞，后面所有功能都是空转",
+      "items": [
+        {
+          "id": "find-chain",
+          "title": "给网址 → 找到第一个能复现的洞",
+          "status": "done",
+          "evidence": "真机 #22：3 个请求、80 秒打通 /doLogin 注入；#20：76 秒拿到 E4 数据样本"
+        },
+        {
+          "id": "find-kb",
+          "title": "worker 拿到入口先查“这一类怎么验”",
+          "status": "done",
+          "evidence": "kb_playbook 工具 + 真机 tool_usage 命中 1 次（任务 #21）"
+        },
+        {
+          "id": "find-intent-budget",
+          "title": "一条意图不许吃满整个任务时间",
+          "status": "done",
+          "evidence": "单意图夹到剩余时间 1/3（地板 90 秒）+ 单测"
+        },
+        {
+          "id": "find-seed",
+          "title": "创建任务就先出一刀（不等两次规划）",
+          "status": "todo",
+          "why_not": "缺标尺时改默认值就是靠感觉（会放大 token）。要先用基线证明它更快。",
+          "accept": "同样目标跑 3 次，首洞时延中位数比现在（76–96 秒）下降 ≥30%，且 token 不涨"
+        },
+        {
+          "id": "find-playbook-step",
+          "title": "打法分步推进 + 断了能接着跑",
+          "status": "todo",
+          "why_not": "要先把 intent 里存 {漏洞类, 攻击面, 第几步/共几步}，再支持续跑；本轮只做了“查打法”。",
+          "accept": "kill 一条意图后重跑，worker 从第 N+1 步继续；真机可见"
+        },
+        {
+          "id": "find-bench",
+          "title": "标准靶场跑分（DVWA / juice-shop）",
+          "status": "blocked",
+          "why_not": "你的 Kali VM 没装 docker，起不了靶场；现在用真实靶站（demo.testfire.net）当临时标尺。",
+          "accept": "docker 靶场起来后，一次跑 2 道题，first_finding_ms > 0 并落档"
+        }
+      ]
+    },
+    {
+      "id": "truth",
+      "title": "结论会不会说谎",
+      "why": "你说的每句话都要能拿去汇报，不能被“看起来已成立”骗",
+      "items": [
+        {
+          "id": "truth-level",
+          "title": "等级只认可解析证据（不认措辞）",
+          "status": "done",
+          "evidence": "请求+响应往返 / ≥2 行结构化记录 / 命令回显 / 后台页现象；真机 #19 #20 #22 重算全部对上"
+        },
+        {
+          "id": "truth-owner",
+          "title": "一条洞的成果不许算给别的洞",
+          "status": "done",
+          "evidence": "#20 三段式：产出数据的那条“已成立”，另一条“差一步”"
+        },
+        {
+          "id": "truth-one-phrase",
+          "title": "“下一步该说什么”只有一套口径，且按能力给",
+          "status": "done",
+          "evidence": "#17 没有凭据能力时只让“先落库”，不再骗你“用这条凭据登录”"
+        },
+        {
+          "id": "truth-onepager",
+          "title": "一页纸能直接交出去（无机器码、无自相矛盾）",
+          "status": "done",
+          "evidence": "真机 #19/#20/#22 一页纸：机器码 0 命中，数据对象只在真读到数据时列"
+        },
+        {
+          "id": "truth-goal-persist",
+          "title": "你在页面上选的“我的目标”能记住",
+          "status": "todo",
+          "why_not": "目标现在只存在浏览器内存里，刷新就回到默认值。",
+          "accept": "选“拖库”→ 刷新 → 仍是“拖库”；接口返回所选目标"
+        }
+      ]
+    },
+    {
+      "id": "safe",
+      "title": "它会不会自己乱来",
+      "why": "改钱、开号、删数据这些动作必须你说一句才做",
+      "items": [
+        {
+          "id": "safe-write",
+          "title": "改业务数据要先授权（改钱/改状态/开管理员号）",
+          "status": "done",
+          "evidence": "新增 data_write 授权类 + 单测（4 条命中、只读 SQL 不误伤）"
+        },
+        {
+          "id": "safe-revoke",
+          "title": "授权能收回",
+          "status": "done",
+          "evidence": "战况卡“收回”按钮；真机 grant→revoke 往返，库里 granted=false"
+        },
+        {
+          "id": "safe-block-msg",
+          "title": "被拦时告诉你在对话里说一句（不再指向已删除的按钮）",
+          "status": "done",
+          "evidence": "拦截图文言改成对话指令 + 单测断言不含“允许/拒绝”"
+        },
+        {
+          "id": "safe-destructive",
+          "title": "删除/清日志这类动作一律不做（只提示）",
+          "status": "done",
+          "evidence": "内置破坏性规则 + 阶段门拦截，真机出现 policy_blocked 事件"
+        }
+      ]
+    },
+    {
+      "id": "use",
+      "title": "零基础能不能用起来",
+      "why": "打开 3 秒内知道“我现在能做什么、下一步说什么”",
+      "items": [
+        {
+          "id": "use-battlecard",
+          "title": "一屏一问：我在哪 / 我有什么 / 能做到 / 差一步 / 换不到",
+          "status": "done",
+          "evidence": "战况卡 + Tab 收敛到 4 个 + 折叠"
+        },
+        {
+          "id": "use-goal",
+          "title": "8 个人话目标 + 自适应把握 + Top3 下一步",
+          "status": "done",
+          "evidence": "/fit 接口；目标适用性与三段式共用一张映射表"
+        },
+        {
+          "id": "use-empty",
+          "title": "空态/失败态都说“下一步做什么”",
+          "status": "done",
+          "evidence": "发现页/报告页/会话页空态改写"
+        },
+        {
+          "id": "use-nav",
+          "title": "零基础默认只看到少数入口（其余进“高级”）",
+          "status": "todo",
+          "why_not": "侧边栏现在有 38 项，新人第一次打开会迷路；收敛属于产品决策，怕影响你现有习惯。",
+          "accept": "新账号首屏可见项 ≤8，点“高级”展开全部"
+        },
+        {
+          "id": "use-token",
+          "title": "页面上看得见“这个任务花了多少”+ 到上限自己停",
+          "status": "todo",
+          "why_not": "现在只有时间闸门（30/60/120 分钟），token 只在“任务管理”折叠里，且没有 token 上限。",
+          "accept": "战况卡底部显示“已花 X（缓存 Y）”；设 50k 上限造任务 → 到点暂停"
+        },
+        {
+          "id": "use-keys",
+          "title": "键盘能走完整个流程 + 对比度达标",
+          "status": "done",
+          "evidence": "全局 2px 焦点环；语义色收敛到 6 个（绿/琥珀/灰/红/蓝/紫）"
+        }
+      ]
+    },
+    {
+      "id": "ship",
+      "title": "能不能交付出去",
+      "why": "给别人看的东西必须能打印、能发群、能复核",
+      "items": [
+        {
+          "id": "ship-pkg",
+          "title": "Windows / Linux 双平台包（前端已内嵌）",
+          "status": "done",
+          "evidence": "dist/artex.exe（44M）+ dist/artex-linux（43M），0.11.57，SHA256 见 RELEASE-0.11.57.md"
+        },
+        {
+          "id": "ship-pages",
+          "title": "这一页（进展清单）让你自己看到还剩什么",
+          "status": "done",
+          "evidence": "server/roadmap.json + GET /api/roadmap + 本页面"
+        },
+        {
+          "id": "ship-release",
+          "title": "发到 GitHub Release（打 tag + 上传两个包）",
+          "status": "blocked",
+          "why_not": "这是公开动作，会出现在别人面前，必须你点头；技术上都准备好了。",
+          "accept": "v0.11.57 tag 存在，Release 页面有 exe/linux/SHA256SUMS/RELEASE-0.11.57.md"
+        },
+        {
+          "id": "ship-mock",
+          "title": "mock 用真机录制的响应（别再手写文案）",
+          "status": "todo",
+          "why_not": "现在 mock 里有手写基准句，审出来的文案在真机不存在（已经踩过 3 次）。",
+          "accept": "scripts 里有录制脚本；mock 文案与真机 /brief 逐字相同"
+        },
+        {
+          "id": "ship-vm-scripts",
+          "title": "判据脚本不再硬编码 sudo 口令",
+          "status": "todo",
+          "why_not": "scripts/vm-*.sh 里写着 echo kali | sudo -S，换台机器就跑不了。",
+          "accept": "脚本读 ARTEX_TOKEN 环境变量即可在任意机器复现"
+        }
+      ]
+    }
+  ]
+}

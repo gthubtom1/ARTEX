@@ -81,6 +81,8 @@ export const sidebarItems: NavGroup[] = [
       { id: "dashboard", title: "仪表盘", url: "/dashboard", icon: LayoutDashboard },
       { id: "chat", title: "对话", url: "/chat", icon: MessageSquare },
       { id: "tasks", title: "任务", url: "/function/tasks", icon: Target },
+      // 进展清单：做到哪一步、还剩什么没做（零基础第一个该点的页面）
+      { id: "progress", title: "进展", url: "/function/progress", icon: ListChecks },
       { id: "schedules", title: "计划任务", url: "/function/schedules", icon: CalendarClock },
       { id: "assets", title: "资产", url: "/function/assets", icon: Network },
       { id: "findings", title: "发现", url: "/function/findings", icon: Bug },
