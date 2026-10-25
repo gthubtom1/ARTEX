@@ -679,6 +679,9 @@ func (t *ToolSet) WorkerTools() []actool.CoreTool {
 		t.searchAllWorkerTraces(), t.getWorkerTrace(),
 		// node_detail：worker 拿到 intent_id/节点 id 后可查该节点完整详情（配合上面的回看）。
 		t.nodeDetail(),
+		// kb_playbook（2026-10-25 P0-02）：拿到新入口先查"这一类怎么验"。
+		// kb/tactics 有 6 篇 428 行打法，之前零接线，worker 全靠自由发挥。
+		t.kbPlaybook(),
 		// 以下工具仍【不给】worker，只留给 planner/main（读上下文、跨 work 复盘是规划职责，
 		// worker 只做单条意图的执行与写回）：list_facts / list_companies / list_worker_traces。
 	}

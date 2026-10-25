@@ -445,6 +445,9 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 			}
 		}
 	}
+	// 2026-10-25 P0-02：kb/tactics 有现成打法（判定标准/常见误判/不许跳级的检查顺序），
+	// 但以前从没被读过。这里只加一句「先去查」，具体内容由 kb_playbook 按形状取（硬限长度）。
+	sysBody += "\n\n拿到一个新入口或新参数时，先用 kb_playbook 查一次「这一类怎么验」（判定标准、常见误判、检查顺序），按它给的顺序推进，不要跳级。"
 	sysBody += "\n\n开始执行上面这条意图：只做它、只产生事实、assets、finding、做完即停。"
 	system, boundary := deferredSystem(sysBody, def)
 	// 任务级 deadline(经 ctx 注入)夹逼本 run 的墙钟预算 + 决定收尾词(见 taskclock.go)。

@@ -150,7 +150,9 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 已拿到
-	if st.OwnedApp > 0 {
+	// AppControl 也要算"已拿到后台"：它是从**证据块**解析出来的（#22 用 admin'-- 进后台，
+	// 台账里没有登记，旧代码就把它当成"什么都没有"）。
+	if st.OwnedApp > 0 || st.AppControl > 0 {
 		out.Has = append(out.Has, briefItem{Kind: "app", Text: "后台管理员会话（可浏览后台功能）"})
 	}
 	if st.OwnedRoot > 0 || st.OwnedHosts > 0 {
@@ -366,7 +368,7 @@ func rowCapability(rowKey string, st impact.Stats) bool {
 	case "db", "data":
 		return st.DataSamples > 0
 	case "admin":
-		return st.OwnedApp > 0
+		return st.OwnedApp > 0 || st.AppControl > 0
 	case "rce":
 		return st.Shells > 0
 	case "cred":

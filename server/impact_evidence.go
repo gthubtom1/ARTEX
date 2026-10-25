@@ -91,6 +91,30 @@ func (p evidenceProof) roundTrip() bool { return p.Req && p.Resp }
 // provesCommand：能证明"命令真的执行了"。出现命令回显特征即算（回显本身就是执行结果）。
 func (p evidenceProof) provesCommand() bool { return p.CmdOutput }
 
+// provesSession：能证明"真的进了（后台）会话"。
+//
+// 真机 #22（2026-10-25）：worker 用 admin'-- 拿到后台会话、页面出现 "Hello Admin User"，
+// 但等级仍显示 E0 —— 因为 AppControl 只从 fact 文本里正则匹配"登录/后台 + 成功"，
+// 而它把结论写成了事实（"取得 Admin 会话"）+ 证据块。等级低估和虚高一样糟：
+// 用户会以为"什么都没拿到"。
+//
+// 判据：请求/响应往返 + 出现"已登录/后台页"的特征词（必须是响应里的现象，不是模型自述）。
+func (p evidenceProof) provesSession(ev string) bool {
+	if !p.roundTrip() {
+		return false
+	}
+	low := strings.ToLower(ev)
+	for _, k := range []string{
+		"hello admin", "sign off", "已处于登录态", "登录成功", "已登录", "已进入后台",
+		"管理后台", "后台首页", "dashboard", "administration", "logout", "退出登录",
+	} {
+		if strings.Contains(low, k) {
+			return true
+		}
+	}
+	return false
+}
+
 // provesData：能证明"真的读到了业务数据"。
 // 要求：往返 + ≥2 行结构化记录 + 数据类词。只有"登录成功了"或"摘要里写了样本"都不算。
 func (p evidenceProof) provesData() bool {

@@ -146,3 +146,22 @@ daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin`
 		t.Fatalf("uid=0(root) 应判成命令执行：%+v", p)
 	}
 }
+
+// 真机 #22（2026-10-25）：worker 真的拿到了后台会话（Hello Admin User），
+// 但等级显示 E0 —— 因为 AppControl 只从 fact 文本正则匹配。这条钉住"不许低估"。
+const realEvidence22 = `{"by": "work#2", "poc": "【请求1 — 注入登录】POST /doLogin HTTP/1.1\nuid=admin\u0027--\u0026passw=x\n\n响应：\nHTTP/1.1 302\nSet-Cookie: JSESSIONID=EA8A5F73\nSet-Cookie: AltoroAccounts=\"ODAwMDAw...\"\nLocation: /bank/main.jsp\n\n【请求2 — 只读确认后台可见】\nGET /bank/main.jsp HTTP/1.1\nCookie: JSESSIONID=EA8A5F73\n\n响应：\nHTTP/1.1 200, body_len=6195\n页面包含：\"Hello Admin User\"、\"Sign Off\"、\"Recent Transactions\"\n页面不含：\"Log In\"  → 已处于登录态\n\n【请求3 — 对照组】GET /bank/main.jsp（无 Cookie）\n→ HTTP/1.1 302, Location: /login.jsp"}`
+
+func TestEvidenceProofKeepsSessionRun(t *testing.T) {
+	p := parseEvidence(realEvidence22)
+	if !p.provesSession(realEvidence22) {
+		t.Fatalf("#22 真的进了后台（Hello Admin User），必须判成有后台会话，得到 %+v", p)
+	}
+	// 没有往返证据、只在正文里说"登录成功"的，不算
+	if (evidenceProof{Req: true, Resp: false}).provesSession("登录成功") {
+		t.Fatal("没有响应证据不该判成有会话")
+	}
+	// 只是登录页搜到 "Sign Off" 字样但根本没往返的，也不算
+	if parseEvidence("页面里提到 sign off 这个词").provesSession("页面里提到 sign off 这个词") {
+		t.Fatal("无往返不该判成会话")
+	}
+}

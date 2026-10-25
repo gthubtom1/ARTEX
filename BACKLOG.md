@@ -326,7 +326,8 @@ F4 成本可见 / F5 零基础可走通），并给出**当前实测值**：
 - ✅ 找洞能力 P0-04 收官闸门（prove_goal 过等级闸）
 - ✅ 找洞能力 P0-01（部分）单意图预算夹到 1/3
 - ⬜ 找洞能力 P0-01 剩余：`seed_first_intent` 默认开（等 bench 标尺，docs/00 D14）
-- ⬜ 找洞能力 P0-02/03/05：kb_playbook 接线 / playbook 结构化 / bench 基线
+- ✅ 找洞能力 P0-02：kb_playbook 接线（真机 tool_usage 命中 1 次）
+- ⬜ 找洞能力 P0-03/05：playbook 分步进度 / bench 基线（需 docker 靶场）
 - ⬜ 发 Release（人点头）
 
 ### 成品化清单（2026-10-25 收口，按 docs/23–28 执行）

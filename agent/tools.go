@@ -76,6 +76,8 @@ type ToolSet struct {
 	p2 *P2
 	// goal 是本任务的最终目标（诊断包/顾问账本用）。
 	goal string
+	// kbRoot 是知识库根目录（kb/tactics 打法检索用）；空 = "kb"（相对工作目录）。
+	kbRoot string
 	// workDir 是任务共享工作目录（adapter 原始输出落盘位置）。
 	workDir string
 	// killWork, if set, terminates a running work by intent id (engine callback,
@@ -122,6 +124,9 @@ func (t *ToolSet) SetWorkDir(dir string) { t.workDir = dir }
 
 // SetGoal records the task goal for the P2 diagnostics (adviser ledger).
 func (t *ToolSet) SetGoal(g string) { t.goal = g }
+
+// SetKBRoot 指定知识库根目录（kb_playbook 用）。server 在装配 ToolSet 时注入。
+func (t *ToolSet) SetKBRoot(root string) { t.kbRoot = root }
 
 // SetNotifyGoal wires the goal-add trigger callback (see ToolSet.notifyGoal). Set only
 // by the main-agent chat, so runtime-added goals are announced to the planner by name.
@@ -2264,9 +2269,68 @@ func (t *ToolSet) finishGate() (bool, string) {
 	if lv >= 3 {
 		return true, ""
 	}
+	// 收不了官有两种正当结局：拿到了东西（上面），或者**明确写下"打不动 + 卡在哪"**。
+	// 2026-10-25 真机 #21：目标写着"试试能不能绕过认证"，试一次失败就以 done 收工，
+	// 既没拿到东西也没留一句结论 —— 用户看到的"What？这就完了"。
+	// 所以：允许收官，但必须先有一条否定结论（试过什么/卡在哪/为什么）。
+	if t.hasNegativeConclusion() {
+		return true, ""
+	}
 	return false, "拒绝收官：当前只到「" + label +
-		"」。任务目标要求拿到命令执行或数据访问，请先把一条漏洞推进到 E3（命令执行）或 E4（数据样本）再收官；" +
-		"如果你判断推不动，就写一条否定结论说明卡在哪，不要用「完成」糊过去。"
+		"」。任务目标要求拿到命令执行或数据访问。两条路任选其一：" +
+		"① 把一条漏洞推进到 E3（命令执行）或 E4（数据样本）；" +
+		"② 用 record_fact 写一条明确的否定结论（试过什么、卡在哪、为什么打不动），让用户知道结果而不是被糊过去。"
+}
+
+// hasNegativeConclusion 判断本任务是否已经写下"打不动"的明确结论。
+// 只认事实节点里的固定词（不认模型的自述），所以它不是"模型随便说说就能过"的旁路。
+func (t *ToolSet) hasNegativeConclusion() bool {
+	if t.ts == nil {
+		return false
+	}
+	facts, err := t.ts.ListByKind(db.KindFact, 300)
+	if err != nil || len(facts) == 0 {
+		return false
+	}
+	payloads := make([]json.RawMessage, 0, len(facts))
+	for _, f := range facts {
+		payloads = append(payloads, f.Payload)
+	}
+	return hasNegationInPayloads(payloads)
+}
+
+// hasNegationInPayloads 是上面那个判断的纯函数版本（可单测）。
+// 只认固定否定词，且要求同时有"卡在哪"的痕迹（路径/参数/报错任一），避免"不能"两个字就被当结论。
+func hasNegationInPayloads(payloads []json.RawMessage) bool {
+	neg := []string{"不能", "无法", "不可", "未发现", "不存在", "不成立", "尝试失败", "打不动", "已排除", "不适用"}
+	where := []string{"http", "/", "参数", "403", "404", "500", "拦截", "waf", "登录", "超时", "无回显", "被拦"}
+	for _, raw := range payloads {
+		var p struct {
+			Text    string `json:"text"`
+			Summary string `json:"summary"`
+		}
+		_ = json.Unmarshal(raw, &p)
+		blob := strings.ToLower(p.Text + " " + p.Summary)
+		if blob == "" {
+			continue
+		}
+		hasNeg := false
+		for _, k := range neg {
+			if strings.Contains(blob, k) {
+				hasNeg = true
+				break
+			}
+		}
+		if !hasNeg {
+			continue
+		}
+		for _, k := range where {
+			if strings.Contains(blob, k) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // wouldCompleteAllGoals 判断"把 goal 标 met 之后，本任务是不是所有目标都达成了"。

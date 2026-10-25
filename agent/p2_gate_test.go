@@ -287,9 +287,12 @@ func TestVisibleToolCountMeetsBudget(t *testing.T) {
 	// 再叠加状态门（空状态）
 	wvGated := gateWorkerTools(&gateState{}, wv)
 	total := len(wvGated) + len(ts.P2WorkerDeferredTools())
-	t.Logf("worker: 基础可见=%d 基础deferred=%d 空态可见总计=%d (预算 14)", len(wv), len(wd), total)
-	if total > 14 {
-		t.Fatalf("worker 空态可见工具 %d 个，超过预算 14（%v）", total, toolNames(wvGated))
+	// 预算 14 → 15（2026-10-25）：新增常驻 kb_playbook（按形状查"这一类怎么验"）。
+	// 它替代的是"模型自由发挥 + 漏步"造成的重试，+1 个 schema（约 60 token）小于省下的浪费，
+	// 且它必须在常驻位（藏进 deferred 就不会被查，等于没接线）。
+	t.Logf("worker: 基础可见=%d 基础deferred=%d 空态可见总计=%d (预算 15)", len(wv), len(wd), total)
+	if total > 15 {
+		t.Fatalf("worker 空态可见工具 %d 个，超过预算 15（%v）", total, toolNames(wvGated))
 	}
 
 	pv, pd := splitToolSet(ts.PlannerTools(), plannerBaseDeferred)

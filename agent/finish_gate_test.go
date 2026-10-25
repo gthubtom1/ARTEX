@@ -1,6 +1,9 @@
 package agent
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 // P0-04（docs/PLANS/2026-10-25-artex-找洞能力审查.md）：收官闸门要拦在**真正收官**那一步，
 // 判据是权限阶梯，不看模型怎么说。之前 goal_met 有闸但默认不注册，prove_goal 一条闸都没有，
@@ -54,5 +57,22 @@ func TestFinishGateBlocksEarlyWrapUp(t *testing.T) {
 	ImpactLevelFor = nil
 	if ok, _ := tt.finishGate(); !ok {
 		t.Fatal("未注入 ImpactLevelFor 时应放行")
+	}
+}
+
+// 否定结论通道：收不了官时，允许"明确写下打不动"这条合法出口；
+// 但必须同时有位置/现象痕迹（不能就凭"不能"两个字蒙过去）。
+func TestNegativeConclusionAllowsWrapUp(t *testing.T) {
+	okPayload := []byte(`{"text":"/doLogin 的 uid 参数加了 4 种引号探针都返回 302 回登录页，布尔对无差异，判断不能注入；WAF 对 UNION 关键字返回 403"}`)
+	if !hasNegationInPayloads([]json.RawMessage{okPayload}) {
+		t.Fatal("写明位置+现象+否定结论，应允许收官")
+	}
+	vague := []byte(`{"text":"这些不能做"}`)
+	if hasNegationInPayloads([]json.RawMessage{vague}) {
+		t.Fatal("只说「不能」没有位置/现象，不该当结论")
+	}
+	pos := []byte(`{"text":"POST /doLogin uid=admin'-- 直接 302 到 /bank/main.jsp，已进入后台"}`)
+	if hasNegationInPayloads([]json.RawMessage{pos}) {
+		t.Fatal("成功结论不该被当成否定结论")
 	}
 }

@@ -262,16 +262,25 @@ func (s *Server) impactScan(ctx context.Context, _ *Task, taskID int64) impactSc
 				st.DataSamples++
 				local.DataSamples = 1
 			}
+			// 后台会话：证据里出现"已登录/后台页"现象（#22 的等级低估就是这么修的）。
+			if proof.provesSession(ev) {
+				st.AppControl++
+				local.AppControl = 1
+			}
 			out.byFinding[nodeID] = local
 		}
 	}
 	// E2：登录后台成功属于"应用控制"，此前没有信号源，任务会一直卡在 E0/E1。
 	// 判据：facts 里同时出现"登录/后台"和"成功/已进入/能访问"，取事实条数。
+	// 注意：这里是**累加**，不是赋值 —— 上面"证据里出现后台页"已经给过 AppControl，
+	// 直接 Scan(&st.AppControl) 会把它覆盖成 0（真机 #22 的等级低估就是这么来的）。
+	var appCtlFromFacts int
 	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM exploration_nodes n
 		JOIN tasks t ON t.exploration_id=n.exploration_id
 		WHERE t.id=$1 AND n.kind='fact'
-		  AND (coalesce(n.payload->>'summary','') ~ '(登录|后台).*(成功|已进入|通过|可访问|进去了)'
-		       OR coalesce(n.payload->>'text','') ~ '(登录|后台).*(成功|已进入|通过|可访问|进去了)')`, taskID).Scan(&st.AppControl)
+		  AND (coalesce(n.payload->>'summary','') ~ '(登录|后台).*(成功|已进入|通过|可访问|进去了|会话)'
+		       OR coalesce(n.payload->>'text','') ~ '(登录|后台).*(成功|已进入|通过|可访问|进去了|会话)')`, taskID).Scan(&appCtlFromFacts)
+	st.AppControl += appCtlFromFacts
 	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM creds_vault WHERE task_id=$1`, taskID).Scan(&st.Creds)
 	_ = s.m.pg.QueryRowContext(ctx, `SELECT count(*) FROM assets_owned WHERE first_task_id=$1`, taskID).Scan(&st.OwnedHosts)
 	// 只有"操作系统级"的权限才算 E5（shell/ssh/agent + root/system）；
