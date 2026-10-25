@@ -2,7 +2,10 @@ package server
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/Autumn-27/artex/internal/impact"
 )
 
 // 动态快捷短语（P1）：按"这个站现在到底拿到了什么"生成 3–5 条，点一下只**填入**输入框。
@@ -39,13 +42,15 @@ func (s *Server) taskPhrases(w http.ResponseWriter, r *http.Request) {
 	}
 	fs := s.lootFindings(t)
 	rows := s.lootRowsForTask(r.Context(), t, fs)
-	phrases, has := buildTaskPhrases(fs, rows)
+	taskID, _ := strconv.ParseInt(t.ID, 10, 64)
+	st := s.impactStats(r.Context(), t, taskID)
+	phrases, has := buildTaskPhrases(fs, rows, st)
 	writeJSON(w, http.StatusOK, taskPhrasesResp{Phrases: phrases, Source: "rule", Has: has})
 }
 
 // buildTaskPhrases 是唯一的生成入口（纯函数，可单测）。
 // 返回 (3–5 条短语, 命中的战果分类)。
-func buildTaskPhrases(fs []lootFinding, rows []lootRow) ([]taskPhrase, []string) {
+func buildTaskPhrases(fs []lootFinding, rows []lootRow, st impact.Stats) ([]taskPhrase, []string) {
 	done := map[string]bool{}
 	tried := map[string]bool{}
 	for _, r := range rows {
@@ -61,6 +66,9 @@ func buildTaskPhrases(fs []lootFinding, rows []lootRow) ([]taskPhrase, []string)
 		titles = append(titles, f.title+" "+f.summary)
 	}
 	blob := strings.ToLower(strings.Join(titles, " | "))
+	// P0-06：短语必须按**能力**给，不按"战果行 done/文字里出现某词"给。
+	// 反例（真机 task 17）：has=[] 但第一条短语是"用这条凭据登录一次"——用户照做只会白忙。
+	hasCap := func(k string) bool { return rowCapability(k, st) }
 	hasWord := func(subs ...string) bool {
 		for _, s := range subs {
 			if strings.Contains(blob, strings.ToLower(s)) {
@@ -74,7 +82,7 @@ func buildTaskPhrases(fs []lootFinding, rows []lootRow) ([]taskPhrase, []string)
 	cand := []taskPhrase{}
 
 	// ① 已经有命令执行：最值钱的是"从机器里往外捞东西"，不是再打一个洞。
-	if done["rce"] {
+	if hasCap("rce") {
 		has = append(has, "shell")
 		cand = append(cand, taskPhrase{
 			Key:  "rce_config",
@@ -87,7 +95,7 @@ func buildTaskPhrases(fs []lootFinding, rows []lootRow) ([]taskPhrase, []string)
 		})
 	}
 	// ② 拿到后台：用户/订单数据是委托人最关心的现实后果。
-	if done["admin"] {
+	if hasCap("admin") {
 		has = append(has, "admin")
 		cand = append(cand, taskPhrase{
 			Key:  "admin_data",
@@ -96,25 +104,38 @@ func buildTaskPhrases(fs []lootFinding, rows []lootRow) ([]taskPhrase, []string)
 		})
 	}
 	// ③ 有数据库/数据读取：把它变成"可核对的样本"。
-	if done["db"] || done["data"] {
+	if hasCap("db") || hasCap("data") {
 		has = append(has, "db")
 		cand = append(cand, taskPhrase{
 			Key:  "db_sample",
 			Text: "把订单表按时间倒序取前 20 条，字段名和条数一起给我",
 			Why:  "已能读库：样本量 + 字段名一起给，才算读到业务数据",
 		})
+	} else if hasWord("sql", "注入", "越权", "idor", "未授权") {
+		// 差一步：洞是真的，但还没真的读到数据 —— 这时候该要"最小样本"，不是"再找洞"。
+		cand = append(cand, taskPhrase{
+			Key:  "db_sample_min",
+			Text: "用这个注入/越权只取 3 行样本：表名、字段名、条数，不要全量导出",
+			Why:  "已经有数据类漏洞但还没读到真实数据：3 行就够证明能读，且不扩大影响",
+		})
 	}
-	// ④ 有凭据但没验证：先验证一次，别把"可能可用"当结论。
-	if done["cred"] || hasWord("凭据", "口令", "credential") {
+	// ④ 凭据：真有凭据才谈"验证"；只是文字里提到凭据 → 先落库，别在对话里贴口令。
+	if hasCap("cred") {
 		has = append(has, "cred")
 		cand = append(cand, taskPhrase{
 			Key:  "cred_verify",
 			Text: "用这条凭据登录一次，把登录成功的页面和账号权限范围记下来",
 			Why:  "凭据没验证过就不算战果",
 		})
+	} else if hasWord("凭据", "口令", "hash", "哈希", "连接串") {
+		cand = append(cand, taskPhrase{
+			Key:  "cred_record",
+			Text: "把那条凭据完整记进凭据库（来源页面 + 原值 + 用途），不要在对话里贴口令，然后再说下一步",
+			Why:  "文字里出现了凭据线索，但凭据库里还没有它 —— 先落库，再谈能不能登录",
+		})
 	}
 	// ⑤ 能落文件没拿到 shell：往"文件 → 命令"推一步。
-	if done["filewrite"] || hasWord("上传", "写文件", "webshell") {
+	if hasCap("filewrite") || hasWord("上传", "写文件", "webshell") {
 		has = append(has, "filewrite")
 		cand = append(cand, taskPhrase{
 			Key:  "filewrite_rce",

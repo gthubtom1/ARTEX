@@ -34,6 +34,10 @@ func (s *Server) maybeGrantFromChat(ctx context.Context, t *Task, msg string) {
 	case strings.Contains(text, "webshell") || strings.Contains(text, "木马") || strings.Contains(text, "上传") ||
 		strings.Contains(text, "挂马") || strings.Contains(text, "改页面") || strings.Contains(text, "劫持"):
 		cls = "file_write"
+	case strings.Contains(text, "改钱") || strings.Contains(text, "加钱") || strings.Contains(text, "余额") ||
+		strings.Contains(text, "改数据") || strings.Contains(text, "改状态") || strings.Contains(text, "开号") ||
+		strings.Contains(text, "加管理员") || strings.Contains(text, "审批") || strings.Contains(text, "改金额"):
+		cls = "data_write"
 	case strings.Contains(text, "数据库") || strings.Contains(text, "拉数据") || strings.Contains(text, "取数据") ||
 		strings.Contains(text, "读取数据") || strings.Contains(text, "拖库"):
 		cls = "data_dump"

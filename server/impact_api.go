@@ -126,6 +126,8 @@ func classCN(c string) string {
 		return "上传/写文件（webshell、落地验证文件）"
 	case "data_dump":
 		return "批量取数据"
+	case "data_write":
+		return "改业务数据（改钱/改状态/开管理员号）"
 	case "persist":
 		return "留可控账号/计划任务"
 	case "lateral":
@@ -203,44 +205,63 @@ func (s *Server) taskGrants(ctx context.Context, taskID int64) []grantView {
 }
 
 // impactStats 从既有表算等级需要的计数，**不新增采集**（避免两套真相）。
-func (s *Server) impactStats(ctx context.Context, _ *Task, taskID int64) impact.Stats {
+func (s *Server) impactStats(ctx context.Context, t *Task, taskID int64) impact.Stats {
+	return s.impactScan(ctx, t, taskID).global
+}
+
+// impactScan 一次扫库同时给出"任务级统计"和"逐漏洞统计"。
+//
+// 逐漏洞那份是为了修 P0-02（`docs/PLANS/2026-10-25-artex-产品审查.md`）：
+// 原来"某条洞读过数据"会把**所有**提到 SQL 的洞都标成"已成立"（能力跨洞复用）。
+// 现在每条洞只看**自己那份证据**能证明到什么；Creds/OwnedApp 这类"任务级战果"仍按任务算
+// （凭据库/台账本来就是任务级的，一条洞产出后其它洞也确实可以用 —— 这是真实的，不是虚高）。
+type impactScanResult struct {
+	global    impact.Stats
+	byFinding map[int64]impact.Stats // 只填 Findings/Shells/DataSamples 三个字段
+}
+
+func (s *Server) impactScan(ctx context.Context, _ *Task, taskID int64) impactScanResult {
 	var st impact.Stats
+	out := impactScanResult{byFinding: map[int64]impact.Stats{}}
 	if s.m == nil || s.m.pg == nil {
-		return st
+		return out
 	}
 	// 漏洞：图里的 finding 节点（并按文本粗分"命令执行/数据"类，保守判定）
 	// 只看 vulnclass/name 判"命令执行"，再看 evidence 里有没有"真的读到了数据"的痕迹判 E4。
 	// 教训（2026-10-24 实测）：一开始把 summary 也算进去，一个 XSS 因为摘要里出现"用户枚举/数据"
 	// 就被算成 E4 数据访问 —— 等级虚高比不显示更糟，用户会以为已经拿到数据。
-	rows, err := s.m.pg.QueryContext(ctx, `SELECT coalesce(payload->>'vulnclass',''), coalesce(payload->>'name',''),
+	rows, err := s.m.pg.QueryContext(ctx, `SELECT n.id, coalesce(payload->>'vulnclass',''), coalesce(payload->>'name',''),
 		coalesce(payload->>'evidence'::text,'')
 		FROM exploration_nodes n JOIN tasks t ON t.exploration_id=n.exploration_id
 		WHERE t.id=$1 AND n.kind='finding'`, taskID)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
-			var vc, nm, sm string
-			if rows.Scan(&vc, &nm, &sm) != nil {
+			var nodeID int64
+			var vc, nm, ev string
+			if rows.Scan(&nodeID, &vc, &nm, &ev) != nil {
 				continue
 			}
 			st.Findings++
 			kind := strings.ToLower(vc + " " + nm)
-			ev := strings.ToLower(sm) // 这里 sm 实际装的是 evidence 文本
-			if strings.Contains(kind, "rce") || strings.Contains(kind, "命令执行") || strings.Contains(kind, "代码执行") ||
-				strings.Contains(kind, "webshell") || strings.Contains(kind, "反序列化") {
+			// 2026-10-25（P0-01）：等级不再靠文字关键词，靠**能解析的证据**。
+			// 漏洞名说 RCE 但证据里没有命令回显 → 只算"有洞"，不点亮"能命令执行"。
+			proof := parseEvidence(ev)
+			local := impact.Stats{Findings: 1}
+			cmdVuln := strings.Contains(kind, "rce") || strings.Contains(kind, "命令执行") || strings.Contains(kind, "代码执行") ||
+				strings.Contains(kind, "webshell") || strings.Contains(kind, "反序列化")
+			if cmdVuln && proof.provesCommand() {
 				st.Shells++
+				local.Shells = 1
 			}
-			// E4 要求"证据里真的出现数据样本"，只认这几类证据词，避免 XSS 之类被抬高。
 			dataVuln := strings.Contains(kind, "sql") || strings.Contains(kind, "注入") ||
-				strings.Contains(kind, "敏感信息") || strings.Contains(kind, "数据泄露") || strings.Contains(kind, "越权")
-			// 实测（2026-10-24）：SQLi 登录绕过里出现的 `select` 会被误判成"读到了数据"，
-			// 于是等级虚高到 E4。只认"真的取到记录"的证据词。
-			dataProof := strings.Contains(ev, "条记录") || strings.Contains(ev, "条样本") || strings.Contains(ev, "样本") ||
-				strings.Contains(ev, "rows returned") || strings.Contains(ev, "返回了") ||
-				strings.Contains(ev, "记录数") || strings.Contains(ev, "行数据")
-			if dataVuln && dataProof {
+				strings.Contains(kind, "敏感信息") || strings.Contains(kind, "数据泄露") || strings.Contains(kind, "越权") ||
+				strings.Contains(kind, "idor")
+			if dataVuln && proof.provesData() {
 				st.DataSamples++
+				local.DataSamples = 1
 			}
+			out.byFinding[nodeID] = local
 		}
 	}
 	// E2：登录后台成功属于"应用控制"，此前没有信号源，任务会一直卡在 E0/E1。
@@ -263,5 +284,6 @@ func (s *Server) impactStats(ctx context.Context, _ *Task, taskID int64) impact.
 	}
 	log.Printf("[impact] task %d stats: findings=%d creds=%d shells=%d data=%d owned=%d root=%d",
 		taskID, st.Findings, st.Creds, st.Shells, st.DataSamples, st.OwnedHosts, st.OwnedRoot)
-	return st
+	out.global = st
+	return out
 }

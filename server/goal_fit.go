@@ -362,6 +362,24 @@ func applyApplicability(def goalDef, fs []lootFinding, rows []lootRow) (string, 
 			}
 		}
 	}
+	// P0-07：与战况卡三段式用**同一张表**（findingRowHints）。
+	// 否则会出现"卡片上说差一步：进后台，目标那块说这站看不出有这类东西"——同一屏自相矛盾。
+	// 例：XSS 通向后台（差一步），所以"进后台"这个目标是 likely，而不是 unlikely。
+	for _, f := range fs {
+		blob1 := f.title + " " + f.text + " " + f.summary
+		for _, h := range findingRowHints {
+			if !containsAnyFold(blob1, h.kws...) {
+				continue
+			}
+			for _, k := range h.rows {
+				for _, need := range def.Need {
+					if k == need {
+						return "likely", "已确认的漏洞里有通向「" + lootRowLabel(k) + "」的类型（还差把它变成实际访问）"
+					}
+				}
+			}
+		}
+	}
 	blob := strings.Builder{}
 	for _, f := range fs {
 		blob.WriteString(f.title + " " + f.text + " " + f.summary + " ")

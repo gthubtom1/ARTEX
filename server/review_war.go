@@ -19,7 +19,8 @@ func (s *Server) warBriefForReview(ctx context.Context, t *Task, taskID int64) *
 	if s == nil || t == nil || taskID <= 0 {
 		return nil
 	}
-	st := s.impactStats(ctx, t, taskID)
+	scan := s.impactScan(ctx, t, taskID)
+	st := scan.global
 	lv, basis := impact.Compute(st)
 	fs := s.lootFindings(t)
 	rows := s.lootRowsForTask(ctx, t, fs)
@@ -28,7 +29,13 @@ func (s *Server) warBriefForReview(ctx context.Context, t *Task, taskID int64) *
 	standing := map[string]int{"got": 0, "one_step": 0, "no_gain": 0}
 	firstGap := ""
 	for _, f := range fs {
-		info := findingStanding(f, rows, st)
+		local := st
+		if ws, ok := scan.byFinding[f.id]; ok {
+			local.Shells, local.DataSamples = ws.Shells, ws.DataSamples
+		} else {
+			local.Shells, local.DataSamples = 0, 0
+		}
+		info := findingStanding(f, rows, local)
 		standing[info.Standing]++
 		if info.Standing == "one_step" && firstGap == "" {
 			firstGap = info.Gap

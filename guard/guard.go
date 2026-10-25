@@ -92,6 +92,17 @@ var actionClassPatterns = []struct {
 	class string
 	res   []*regexp.Regexp
 }{
+	// data_write：改业务数据（改钱/改状态/加管理员/写库）。
+	// 2026-10-25 补（外部审查 P0-03）：以前只拦"删"（DROP/TRUNCATE/DELETE），
+	// 改余额、开管理员号这类**不可逆但非删除**的动作既不要授权也不拦 —— 而它正是用户目标之一。
+	{"data_write", []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\bUPDATE\s+[\w".\[\]]+\s+SET\b`),
+		regexp.MustCompile(`(?i)\bINSERT\s+INTO\b`),
+		regexp.MustCompile(`(?i)\bREPLACE\s+INTO\b`),
+		regexp.MustCompile(`(?i)--sql-query[^\n]*(?:update|insert|replace|delete)`),
+		regexp.MustCompile(`(?i)\b(?:create|alter)\s+user\b`),
+		regexp.MustCompile(`(?i)\bcurl[^\n]*-X\s*(?:POST|PUT|PATCH)\b[^\n]*(?:balance|amount|money|role|admin|approve|transfer|withdraw|user/create|register)`),
+	}},
 	{"file_write", []*regexp.Regexp{
 		regexp.MustCompile(`(?i)curl[^\n]*\s(?:-F|--form|--upload-file|-T)\s`),
 		regexp.MustCompile(`(?i)curl[^\n]*-X\s*PUT`),
@@ -129,6 +140,15 @@ func classifyAction(cmd string) string {
 	return ""
 }
 
+// grantBlockMessage 是"被授权门拦下"时给人看的那句话。
+//
+// P0-04（外部审查 2026-10-25）：界面上已经没有「允许」按钮了（docs/24 §八：按钮全部删除，
+// 授权只走对话）。以前这里让人去点一个不存在的按钮 → 用户找不到 → 任务静默卡死。
+func grantBlockMessage(class string) string {
+	return "这一步要你点头：「" + actionClassCN(class) + "」。" +
+		"在下面的对话里说一句就行，例如「可以做，继续」；不想做就说「先别动这个」，我换别的路线。"
+}
+
 // actionClassCN 把类别翻成人话（拦截提示直接给人看）。
 func actionClassCN(class string) string {
 	switch class {
@@ -136,6 +156,8 @@ func actionClassCN(class string) string {
 		return "上传/写文件（webshell、落地验证文件）"
 	case "data_dump":
 		return "批量取数据"
+	case "data_write":
+		return "改业务数据（改钱/改状态/开管理员号）"
 	case "persist":
 		return "留可控账号 / 计划任务"
 	case "lateral":
@@ -421,8 +443,7 @@ func (g *Guard) preToolUse(ctx context.Context, ev hook.Event) hook.Result {
 	if ActionGate != nil && cmd != "" {
 		if cls := classifyAction(cmd); cls != "" {
 			if !ActionGate(ctx, cls) {
-				msg := "这一步需要你先授权：「" + actionClassCN(cls) + "」。" +
-					"到任务首页「下一步」卡片点『允许』，我就照这个方向继续；点『拒绝』也不会影响其它路线。"
+				msg := grantBlockMessage(cls)
 				errEvent(ctx, errev.ClassPolicyBlocked, "GrantGate", cmd)
 				if OnGrantNeeded != nil {
 					OnGrantNeeded(ctx, cls)

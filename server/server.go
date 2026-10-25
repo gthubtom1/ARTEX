@@ -4574,7 +4574,7 @@ func (s *Server) wireP0(ctx context.Context, m *Manager, dataDir string) {
 		grantAsked[k] = time.Now()
 		grantAskMu.Unlock()
 		if tk, ok := s.m.Task(strconv.FormatInt(id, 10)); ok && tk != nil {
-			s.appendReviewActivity(c, id, "需要你授权：「"+classCN(class)+"」。到任务首页「下一步」卡片点『允许』我就继续，点『拒绝』不影响其它路线。")
+			s.appendReviewActivity(c, id, "需要你点头：「"+classCN(class)+"」。在下面的对话里说一句「可以做，继续」我就照这个方向走；说「先别动这个」我就换别的路线。")
 		}
 	}
 

@@ -111,13 +111,19 @@ func buildOnePager(t *Task, st impact.Stats, rows []lootRow, fs []lootFinding, b
 	}
 
 	// 拿到什么数据（表名/字段来自战果行对象抽取）
-	for _, r := range rows {
-		if r.Status != "done" {
-			continue
-		}
-		if r.Key == "data" || r.Key == "db" {
-			for _, o := range r.Objects {
-				out.DataObjects = append(out.DataObjects, o)
+	//
+	// P0-08：只有真的读到数据（DataSamples>0，即"有可解析的样本证据"）才列数据对象。
+	// 以前只要战果行 status=done（= 漏洞文字里出现"用户表/订单"）就列，
+	// 结果一页纸前半句"只有漏洞"、后半句"User 表：口令"，自己打自己脸。
+	if st.DataSamples > 0 {
+		for _, r := range rows {
+			if r.Status != "done" {
+				continue
+			}
+			if r.Key == "data" || r.Key == "db" {
+				for _, o := range r.Objects {
+					out.DataObjects = append(out.DataObjects, o)
+				}
 			}
 		}
 	}
@@ -154,7 +160,12 @@ func buildOnePager(t *Task, st impact.Stats, rows []lootRow, fs []lootFinding, b
 		out.Gaps = append(out.Gaps, "还没有命令执行")
 	}
 	for _, b := range blockers {
-		out.Gaps = append(out.Gaps, "存在阻塞："+b.Class+"（"+b.Advice+"）")
+		// P0-08：不给委托人看机器码（target_blocked / policy_blocked …），只讲人话。
+		advice := strings.TrimSpace(b.Advice)
+		if advice == "" {
+			advice = blockerAdvice(b.Class)
+		}
+		out.Gaps = append(out.Gaps, "卡在这里："+advice)
 	}
 	if len(out.Gaps) > 4 {
 		out.Gaps = out.Gaps[:4]

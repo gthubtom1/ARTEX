@@ -95,8 +95,11 @@ func (s *Server) registerBriefRoutes(mux *http.ServeMux) {
 // briefCan 组装「每个漏洞能换到什么」。
 // 优先用 AI 缓存（source=ai / cached=true），否则用规则模板 abilityText（source=rule）。
 // 缓存命中要求 evidence_hash 与当前证据一致：证据改了就不再拿旧解释充数。
-func (s *Server) briefCan(ctx context.Context, t *Task, taskID int64, rows []lootRow, stats impact.Stats) []briefAbility {
+func (s *Server) briefCan(ctx context.Context, t *Task, taskID int64, rows []lootRow) []briefAbility {
 	out := []briefAbility{}
+	// P0-02：三段式的"已成立"只能用**这条洞自己**的证据算，不能因为任务里别的洞读到了数据就跟着亮。
+	scan := s.impactScan(ctx, t, taskID)
+	stats := scan.global
 	cache := s.briefAbilityCache(ctx, taskID)
 	byID := map[int64]lootFinding{}
 	if t != nil {
@@ -108,7 +111,13 @@ func (s *Server) briefCan(ctx context.Context, t *Task, taskID int64, rows []loo
 		item := briefAbility{FindingID: f.ID, Title: f.Title, Grants: abilityText(f.Title), Doable: true, Source: "rule"}
 		if lf, ok := byID[f.ID]; ok {
 			// 三段式：先算"这个洞到底换到没换到"，再谈文案。
-			st := findingStanding(lf, rows, stats)
+			local := stats
+			if ws, ok := scan.byFinding[lf.id]; ok {
+				local.Shells, local.DataSamples = ws.Shells, ws.DataSamples
+			} else {
+				local.Shells, local.DataSamples = 0, 0
+			}
+			st := findingStanding(lf, rows, local)
 			item.Standing = st.Standing
 			item.Gap = st.Gap
 			item.Rows = st.Rows
@@ -162,7 +171,7 @@ func (s *Server) taskBrief(w http.ResponseWriter, r *http.Request) {
 	rows := s.lootRowsForTask(r.Context(), t, fs)
 
 	// 每个漏洞能换到什么（先 AI 缓存；没有就用规则模板，见 brief_ai.go）+ 三段式判定
-	out.Can = s.briefCan(r.Context(), t, taskID, rows, st)
+	out.Can = s.briefCan(r.Context(), t, taskID, rows)
 
 	// 未读战果（胶囊红点）：done 行的证据 id 越过 loot_seen 游标 => 算新。
 	// 读不到游标/没库时 lootSeenFindingID 返回 0，此时全部算新（首屏就该提示）。

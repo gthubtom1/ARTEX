@@ -84,6 +84,7 @@ const (
 	ClassDataDump  ActionClass = "data_dump"  // 批量拉数据（超过样本级）
 	ClassPersist   ActionClass = "persist"    // 加账号/计划任务/自启
 	ClassLateral   ActionClass = "lateral"    // 向其它主机发起连接
+	ClassDataWrite ActionClass = "data_write" // 改业务数据（改钱/改状态/开管理员号）
 )
 
 // Step 是一条"下一步提案"：给零基础用户看的一屏解释 + 一个授权动作。
